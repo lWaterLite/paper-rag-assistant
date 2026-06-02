@@ -6,6 +6,9 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Literal
+
 from pydantic import Field, ValidationError, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -32,6 +35,9 @@ class Settings(BaseSettings):
     max_context_chars: int = Field(default=1800, gt=0, description="进入生成阶段的最大上下文字符数")
     mock_embedding_dimension: int = Field(default=16, gt=0, description="mock embedding 的向量维度")
     require_citation: bool = Field(default=True, description="回答是否要求包含引用")
+    retrieval_strategy: Literal["vector", "bm25", "hybrid"] = Field(default="vector", description="检索策略")
+    index_storage_path: Path = Field(default=Path("data/indexes"), description="索引持久化目录")
+    debug_trace: bool = Field(default=False, description="是否在响应中返回完整 trace")
 
     @model_validator(mode="after")
     def validate_chunk_window(self) -> "Settings":
