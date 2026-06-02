@@ -7,10 +7,15 @@ python -m unittest discover -s tests
 
 from __future__ import annotations
 
+import os
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+
+from pydantic import ValidationError
 
 from app.core.config import Settings
+from app.core.errors import AppError, ErrorCode
 from app.indexing.index_builder import IndexBuilder
 from app.pipeline import RagPipeline
 
@@ -37,6 +42,26 @@ class SubmoduleOneScaffoldTest(unittest.TestCase):
         self.assertLessEqual(len(answer.retrieved_chunks), settings.top_k)
         self.assertGreater(len(answer.citations), 0)
 
+    def test_settings_rejects_invalid_chunk_overlap(self) -> None:
+        with self.assertRaises(ValidationError) as context:
+            Settings(chunk_size=100, chunk_overlap=100)
+
+        self.assertIn("chunk_overlap", str(context.exception))
+
+    def test_settings_from_env_parses_bool_values(self) -> None:
+        with patch.dict(os.environ, {"RAG_REQUIRE_CITATION": "off"}, clear=False):
+            settings = Settings.from_env()
+
+        self.assertFalse(settings.require_citation)
+
+    def test_settings_from_env_rejects_invalid_int(self) -> None:
+        with patch.dict(os.environ, {"RAG_TOP_K": "abc"}, clear=False):
+            with self.assertRaises(AppError) as context:
+                Settings.from_env()
+
+        self.assertEqual(context.exception.code, ErrorCode.INVALID_CONFIG)
+        self.assertIn("top_k", context.exception.message)
+
     # TODO 练习 14：
     # 请你继续补充测试：
     # 1. source 目录不存在时是否抛出清晰错误。
@@ -47,4 +72,3 @@ class SubmoduleOneScaffoldTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
