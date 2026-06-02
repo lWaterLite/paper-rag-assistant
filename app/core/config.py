@@ -1,47 +1,71 @@
 """应用配置。
 
-当前子模块只使用标准库读取环境变量，不直接修改你的环境。
-后续如果你需要接入真实 LLM、embedding 或向量数据库，可以在 README 中按说明自行配置。
+这里使用 pydantic-settings 管理项目配置。
+它负责从环境变量和 .env 文件读取配置，并用 pydantic 完成类型转换与字段校验。
 """
 
 from __future__ import annotations
 
-import os
-from dataclasses import dataclass
+from pydantic import Field, ValidationError, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.core.errors import AppError, ErrorCode
 
 
-@dataclass(frozen=True)
-class Settings:
+class Settings(BaseSettings):
     """RAG pipeline 的基础配置。
 
     这里故意只保留子模块 1 需要理解的配置项，避免一开始就陷入外部模型和数据库细节。
     """
 
-    chunk_size: int = 500
-    chunk_overlap: int = 80
-    top_k: int = 3
-    max_context_chars: int = 1800
-    mock_embedding_dimension: int = 16
-    require_citation: bool = True
+    model_config = SettingsConfigDict(
+        env_prefix="RAG_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        validate_default=True,
+    )
+
+    chunk_size: int = Field(default=500, gt=0, description="每个 chunk 的目标字符长度")
+    chunk_overlap: int = Field(default=80, ge=0, description="相邻 chunk 的重叠字符数")
+    top_k: int = Field(default=3, gt=0, description="检索阶段返回的候选 chunk 数量")
+    max_context_chars: int = Field(default=1800, gt=0, description="进入生成阶段的最大上下文字符数")
+    mock_embedding_dimension: int = Field(default=16, gt=0, description="mock embedding 的向量维度")
+    require_citation: bool = Field(default=True, description="回答是否要求包含引用")
+
+    @model_validator(mode="after")
+    def validate_chunk_window(self) -> "Settings":
+        """校验多个配置项之间的关系。
+
+        Field 适合校验单个字段，例如大于 0。
+        model_validator 适合校验跨字段约束，例如 overlap 必须小于 chunk_size。
+        """
+
+        if self.chunk_overlap >= self.chunk_size:
+            raise ValueError(
+                f"chunk_overlap 必须小于 chunk_size，当前 chunk_overlap={self.chunk_overlap}，"
+                f"chunk_size={self.chunk_size}"
+            )
+        return self
 
     @classmethod
     def from_env(cls) -> "Settings":
         """从环境变量读取配置。
 
-        TODO 练习 1：
-        当前实现只做了最简单的 int 转换。
-        请你补充更健壮的配置校验，例如：
-        1. chunk_size 必须大于 0。
-        2. chunk_overlap 必须小于 chunk_size。
-        3. top_k 必须大于 0。
-        4. max_context_chars 必须大于 0。
+        业务入口使用这个方法，可以把 pydantic 的 ValidationError 转换成项目统一错误。
+        测试或内部代码也可以直接使用 Settings(...)，直接获得 pydantic 的标准校验行为。
         """
-        return cls(
-            chunk_size=int(os.getenv("RAG_CHUNK_SIZE", "500")),
-            chunk_overlap=int(os.getenv("RAG_CHUNK_OVERLAP", "80")),
-            top_k=int(os.getenv("RAG_TOP_K", "3")),
-            max_context_chars=int(os.getenv("RAG_MAX_CONTEXT_CHARS", "1800")),
-            mock_embedding_dimension=int(os.getenv("RAG_MOCK_EMBEDDING_DIMENSION", "16")),
-            require_citation=os.getenv("RAG_REQUIRE_CITATION", "true").lower() == "true",
-        )
+        try:
+            return cls()
+        except ValidationError as exc:
+            raise AppError(ErrorCode.INVALID_CONFIG, _format_validation_error(exc)) from exc
 
+
+def _format_validation_error(error: ValidationError) -> str:
+    """把 pydantic 的校验错误整理成更适合 CLI/API 展示的中文消息。"""
+
+    messages: list[str] = []
+    for item in error.errors():
+        location = ".".join(str(part) for part in item.get("loc", ())) or "settings"
+        messages.append(f"{location}: {item.get('msg')}")
+    return "配置校验失败：" + "；".join(messages)
