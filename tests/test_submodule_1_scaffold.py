@@ -62,6 +62,35 @@ class SubmoduleOneScaffoldTest(unittest.TestCase):
         self.assertEqual(context.exception.code, ErrorCode.INVALID_CONFIG)
         self.assertIn("top_k", context.exception.message)
 
+    def test_settings_accepts_supported_retrieval_strategy(self) -> None:
+        settings = Settings(retrieval_strategy="bm25")
+
+        self.assertEqual(settings.retrieval_strategy, "bm25")
+
+    def test_settings_rejects_unsupported_retrieval_strategy(self) -> None:
+        with self.assertRaises(ValidationError) as context:
+            Settings(retrieval_strategy="random")
+
+        self.assertIn("retrieval_strategy", str(context.exception))
+
+    def test_settings_converts_index_storage_path_to_path(self) -> None:
+        settings = Settings(index_storage_path="data/custom-index")
+
+        self.assertEqual(settings.index_storage_path, Path("data/custom-index"))
+
+    def test_settings_from_env_reads_added_fields(self) -> None:
+        env = {
+            "RAG_RETRIEVAL_STRATEGY": "hybrid",
+            "RAG_INDEX_STORAGE_PATH": "data/env-index",
+            "RAG_DEBUG_TRACE": "true",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            settings = Settings.from_env()
+
+        self.assertEqual(settings.retrieval_strategy, "hybrid")
+        self.assertEqual(settings.index_storage_path, Path("data/env-index"))
+        self.assertTrue(settings.debug_trace)
+
     # TODO 练习 14：
     # 请你继续补充测试：
     # 1. source 目录不存在时是否抛出清晰错误。
