@@ -20,7 +20,7 @@ app/
   pipeline.py         # 在线 RAG 问答流程
   main.py             # CLI 入口
 data/raw/papers/      # 练习用 mock 文档
-tests/                # 标准库 unittest 自检
+tests/                # unittest 自检
 ```
 
 这个骨架已经包含两条核心流程：
@@ -51,7 +51,24 @@ LocalTextLoader
 
 我没有为你安装依赖，也没有修改虚拟环境。
 
-当前练习只使用 Python 标准库，因此理论上不需要额外安装依赖。
+当前练习已经使用 `pydantic` 和 `pydantic-settings` 来管理项目配置。它们已经写入 `pyproject.toml`，但你需要自行同步或安装依赖。
+
+如果你使用 uv，可以运行：
+
+```powershell
+uv sync
+```
+
+如果你使用 pip，可以运行：
+
+```powershell
+python -m pip install "pydantic>=2.7" "pydantic-settings>=2.2"
+```
+
+这两个库的作用：
+
+- `pydantic`：负责类型转换、字段约束和跨字段校验。
+- `pydantic-settings`：负责从环境变量、`.env` 文件等来源读取配置。
 
 如果你后续要把它升级成真实工程，可以自行考虑这些配置：
 
@@ -96,7 +113,7 @@ python -m app.main index --source data/raw/papers
 python -m app.main ask "RAG 为什么需要引用？" --source data/raw/papers
 ```
 
-运行标准库自检：
+运行自检：
 
 ```powershell
 python -m unittest discover -s tests
@@ -163,17 +180,26 @@ python -m unittest discover -s tests
 
 位置：`app/core/config.py`
 
-任务：
+当前已升级为 `pydantic-settings` 方案。你需要重点阅读：
 
-- 校验 `chunk_size > 0`。
-- 校验 `chunk_overlap < chunk_size`。
-- 校验 `top_k > 0`。
-- 校验 `max_context_chars > 0`。
-- 当配置非法时抛出清晰错误。
+- `SettingsConfigDict`
+- `Field(default=..., gt=..., ge=...)`
+- `model_validator(mode="after")`
+- `Settings.from_env()`
+- `ValidationError` 和项目统一 `AppError` 的区别
+
+追加任务：
+
+- 增加 `retrieval_strategy` 配置，只允许 `vector`、`bm25`、`hybrid`。
+- 增加 `index_storage_path` 配置，并思考它应该是字符串还是 `Path`。
+- 增加 `debug_trace` 配置，用来控制响应中是否返回完整 trace。
+- 为新增配置补充测试。
 
 思考：
 
 - 配置错误应该在应用启动时暴露，还是等到请求执行时暴露？
+- 为什么实际工程里通常不建议在业务代码中到处调用 `os.getenv()`？
+- 为什么跨字段校验不适合只用 `Field` 完成？
 
 ### 练习 2：doc_id 设计
 
@@ -395,4 +421,3 @@ python -m unittest discover -s tests
 这些不是遗漏，而是为了让你先掌握 RAG 工程结构。
 
 子模块 2 会逐步进入文档解析和清洗，子模块 3 会深入 chunking，后续再接 embedding、向量库、hybrid retrieval、rerank 和 evaluation。
-
