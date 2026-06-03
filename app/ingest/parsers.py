@@ -15,7 +15,7 @@ class PlainTextParser:
         """解析纯文本或 Markdown 文档。"""
 
         title = self._guess_title(document.raw_text, document.metadata.get("filename", document.doc_id))
-        cleaned_text = self._clean_text(document.raw_text)
+        cleaned_text, cleaning_metadata = self._clean_text(document.raw_text)
         return ParsedDocument(
             doc_id=document.doc_id,
             content_hash=document.content_hash,
@@ -23,10 +23,14 @@ class PlainTextParser:
             title=title,
             text=cleaned_text,
             source_path=document.source_path,
-            metadata=document.metadata,
+            metadata={
+                **document.metadata,
+                **cleaning_metadata,
+            },
         )
 
-    def _guess_title(self, text: str, fallback: str) -> str:
+    @staticmethod
+    def _guess_title(text: str, fallback: str) -> str:
         """从文档中猜测标题。"""
 
         for line in text.splitlines():
@@ -36,7 +40,8 @@ class PlainTextParser:
             return stripped.lstrip("#").strip() or fallback
         return fallback
 
-    def _clean_text(self, text: str) -> str:
+    @staticmethod
+    def _clean_text(text: str) -> tuple[str, dict[str, int]]:
         """基础清洗。
 
         TODO 练习 3：
@@ -47,4 +52,27 @@ class PlainTextParser:
         3. 保留 Markdown 标题但规范化空白。
         """
 
-        return text.strip()
+        lines = text.splitlines()
+        cleaned_lines: list[str] = []
+        previous_blank = False
+        for line in lines:
+            cleaned_line = line.rstrip()
+            title_candidate = cleaned_line.strip()
+
+            if title_candidate.startswith("#"):
+                parts = title_candidate.split(maxsplit=1)
+                cleaned_line = f"{parts[0]} {parts[1].strip()}" if len(parts) == 2 else parts[0]
+
+            is_blank = cleaned_line.strip() == ""
+            if is_blank and previous_blank:
+                continue
+
+            cleaned_lines.append(cleaned_line)
+            previous_blank = is_blank
+
+        cleaned_text = "\n".join(cleaned_lines).strip()
+
+        return cleaned_text, {
+            "raw_text_length": len(text),
+            "cleaned_text_length": len(cleaned_text),
+        }
