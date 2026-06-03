@@ -42,6 +42,7 @@ class SimpleContextPacker:
                     citation_id=citation_id,
                     chunk_id=chunk.chunk_id,
                     doc_id=chunk.doc_id,
+                    version_id=chunk.version_id,
                     title=chunk.title,
                     source_path=chunk.source_path,
                     snippet=chunk.text[:180],
@@ -64,4 +65,3 @@ class SimpleContextPacker:
     # 2. 重复内容去重。
     # 3. 当一个 chunk 超长时做摘要或截断。
     # 4. 在返回结果中说明哪些 chunk 被丢弃以及原因。
-

@@ -18,6 +18,8 @@ class PlainTextParser:
         cleaned_text = self._clean_text(document.raw_text)
         return ParsedDocument(
             doc_id=document.doc_id,
+            content_hash=document.content_hash,
+            version_id=document.version_id,
             title=title,
             text=cleaned_text,
             source_path=document.source_path,
@@ -46,4 +48,3 @@ class PlainTextParser:
         """
 
         return text.strip()
-

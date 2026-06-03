@@ -40,18 +40,26 @@ class LocalTextLoader:
             raise AppError(ErrorCode.DOCUMENT_LOAD_FAILED, f"文件不是有效 UTF-8 文本：{path}") from exc
 
         doc_id = self._build_doc_id(path)
+        content_hash = self._build_content_hash(text)
+        version_id = self._build_version_id(doc_id, content_hash)
+
         return RawDocument(
             doc_id=doc_id,
             source_path=str(path),
             file_type=path.suffix.lower().lstrip("."),
+            content_hash=content_hash,
+            version_id=version_id,
             raw_text=text,
             metadata={
                 "filename": path.name,
                 "suffix": path.suffix.lower(),
+                "content_hash": content_hash,
+                "version_id": version_id,
             },
         )
 
-    def _build_doc_id(self, path: Path) -> str:
+    @staticmethod
+    def _build_doc_id(path: Path) -> str:
         """根据路径生成稳定 doc_id。
 
         TODO 练习 2：
@@ -59,6 +67,19 @@ class LocalTextLoader:
         请你思考：真实系统中 doc_id 应该只和路径有关，还是应该和内容 hash、版本号有关？
         """
 
-        digest = hashlib.sha1(str(path).encode("utf-8")).hexdigest()[:12]
+        normalized_path = path.resolve().as_posix()
+        digest = hashlib.sha1(normalized_path.encode("utf-8")).hexdigest()[:12]
         return f"doc_{digest}"
 
+    @staticmethod
+    def _build_content_hash(text: str) -> str:
+        """根据原始文本生成内容指纹。"""
+
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _build_version_id(doc_id: str, content_hash: str) -> str:
+        """根据文档身份和内容指纹生成版本 ID。"""
+
+        digest = hashlib.sha1(f"{doc_id}:{content_hash}".encode("utf-8")).hexdigest()[:12]
+        return f"v_{digest}"

@@ -44,6 +44,8 @@ class InMemoryVectorStore:
                 RetrievedChunk(
                     chunk_id=chunk.chunk_id,
                     doc_id=chunk.doc_id,
+                    content_hash=chunk.content_hash,
+                    version_id=chunk.version_id,
                     text=chunk.text,
                     score=round(score, 4),
                     rank=rank,
@@ -72,4 +74,3 @@ class InMemoryVectorStore:
     # TODO 练习 6：
     # 当前 search 没有检查 query_vector 和记录向量的维度是否一致。
     # 请你补充维度检查，并为维度不一致设计一个清晰错误。
-

@@ -31,6 +31,8 @@ class RawDocument:
     doc_id: str
     source_path: str
     file_type: str
+    content_hash: str
+    version_id: str
     raw_text: str
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -43,6 +45,8 @@ class ParsedDocument:
     """
 
     doc_id: str
+    content_hash: str
+    version_id: str
     title: str
     text: str
     source_path: str
@@ -58,6 +62,8 @@ class DocumentChunk:
 
     chunk_id: str
     doc_id: str
+    content_hash: str
+    version_id: str
     text: str
     source_path: str
     chunk_index: int
@@ -78,6 +84,8 @@ class RetrievedChunk:
 
     chunk_id: str
     doc_id: str
+    content_hash: str
+    version_id: str
     text: str
     score: float
     rank: int
@@ -97,6 +105,7 @@ class Citation:
     citation_id: str
     chunk_id: str
     doc_id: str
+    version_id: str
     title: str | None
     source_path: str
     snippet: str
@@ -158,4 +167,3 @@ class RagTrace:
         """整个请求从开始到当前的耗时。"""
 
         return round((time.perf_counter() - self.started_at) * 1000, 2)
-
