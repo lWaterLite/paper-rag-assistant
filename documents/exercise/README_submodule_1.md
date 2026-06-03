@@ -375,7 +375,11 @@ python -m unittest discover -s tests
 
 ### 练习 14：补充自检测试
 
-位置：`tests/test_submodule_1_scaffold.py`
+位置：
+
+- `tests/test_config_settings.py`
+- `tests/test_document_identity.py`
+- `tests/test_rag_pipeline.py`
 
 任务：
 
