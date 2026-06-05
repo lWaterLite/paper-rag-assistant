@@ -72,6 +72,7 @@ class InMemoryVectorStore:
                     rank=rank,
                     retriever="vector",
                     source_path=chunk.source_path,
+                    chunk_index=chunk.chunk_index,
                     title=chunk.title,
                     section=chunk.section,
                     page_start=chunk.page_start,

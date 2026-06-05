@@ -50,6 +50,7 @@ class RagPipeline:
             started,
             {
                 "used_chunks": len(packed_context.used_chunks),
+                "dropped_chunks": len(packed_context.dropped_chunks),
                 "citation_count": len(packed_context.citations),
                 "context_chars": len(packed_context.context_text),
             },
@@ -70,4 +71,3 @@ class RagPipeline:
     # 当前 pipeline 没有异常捕获和失败 trace。
     # 请你为 retrieval、context_packing、generation 三个阶段补充错误处理，
     # 让失败时也能记录 final_status 和 failure_type。
-

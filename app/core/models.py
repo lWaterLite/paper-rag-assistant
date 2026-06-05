@@ -91,6 +91,7 @@ class RetrievedChunk:
     rank: int
     retriever: str
     source_path: str
+    chunk_index: int
     title: str | None = None
     section: str | None = None
     page_start: int | None = None
