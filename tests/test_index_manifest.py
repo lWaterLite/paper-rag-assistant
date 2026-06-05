@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from app.storage.manifest import IndexManifest
+from app.indexing.manifest import IndexManifest
 
 
 class IndexManifestTest(unittest.TestCase):

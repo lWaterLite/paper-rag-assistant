@@ -13,7 +13,7 @@ from app.indexing.vector_store import InMemoryVectorStore
 from app.ingest.chunkers import CharacterChunker
 from app.ingest.loaders import LocalTextLoader
 from app.ingest.parsers import PlainTextParser
-from app.storage.manifest import IndexManifest
+from app.indexing.manifest import IndexManifest
 from app.storage.repositories import InMemoryDocumentRepository
 
 
