@@ -33,6 +33,15 @@ class InMemoryVectorStoreTest(unittest.TestCase):
 
         self.assertEqual(store.dimension, 3)
         self.assertEqual(store.count(), 1)
+        self.assertTrue(store.contains_chunk("chunk_test"))
+
+    def test_add_ignores_duplicate_chunk_id(self) -> None:
+        store = InMemoryVectorStore()
+
+        store.add(build_chunk("chunk_same"), [1.0, 0.0])
+        store.add(build_chunk("chunk_same"), [1.0, 0.0])
+
+        self.assertEqual(store.count(), 1)
 
     def test_add_rejects_vector_with_different_dimension(self) -> None:
         store = InMemoryVectorStore()
