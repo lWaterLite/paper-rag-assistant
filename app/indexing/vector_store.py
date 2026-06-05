@@ -26,6 +26,7 @@ class InMemoryVectorStore:
 
     def __init__(self) -> None:
         self._records: list[VectorRecord] = []
+        self._chunk_ids: set[str] = set()
         self._dimension: int | None = None
 
     def add(self, chunk: DocumentChunk, vector: list[float]) -> None:
@@ -37,7 +38,11 @@ class InMemoryVectorStore:
         else:
             self._ensure_dimension(vector, ErrorCode.INDEX_FAILED, "写入向量")
 
+        if chunk.chunk_id in self._chunk_ids:
+            return
+
         self._records.append(VectorRecord(chunk=chunk, vector=vector))
+        self._chunk_ids.add(chunk.chunk_id)
 
     def search(self, query_vector: list[float], top_k: int) -> list[RetrievedChunk]:
         """基于余弦相似度搜索 top-k。"""
@@ -78,6 +83,11 @@ class InMemoryVectorStore:
 
     def count(self) -> int:
         return len(self._records)
+
+    def contains_chunk(self, chunk_id: str) -> bool:
+        """判断向量库中是否已经存在某个 chunk。"""
+
+        return chunk_id in self._chunk_ids
 
     @property
     def dimension(self) -> int | None:

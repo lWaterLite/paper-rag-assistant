@@ -7,7 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app.core.config import Settings
-from app.core.models import RagTrace
+from app.core.models import DocumentChunk, RagTrace
+from app.indexing.embedding_cache import EmbeddingCache, InMemoryEmbeddingCache
 from app.indexing.embeddings import EmbeddingClient, MockEmbeddingClient
 from app.indexing.vector_store import InMemoryVectorStore
 from app.ingest.chunkers import CharacterChunker
@@ -26,6 +27,9 @@ class IndexBuildResult:
     vector_count: int
     manifest: IndexManifest
     trace: RagTrace
+    embedding_cache_hits: int = 0
+    embedding_cache_misses: int = 0
+    skipped_existing_chunks: int = 0
 
 
 @dataclass(frozen=True)
@@ -47,6 +51,7 @@ class IndexBuilder:
         parser: PlainTextParser | None = None,
         chunker: CharacterChunker | None = None,
         embedding_client: EmbeddingClient | None = None,
+        embedding_cache: EmbeddingCache | None = None,
         vector_store: InMemoryVectorStore | None = None,
         repository: InMemoryDocumentRepository | None = None,
     ) -> None:
@@ -55,6 +60,7 @@ class IndexBuilder:
         self._parser = parser or PlainTextParser()
         self._chunker = chunker or CharacterChunker(settings)
         self._embedding_client = embedding_client or MockEmbeddingClient(settings)
+        self._embedding_cache = embedding_cache or InMemoryEmbeddingCache()
         self._vector_store = vector_store or InMemoryVectorStore()
         self._repository = repository or InMemoryDocumentRepository()
 
@@ -84,10 +90,25 @@ class IndexBuilder:
         trace.record_stage("chunking", "success", started, {"chunk_count": len(all_chunks)})
 
         started = time.perf_counter()
-        vectors = self._embedding_client.embed_batch([chunk.text for chunk in all_chunks])
-        for chunk, vector in zip(all_chunks, vectors, strict=True):
+        chunks_to_index = [
+            chunk for chunk in all_chunks
+            if not self._vector_store.contains_chunk(chunk.chunk_id)
+        ]
+        skipped_existing_chunks = len(all_chunks) - len(chunks_to_index)
+        vectors, cache_hits, cache_misses = self._embed_chunks_with_cache(chunks_to_index)
+        for chunk, vector in zip(chunks_to_index, vectors, strict=True):
             self._vector_store.add(chunk, vector)
-        trace.record_stage("indexing", "success", started, {"vector_count": self._vector_store.count()})
+        trace.record_stage(
+            "indexing",
+            "success",
+            started,
+            {
+                "vector_count": self._vector_store.count(),
+                "embedding_cache_hits": cache_hits,
+                "embedding_cache_misses": cache_misses,
+                "skipped_existing_chunks": skipped_existing_chunks,
+            },
+        )
 
         manifest = IndexManifest.build(
             source_dir=source_dir,
@@ -114,12 +135,39 @@ class IndexBuilder:
             vector_count=self._vector_store.count(),
             manifest=manifest,
             trace=trace,
+            embedding_cache_hits=cache_hits,
+            embedding_cache_misses=cache_misses,
+            skipped_existing_chunks=skipped_existing_chunks,
         )
         return index, result
 
-    # TODO 练习 8：
-    # 当前 build_from_directory 每次都会从头构建索引。
-    # 请你思考真实项目中如何避免重复 embedding：
-    # 1. 根据 chunk_id 判断是否已经存在。
-    # 2. 根据文本 hash 判断内容是否变化。
-    # 3. 把 embedding cache 保存到本地文件或数据库。
+    def _embed_chunks_with_cache(self, chunks: list[DocumentChunk]) -> tuple[list[list[float]], int, int]:
+        """使用缓存批量生成 chunk embedding。
+
+        缓存命中时直接复用向量；未命中时集中批量请求 embedding client，再写回缓存。
+        """
+
+        vectors: list[list[float] | None] = [None] * len(chunks)
+        missing_indices: list[int] = []
+        missing_texts: list[str] = []
+        cache_hits = 0
+
+        for index, chunk in enumerate(chunks):
+            cached_vector = self._embedding_cache.get(self._embedding_client, chunk.text)
+            if cached_vector is None:
+                missing_indices.append(index)
+                missing_texts.append(chunk.text)
+                continue
+            vectors[index] = cached_vector
+            cache_hits += 1
+
+        new_vectors = self._embedding_client.embed_batch(missing_texts)
+        for chunk_index, vector in zip(missing_indices, new_vectors, strict=True):
+            chunk_text = chunks[chunk_index].text
+            self._embedding_cache.set(self._embedding_client, chunk_text, vector)
+            vectors[chunk_index] = vector
+
+        resolved_vectors = [vector for vector in vectors if vector is not None]
+        if len(resolved_vectors) != len(chunks):
+            raise RuntimeError("embedding cache 内部错误：部分 chunk 没有生成向量")
+        return resolved_vectors, cache_hits, len(missing_indices)
