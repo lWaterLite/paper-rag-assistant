@@ -13,6 +13,7 @@ from app.indexing.vector_store import InMemoryVectorStore
 from app.ingest.chunkers import CharacterChunker
 from app.ingest.loaders import LocalTextLoader
 from app.ingest.parsers import PlainTextParser
+from app.storage.manifest import IndexManifest
 from app.storage.repositories import InMemoryDocumentRepository
 
 
@@ -23,6 +24,7 @@ class IndexBuildResult:
     document_count: int
     chunk_count: int
     vector_count: int
+    manifest: IndexManifest
     trace: RagTrace
 
 
@@ -87,6 +89,20 @@ class IndexBuilder:
             self._vector_store.add(chunk, vector)
         trace.record_stage("indexing", "success", started, {"vector_count": self._vector_store.count()})
 
+        manifest = IndexManifest.build(
+            source_dir=source_dir,
+            chunker=type(self._chunker).__name__,
+            chunk_size=self._settings.chunk_size,
+            chunk_overlap=self._settings.chunk_overlap,
+            embedding_provider=self._embedding_client.provider,
+            embedding_model=self._embedding_client.model_name,
+            embedding_dimension=self._embedding_client.dimension,
+            document_count=len(raw_documents),
+            chunk_count=len(all_chunks),
+            vector_count=self._vector_store.count(),
+            document_versions={document.doc_id: document.version_id for document in raw_documents},
+        )
+
         index = RagIndex(
             vector_store=self._vector_store,
             repository=self._repository,
@@ -96,6 +112,7 @@ class IndexBuilder:
             document_count=len(raw_documents),
             chunk_count=len(all_chunks),
             vector_count=self._vector_store.count(),
+            manifest=manifest,
             trace=trace,
         )
         return index, result
@@ -106,4 +123,3 @@ class IndexBuilder:
     # 1. 根据 chunk_id 判断是否已经存在。
     # 2. 根据文本 hash 判断内容是否变化。
     # 3. 把 embedding cache 保存到本地文件或数据库。
-

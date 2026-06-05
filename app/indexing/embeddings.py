@@ -15,6 +15,18 @@ from app.core.config import Settings
 class EmbeddingClient(Protocol):
     """Embedding 客户端协议。"""
 
+    @property
+    def provider(self) -> str:
+        """Embedding 服务提供方。"""
+
+    @property
+    def model_name(self) -> str:
+        """Embedding 模型名称。"""
+
+    @property
+    def dimension(self) -> int:
+        """Embedding 向量维度。"""
+
     def embed_text(self, text: str) -> list[float]:
         """将单段文本转换为向量。"""
 
@@ -30,6 +42,18 @@ class MockEmbeddingClient:
 
     def __init__(self, settings: Settings) -> None:
         self._dimension = settings.mock_embedding_dimension
+
+    @property
+    def provider(self) -> str:
+        return "mock"
+
+    @property
+    def model_name(self) -> str:
+        return "mock-hash-embedding"
+
+    @property
+    def dimension(self) -> int:
+        return self._dimension
 
     def embed_text(self, text: str) -> list[float]:
         digest = hashlib.blake2b(text.encode("utf-8"), digest_size=self._dimension).digest()
@@ -48,4 +72,3 @@ class MockEmbeddingClient:
     # 3. api_key
     # 4. batch_size
     # 5. timeout
-
