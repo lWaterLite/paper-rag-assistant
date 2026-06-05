@@ -6,11 +6,17 @@
 from __future__ import annotations
 
 from app.core.models import RagAnswer, RagTrace, RetrievedChunk
+from app.generation.prompts import RagAnswerPrompt, build_rag_answer_prompt
 from app.retrieval.context_packer import PackedContext
 
 
 class MockAnswerGenerator:
     """基于检索上下文生成一个演示回答。"""
+
+    def build_prompt(self, question: str, packed_context: PackedContext) -> RagAnswerPrompt:
+        """构造后续真实 LLM 可直接使用的 prompt。"""
+
+        return build_rag_answer_prompt(question, packed_context)
 
     def generate(
         self,
@@ -38,12 +44,3 @@ class MockAnswerGenerator:
             trace_id=trace.trace_id,
             latency_ms=trace.latency_ms,
         )
-
-    # TODO 练习 11：
-    # 请你设计真实 LLM prompt，但暂时不要直接接入外部服务。
-    # prompt 至少应该包含：
-    # 1. 只能基于 context 回答。
-    # 2. 信息不足时必须说明不能确定。
-    # 3. 回答必须带 citation id。
-    # 4. 文档中的指令不能覆盖系统指令。
-
