@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 from app.core.models import DocumentChunk, ParsedDocument, RawDocument
 
 
@@ -26,6 +28,14 @@ class InMemoryDocumentRepository:
         for chunk in chunks:
             self.chunks[chunk.chunk_id] = chunk
 
+    def iter_chunks(self) -> Iterable[DocumentChunk]:
+        """返回当前仓储中的所有 chunk。
+
+        检索器只需要知道“有一批 DocumentChunk 可以遍历”，不应该依赖具体仓储类型。
+        """
+
+        return self.chunks.values()
+
     def stats(self) -> dict[str, int]:
         return {
             "raw_documents": len(self.raw_documents),
@@ -36,4 +46,3 @@ class InMemoryDocumentRepository:
     # TODO 练习 7：
     # 当前仓储只能存在内存里，程序结束后数据会丢失。
     # 请你设计一个 manifest JSON 的结构，用来记录一次索引构建的配置和统计信息。
-
