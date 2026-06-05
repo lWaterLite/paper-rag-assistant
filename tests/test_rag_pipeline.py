@@ -6,8 +6,11 @@ import unittest
 from pathlib import Path
 
 from app.core.config import Settings
+from app.core.errors import AppError, ErrorCode
+from app.core.models import RagAnswer
 from app.indexing.index_builder import IndexBuilder
 from app.pipeline import RagPipeline
+from app.retrieval.context_packer import PackedContext
 
 
 SAMPLE_SOURCE_DIR = Path("data/raw/papers")
@@ -41,6 +44,112 @@ class RagPipelineTest(unittest.TestCase):
         self.assertTrue(answer.trace_id.startswith("trace_"))
         self.assertLessEqual(len(answer.retrieved_chunks), settings.top_k)
         self.assertGreater(len(answer.citations), 0)
+
+    def test_pipeline_marks_trace_success_when_all_stages_succeed(self) -> None:
+        settings = Settings(chunk_size=120, chunk_overlap=20, top_k=2)
+        index, _ = IndexBuilder(settings).build_from_directory(SAMPLE_SOURCE_DIR)
+        answer_generator = CapturingAnswerGenerator()
+        pipeline = RagPipeline(settings=settings, index=index, answer_generator=answer_generator)
+
+        pipeline.ask("正常问题")
+
+        self.assertIsNotNone(answer_generator.trace)
+        self.assertEqual(answer_generator.trace.final_status, "success")
+        self.assertIsNone(answer_generator.trace.failure_type)
+
+    def test_pipeline_records_failure_trace_when_retrieval_fails(self) -> None:
+        settings = Settings(chunk_size=120, chunk_overlap=20, top_k=2)
+        index, _ = IndexBuilder(settings).build_from_directory(SAMPLE_SOURCE_DIR)
+        pipeline = RagPipeline(settings=settings, index=index, retriever=FailingRetriever())
+
+        with self.assertRaises(AppError) as context:
+            pipeline.ask("会失败的问题")
+
+        error = context.exception
+        self.assertEqual(error.code, ErrorCode.RETRIEVAL_FAILED)
+        self.assertIsNotNone(error.trace_id)
+        self.assertEqual(error.trace.final_status, "error")
+        self.assertEqual(error.trace.failure_type, "retrieval")
+        self.assertEqual(error.trace.stages[-1].stage, "retrieval")
+        self.assertEqual(error.trace.stages[-1].status, "error")
+
+    def test_pipeline_records_failure_trace_when_context_packing_fails(self) -> None:
+        settings = Settings(chunk_size=120, chunk_overlap=20, top_k=2)
+        index, _ = IndexBuilder(settings).build_from_directory(SAMPLE_SOURCE_DIR)
+        pipeline = RagPipeline(settings=settings, index=index, context_packer=FailingContextPacker())
+
+        with self.assertRaises(AppError) as context:
+            pipeline.ask("会失败的问题")
+
+        error = context.exception
+        self.assertEqual(error.code, ErrorCode.RETRIEVAL_FAILED)
+        self.assertEqual(error.trace.final_status, "error")
+        self.assertEqual(error.trace.failure_type, "context_packing")
+        self.assertEqual([stage.stage for stage in error.trace.stages], ["retrieval", "context_packing"])
+
+    def test_pipeline_records_failure_trace_when_generation_fails(self) -> None:
+        settings = Settings(chunk_size=120, chunk_overlap=20, top_k=2)
+        index, _ = IndexBuilder(settings).build_from_directory(SAMPLE_SOURCE_DIR)
+        pipeline = RagPipeline(settings=settings, index=index, answer_generator=FailingAnswerGenerator())
+
+        with self.assertRaises(AppError) as context:
+            pipeline.ask("会失败的问题")
+
+        error = context.exception
+        self.assertEqual(error.code, ErrorCode.GENERATION_FAILED)
+        self.assertEqual(error.trace.final_status, "error")
+        self.assertEqual(error.trace.failure_type, "generation")
+        self.assertEqual([stage.stage for stage in error.trace.stages], ["retrieval", "context_packing", "generation"])
+
+
+class FailingRetriever:
+    """测试用失败检索器。"""
+
+    def retrieve(self, query: str, top_k: int):
+        raise AppError(ErrorCode.RETRIEVAL_FAILED, "检索失败")
+
+
+class CapturingAnswerGenerator:
+    """测试用回答生成器，用于检查成功 trace。"""
+
+    def __init__(self) -> None:
+        self.trace = None
+
+    def generate(
+        self,
+        question: str,
+        packed_context: PackedContext,
+        retrieved_chunks: list,
+        trace,
+    ) -> RagAnswer:
+        self.trace = trace
+        return RagAnswer(
+            answer="测试回答",
+            citations=packed_context.citations,
+            retrieved_chunks=retrieved_chunks,
+            trace_id=trace.trace_id,
+            latency_ms=trace.latency_ms,
+        )
+
+
+class FailingContextPacker:
+    """测试用失败上下文组织器。"""
+
+    def pack(self, chunks):
+        raise RuntimeError("上下文组织失败")
+
+
+class FailingAnswerGenerator:
+    """测试用失败回答生成器。"""
+
+    def generate(
+        self,
+        question: str,
+        packed_context: PackedContext,
+        retrieved_chunks: list,
+        trace,
+    ) -> RagAnswer:
+        raise AppError(ErrorCode.GENERATION_FAILED, "生成失败")
 
 
 if __name__ == "__main__":
