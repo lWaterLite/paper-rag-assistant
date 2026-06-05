@@ -24,6 +24,13 @@ class RagPipelineTest(unittest.TestCase):
         self.assertGreater(result.chunk_count, 0)
         self.assertEqual(result.chunk_count, result.vector_count)
         self.assertEqual(result.vector_count, index.vector_store.count())
+        self.assertEqual(result.manifest.document_count, result.document_count)
+        self.assertEqual(result.manifest.chunk_count, result.chunk_count)
+        self.assertEqual(result.manifest.vector_count, result.vector_count)
+        self.assertEqual(result.manifest.chunk_size, settings.chunk_size)
+        self.assertEqual(result.manifest.chunk_overlap, settings.chunk_overlap)
+        self.assertEqual(result.manifest.embedding_provider, "mock")
+        self.assertGreater(len(result.manifest.document_versions), 0)
 
     def test_pipeline_returns_structured_answer(self) -> None:
         settings = Settings(chunk_size=120, chunk_overlap=20, top_k=2)
@@ -38,4 +45,3 @@ class RagPipelineTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
