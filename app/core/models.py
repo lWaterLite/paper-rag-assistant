@@ -13,6 +13,7 @@ from typing import Any, Literal
 
 
 StageStatus = Literal["success", "error"]
+TraceFinalStatus = Literal["running", "success", "error"]
 
 
 def new_id(prefix: str) -> str:
@@ -143,6 +144,9 @@ class RagTrace:
     trace_id: str = field(default_factory=lambda: new_id("trace"))
     started_at: float = field(default_factory=time.perf_counter)
     stages: list[PipelineStageRun] = field(default_factory=list)
+    final_status: TraceFinalStatus = "running"
+    failure_type: str | None = None
+    error_message: str | None = None
 
     def record_stage(
         self,
@@ -162,6 +166,20 @@ class RagTrace:
                 detail=detail or {},
             )
         )
+
+    def mark_success(self) -> None:
+        """标记整条 pipeline 成功结束。"""
+
+        self.final_status = "success"
+        self.failure_type = None
+        self.error_message = None
+
+    def mark_failed(self, failure_type: str, error_message: str) -> None:
+        """标记整条 pipeline 失败结束。"""
+
+        self.final_status = "error"
+        self.failure_type = failure_type
+        self.error_message = error_message
 
     @property
     def latency_ms(self) -> float:

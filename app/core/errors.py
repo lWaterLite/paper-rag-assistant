@@ -6,6 +6,7 @@ RAG 的每个阶段都可能失败。显式错误类型能帮助我们判断问�
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Any
 
 
 class ErrorCode(StrEnum):
@@ -23,8 +24,15 @@ class ErrorCode(StrEnum):
 class AppError(Exception):
     """应用内部统一异常。"""
 
-    def __init__(self, code: ErrorCode, message: str) -> None:
+    def __init__(
+        self,
+        code: ErrorCode,
+        message: str,
+        trace_id: str | None = None,
+        trace: Any | None = None,
+    ) -> None:
         super().__init__(message)
         self.code = code
         self.message = message
-
+        self.trace_id = trace_id
+        self.trace = trace
