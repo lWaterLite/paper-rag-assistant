@@ -87,6 +87,22 @@ class SimpleContextPackerTest(unittest.TestCase):
         self.assertLessEqual(len(packed.context_text), 20)
         self.assertTrue(packed.context_text.endswith("..."))
 
+    def test_pack_drops_all_chunks_when_context_budget_cannot_fit_citation_prefix(self) -> None:
+        chunks = [
+            build_retrieved_chunk("chunk_1", "短内容", chunk_index=0),
+            build_retrieved_chunk("chunk_2", "另一段", doc_id="doc_other", version_id="v_other", chunk_index=0),
+        ]
+
+        packed = SimpleContextPacker(max_context_chars=5).pack(chunks)
+
+        self.assertEqual(packed.context_text, "")
+        self.assertEqual(packed.citations, [])
+        self.assertEqual(packed.used_chunks, [])
+        self.assertEqual([chunk.chunk_id for chunk in packed.dropped_chunks], ["chunk_1", "chunk_2"])
+        self.assertTrue(
+            all(chunk.reason == "context_budget_exceeded" for chunk in packed.dropped_chunks)
+        )
+
     def test_citation_ids_remain_sequential_after_deduplication(self) -> None:
         chunks = [
             build_retrieved_chunk("chunk_1", "重复内容", chunk_index=0),

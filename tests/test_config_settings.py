@@ -26,6 +26,30 @@ class SettingsTest(unittest.TestCase):
 
         self.assertIn("chunk_overlap", str(context.exception))
 
+    def test_settings_rejects_chunk_overlap_greater_than_chunk_size(self) -> None:
+        with self.assertRaises(ValidationError) as context:
+            Settings(chunk_size=100, chunk_overlap=120)
+
+        self.assertIn("chunk_overlap", str(context.exception))
+
+    def test_settings_rejects_non_positive_chunk_size(self) -> None:
+        with self.assertRaises(ValidationError) as context:
+            Settings(chunk_size=0, chunk_overlap=0)
+
+        self.assertIn("chunk_size", str(context.exception))
+
+    def test_settings_from_env_wraps_invalid_chunk_window_as_app_error(self) -> None:
+        env = {
+            "RAG_CHUNK_SIZE": "100",
+            "RAG_CHUNK_OVERLAP": "100",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            with self.assertRaises(AppError) as context:
+                Settings.from_env()
+
+        self.assertEqual(context.exception.code, ErrorCode.INVALID_CONFIG)
+        self.assertIn("chunk_overlap", context.exception.message)
+
     def test_settings_from_env_parses_bool_values(self) -> None:
         with patch.dict(os.environ, {"RAG_REQUIRE_CITATION": "off"}, clear=False):
             settings = Settings.from_env()
@@ -72,4 +96,3 @@ class SettingsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
