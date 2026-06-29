@@ -35,6 +35,45 @@ class RawDocument:
     content_hash: str
     version_id: str
     raw_text: str
+    raw_bytes: bytes | None = None
+    source_uri: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+BlockType = Literal["title", "heading", "paragraph", "list", "table", "code", "reference", "caption", "unknown"]
+
+
+@dataclass(frozen=True)
+class ParseIssue:
+    """解析或清洗阶段发现的质量问题。"""
+
+    code: str
+    message: str
+    severity: Literal["info", "warning", "error"] = "warning"
+    page: int | None = None
+    section: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ParsedBlock:
+    """解析后的结构化文本块。
+
+    chunking 不应该只面对一个大字符串。保留 block 能让后续切分、引用和评测追溯到页码、
+    章节、表格、代码块等来源信息。
+    """
+
+    block_id: str
+    doc_id: str
+    version_id: str
+    text: str
+    block_type: BlockType
+    source_path: str
+    page_start: int | None = None
+    page_end: int | None = None
+    section: str | None = None
+    char_start: int | None = None
+    char_end: int | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
@@ -51,6 +90,8 @@ class ParsedDocument:
     title: str
     text: str
     source_path: str
+    blocks: list[ParsedBlock] = field(default_factory=list)
+    parse_issues: list[ParseIssue] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
 
 

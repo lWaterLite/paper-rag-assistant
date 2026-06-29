@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from app.core.config import Settings
@@ -12,8 +12,8 @@ from app.indexing.embedding_cache import EmbeddingCache, InMemoryEmbeddingCache
 from app.indexing.embeddings import EmbeddingClient, MockEmbeddingClient
 from app.indexing.vector_store import InMemoryVectorStore
 from app.ingest.chunkers import CharacterChunker
-from app.ingest.loaders import LocalTextLoader
-from app.ingest.parsers import PlainTextParser
+from app.ingest.loaders import LocalDocumentLoader
+from app.ingest.pipeline import IngestionFailure, IngestionPipeline
 from app.indexing.manifest import IndexManifest
 from app.storage.repositories import InMemoryDocumentRepository
 
@@ -30,6 +30,7 @@ class IndexBuildResult:
     embedding_cache_hits: int = 0
     embedding_cache_misses: int = 0
     skipped_existing_chunks: int = 0
+    ingestion_failures: list[IngestionFailure] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -47,8 +48,8 @@ class IndexBuilder:
     def __init__(
         self,
         settings: Settings,
-        loader: LocalTextLoader | None = None,
-        parser: PlainTextParser | None = None,
+        loader: LocalDocumentLoader | None = None,
+        ingestion_pipeline: IngestionPipeline | None = None,
         chunker: CharacterChunker | None = None,
         embedding_client: EmbeddingClient | None = None,
         embedding_cache: EmbeddingCache | None = None,
@@ -56,8 +57,7 @@ class IndexBuilder:
         repository: InMemoryDocumentRepository | None = None,
     ) -> None:
         self._settings = settings
-        self._loader = loader or LocalTextLoader()
-        self._parser = parser or PlainTextParser()
+        self._ingestion_pipeline = ingestion_pipeline or IngestionPipeline(loader=loader or LocalDocumentLoader())
         self._chunker = chunker or CharacterChunker(settings)
         self._embedding_client = embedding_client or MockEmbeddingClient(settings)
         self._embedding_cache = embedding_cache or InMemoryEmbeddingCache()
@@ -70,16 +70,22 @@ class IndexBuilder:
         trace = RagTrace()
 
         started = time.perf_counter()
-        raw_documents = self._loader.load_directory(source_dir)
+        ingestion_result = self._ingestion_pipeline.ingest_directory(source_dir)
+        raw_documents = ingestion_result.raw_documents
+        parsed_documents = ingestion_result.parsed_documents
         for document in raw_documents:
             self._repository.save_raw(document)
-        trace.record_stage("loading", "success", started, {"document_count": len(raw_documents)})
-
-        started = time.perf_counter()
-        parsed_documents = [self._parser.parse(document) for document in raw_documents]
         for document in parsed_documents:
             self._repository.save_parsed(document)
-        trace.record_stage("parsing", "success", started, {"document_count": len(parsed_documents)})
+        trace.record_stage(
+            "ingestion",
+            "success",
+            started,
+            {
+                "document_count": len(parsed_documents),
+                "failed_files": len(ingestion_result.failures),
+            },
+        )
 
         started = time.perf_counter()
         all_chunks = []
@@ -138,6 +144,7 @@ class IndexBuilder:
             embedding_cache_hits=cache_hits,
             embedding_cache_misses=cache_misses,
             skipped_existing_chunks=skipped_existing_chunks,
+            ingestion_failures=ingestion_result.failures,
         )
         return index, result
 
