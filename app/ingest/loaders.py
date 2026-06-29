@@ -79,6 +79,12 @@ class LocalDocumentLoaderConfig:
 
     recursive: bool = True
 
+    ignored_dir_names: frozenset[str] = frozenset({".git", ".idea", "__pycache__", ".tmp_tests"})
+    ignored_relative_paths: tuple[str, ...] = ("data/indexes",)
+    skip_hidden_paths: bool = True
+    temporary_file_prefixes: tuple[str, ...] = ("~$",)
+    temporary_file_suffixes: tuple[str, ...] = (".tmp", ".part", ".crdownload")
+
 
 class LocalDocumentLoader:
     """加载本地论文和文档文件。
@@ -130,9 +136,64 @@ class LocalDocumentLoader:
 
         globber = source_dir.rglob if self._config.recursive else source_dir.glob
 
-        for path in sorted(globber("*")):
+        for path in sorted(globber("*"), key=lambda item: item.as_posix().lower()):
+            if self._should_skip_path(path, source_dir):
+                continue
+
             if path.is_file() and path.suffix.lower() in self.supported_suffixes:
                 yield path
+
+    def _should_skip_path(self, path: Path, source_dir: Path) -> bool:
+        """判断扫描到的路径是否应该跳过。"""
+
+        relative = path.relative_to(source_dir)
+
+        if self._has_ignored_directory(relative, is_dir=path.is_dir()):
+            return True
+
+        if self._config.skip_hidden_paths and self._has_hidden_path_part(relative):
+            return True
+
+        if self._matches_ignored_relative_path(relative):
+            return True
+
+        if self._is_temporary_file(path):
+            return True
+
+        return False
+
+    def _has_ignored_directory(self, relative: Path, *, is_dir: bool) -> bool:
+        """判断路径中是否包含需要跳过的目录名。"""
+
+        parts = relative.parts if is_dir else relative.parts[:-1]
+        return any(part in self._config.ignored_dir_names for part in parts)
+
+    @staticmethod
+    def _has_hidden_path_part(relative: Path) -> bool:
+        """判断路径中是否包含隐藏目录或隐藏文件。"""
+
+        return any(part.startswith(".") for part in relative.parts)
+
+    def _matches_ignored_relative_path(self, relative: Path) -> bool:
+        """判断路径是否位于需要忽略的相对目录下。"""
+
+        relative_posix = relative.as_posix().lower()
+        ignored_paths = tuple(path.strip("/").lower() for path in self._config.ignored_relative_paths)
+
+        return any(
+            relative_posix == ignored_path or relative_posix.startswith(f"{ignored_path}/")
+            for ignored_path in ignored_paths
+            if ignored_path
+        )
+
+    def _is_temporary_file(self, path: Path) -> bool:
+        """判断文件是否是常见临时文件。"""
+
+        name = path.name.lower()
+        return (
+            name.startswith(self._config.temporary_file_prefixes)
+            or name.endswith(self._config.temporary_file_suffixes)
+        )
 
     def load_file(self, path: Path) -> RawDocument:
         """加载单个本地文件。"""
