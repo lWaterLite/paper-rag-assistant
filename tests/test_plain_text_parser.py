@@ -5,6 +5,7 @@ from __future__ import annotations
 import unittest
 
 from app.core.models import RawDocument
+from app.ingest.cleaners import BasicTextCleaner
 from app.ingest.parsers import PlainTextParser
 
 
@@ -42,7 +43,7 @@ class PlainTextParserTest(unittest.TestCase):
             metadata={"filename": "test.md"},
         )
 
-        parsed = PlainTextParser().parse(document)
+        parsed = PlainTextParser(cleaner=BasicTextCleaner()).parse(document)
 
         self.assertEqual(parsed.text, "# RAG 入门\n\n正文。")
         self.assertEqual(parsed.metadata["filename"], "test.md")
@@ -52,4 +53,3 @@ class PlainTextParserTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -8,8 +8,7 @@ from pathlib import Path
 from app.core.config import Settings
 from app.core.errors import AppError, ErrorCode
 from app.core.models import RagAnswer
-from app.indexing.index_builder import IndexBuilder
-from app.pipeline import RagPipeline
+from app.factory import build_index_builder, build_rag_pipeline
 from app.retrieval.context_packer import PackedContext
 
 
@@ -21,7 +20,7 @@ class RagPipelineTest(unittest.TestCase):
 
     def test_index_builder_builds_in_memory_index(self) -> None:
         settings = Settings(chunk_size=120, chunk_overlap=20, top_k=2)
-        index, result = IndexBuilder(settings).build_from_directory(SAMPLE_SOURCE_DIR)
+        index, result = build_index_builder(settings).build_from_directory(SAMPLE_SOURCE_DIR)
 
         self.assertGreater(result.document_count, 0)
         self.assertGreater(result.chunk_count, 0)
@@ -37,8 +36,8 @@ class RagPipelineTest(unittest.TestCase):
 
     def test_pipeline_returns_structured_answer(self) -> None:
         settings = Settings(chunk_size=120, chunk_overlap=20, top_k=2)
-        index, _ = IndexBuilder(settings).build_from_directory(SAMPLE_SOURCE_DIR)
-        answer = RagPipeline(settings=settings, index=index).ask("RAG 为什么需要引用？")
+        index, _ = build_index_builder(settings).build_from_directory(SAMPLE_SOURCE_DIR)
+        answer = build_rag_pipeline(settings=settings, index=index).ask("RAG 为什么需要引用？")
 
         self.assertTrue(answer.answer)
         self.assertTrue(answer.trace_id.startswith("trace_"))
@@ -47,9 +46,9 @@ class RagPipelineTest(unittest.TestCase):
 
     def test_pipeline_marks_trace_success_when_all_stages_succeed(self) -> None:
         settings = Settings(chunk_size=120, chunk_overlap=20, top_k=2)
-        index, _ = IndexBuilder(settings).build_from_directory(SAMPLE_SOURCE_DIR)
+        index, _ = build_index_builder(settings).build_from_directory(SAMPLE_SOURCE_DIR)
         answer_generator = CapturingAnswerGenerator()
-        pipeline = RagPipeline(settings=settings, index=index, answer_generator=answer_generator)
+        pipeline = build_rag_pipeline(settings=settings, index=index, answer_generator=answer_generator)
 
         pipeline.ask("正常问题")
 
@@ -59,8 +58,8 @@ class RagPipelineTest(unittest.TestCase):
 
     def test_pipeline_records_failure_trace_when_retrieval_fails(self) -> None:
         settings = Settings(chunk_size=120, chunk_overlap=20, top_k=2)
-        index, _ = IndexBuilder(settings).build_from_directory(SAMPLE_SOURCE_DIR)
-        pipeline = RagPipeline(settings=settings, index=index, retriever=FailingRetriever())
+        index, _ = build_index_builder(settings).build_from_directory(SAMPLE_SOURCE_DIR)
+        pipeline = build_rag_pipeline(settings=settings, index=index, retriever=FailingRetriever())
 
         with self.assertRaises(AppError) as context:
             pipeline.ask("会失败的问题")
@@ -75,8 +74,8 @@ class RagPipelineTest(unittest.TestCase):
 
     def test_pipeline_records_failure_trace_when_context_packing_fails(self) -> None:
         settings = Settings(chunk_size=120, chunk_overlap=20, top_k=2)
-        index, _ = IndexBuilder(settings).build_from_directory(SAMPLE_SOURCE_DIR)
-        pipeline = RagPipeline(settings=settings, index=index, context_packer=FailingContextPacker())
+        index, _ = build_index_builder(settings).build_from_directory(SAMPLE_SOURCE_DIR)
+        pipeline = build_rag_pipeline(settings=settings, index=index, context_packer=FailingContextPacker())
 
         with self.assertRaises(AppError) as context:
             pipeline.ask("会失败的问题")
@@ -89,8 +88,8 @@ class RagPipelineTest(unittest.TestCase):
 
     def test_pipeline_records_failure_trace_when_generation_fails(self) -> None:
         settings = Settings(chunk_size=120, chunk_overlap=20, top_k=2)
-        index, _ = IndexBuilder(settings).build_from_directory(SAMPLE_SOURCE_DIR)
-        pipeline = RagPipeline(settings=settings, index=index, answer_generator=FailingAnswerGenerator())
+        index, _ = build_index_builder(settings).build_from_directory(SAMPLE_SOURCE_DIR)
+        pipeline = build_rag_pipeline(settings=settings, index=index, answer_generator=FailingAnswerGenerator())
 
         with self.assertRaises(AppError) as context:
             pipeline.ask("会失败的问题")

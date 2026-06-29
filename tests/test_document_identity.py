@@ -8,8 +8,9 @@ from pathlib import Path
 
 from app.core.config import Settings
 from app.core.errors import AppError, ErrorCode
+from app.factory import build_local_text_loader
 from app.ingest.chunkers import CharacterChunker
-from app.ingest.loaders import LocalTextLoader
+from app.ingest.cleaners import BasicTextCleaner
 from app.ingest.parsers import PlainTextParser
 
 
@@ -23,13 +24,13 @@ class DocumentIdentityTest(unittest.TestCase):
         missing_dir = Path("tests") / f"missing_{uuid.uuid4().hex}"
 
         with self.assertRaises(AppError) as context:
-            LocalTextLoader().load_directory(missing_dir)
+            build_local_text_loader(Settings()).load_directory(missing_dir)
 
         self.assertEqual(context.exception.code, ErrorCode.DOCUMENT_LOAD_FAILED)
         self.assertIn("文档目录不存在", context.exception.message)
 
     def test_loader_keeps_stable_doc_id_and_changes_version_when_content_changes(self) -> None:
-        loader = LocalTextLoader()
+        loader = build_local_text_loader(Settings())
         first = loader.load_file(SAMPLE_DOCUMENT)
         second = loader.load_file(SAMPLE_DOCUMENT)
 
@@ -44,8 +45,8 @@ class DocumentIdentityTest(unittest.TestCase):
         self.assertNotEqual(first.version_id, changed_version_id)
 
     def test_parser_and_chunker_preserve_document_version_fields(self) -> None:
-        raw_document = LocalTextLoader().load_file(SAMPLE_DOCUMENT)
-        parsed_document = PlainTextParser().parse(raw_document)
+        raw_document = build_local_text_loader(Settings()).load_file(SAMPLE_DOCUMENT)
+        parsed_document = PlainTextParser(cleaner=BasicTextCleaner()).parse(raw_document)
         chunks = CharacterChunker(Settings(chunk_size=120, chunk_overlap=20)).split(parsed_document)
 
         self.assertEqual(parsed_document.content_hash, raw_document.content_hash)
@@ -56,8 +57,8 @@ class DocumentIdentityTest(unittest.TestCase):
 
     def test_chunk_id_is_stable_for_same_document_version(self) -> None:
         settings = Settings(chunk_size=80, chunk_overlap=10)
-        loader = LocalTextLoader()
-        parser = PlainTextParser()
+        loader = build_local_text_loader(settings)
+        parser = PlainTextParser(cleaner=BasicTextCleaner())
         chunker = CharacterChunker(settings)
 
         first_chunks = chunker.split(parser.parse(loader.load_file(SAMPLE_DOCUMENT)))

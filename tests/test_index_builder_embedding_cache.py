@@ -6,8 +6,8 @@ import unittest
 from pathlib import Path
 
 from app.core.config import Settings
+from app.factory import build_index_builder
 from app.indexing.embedding_cache import InMemoryEmbeddingCache
-from app.indexing.index_builder import IndexBuilder
 
 
 class CountingEmbeddingClient:
@@ -46,10 +46,10 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
         cache = InMemoryEmbeddingCache()
         client = CountingEmbeddingClient()
 
-        first_builder = IndexBuilder(settings, embedding_client=client, embedding_cache=cache)
+        first_builder = build_index_builder(settings, embedding_client=client, embedding_cache=cache)
         _, first_result = first_builder.build_from_directory(Path("data/raw/papers"))
 
-        second_builder = IndexBuilder(settings, embedding_client=client, embedding_cache=cache)
+        second_builder = build_index_builder(settings, embedding_client=client, embedding_cache=cache)
         _, second_result = second_builder.build_from_directory(Path("data/raw/papers"))
 
         self.assertEqual(first_result.embedding_cache_hits, 0)
@@ -61,7 +61,7 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
     def test_same_builder_skips_chunks_already_in_vector_store(self) -> None:
         settings = Settings(chunk_size=120, chunk_overlap=20)
         client = CountingEmbeddingClient()
-        builder = IndexBuilder(settings, embedding_client=client)
+        builder = build_index_builder(settings, embedding_client=client)
 
         _, first_result = builder.build_from_directory(Path("data/raw/papers"))
         index, second_result = builder.build_from_directory(Path("data/raw/papers"))

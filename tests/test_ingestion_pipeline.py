@@ -5,10 +5,12 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
+from app.core.config import Settings
 from app.core.errors import AppError, ErrorCode
 from app.core.models import RawDocument
-from app.ingest.loaders import LocalDocumentLoader, LocalTextLoader
-from app.ingest.parsers import HtmlDocumentParser, MarkdownParser, PdfDocumentParser
+from app.factory import build_local_document_loader, build_local_text_loader
+from app.ingest.cleaners import BasicTextCleaner, HtmlTextCleaner, PdfTextCleaner
+from app.ingest.parsers import HtmlDocumentParser, MarkdownParser, PdfDocumentParser, ParserRegistry
 from app.ingest.pipeline import IngestionPipeline
 
 
@@ -16,7 +18,7 @@ class IngestionPipelineTest(unittest.TestCase):
     """验证真实文档加载、解析和失败隔离。"""
 
     def test_loader_reads_markdown_html_and_keeps_raw_bytes(self) -> None:
-        documents = LocalDocumentLoader().load_directory(Path("data/raw/papers"))
+        documents = build_local_document_loader(Settings()).load_directory(Path("data/raw/papers"))
 
         self.assertIn("markdown", {document.file_type for document in documents})
         self.assertIn("html", {document.file_type for document in documents})
@@ -25,7 +27,7 @@ class IngestionPipelineTest(unittest.TestCase):
         self.assertTrue(all(document.version_id.startswith("v_") for document in documents))
 
     def test_local_text_loader_keeps_legacy_text_only_scope(self) -> None:
-        documents = LocalTextLoader().load_directory(Path("data/raw/papers"))
+        documents = build_local_text_loader(Settings()).load_directory(Path("data/raw/papers"))
 
         self.assertGreaterEqual(len(documents), 2)
         self.assertEqual({document.file_type for document in documents}, {"markdown"})
@@ -42,7 +44,7 @@ class IngestionPipelineTest(unittest.TestCase):
             metadata={"filename": "note.md"},
         )
 
-        parsed = MarkdownParser().parse(raw)
+        parsed = MarkdownParser(cleaner=BasicTextCleaner()).parse(raw)
 
         self.assertEqual(parsed.title, "RAG Evaluation")
         self.assertEqual(parsed.metadata["frontmatter_authors"], "Alice")
@@ -74,7 +76,7 @@ class IngestionPipelineTest(unittest.TestCase):
             metadata={"filename": "page.html"},
         )
 
-        parsed = HtmlDocumentParser().parse(raw)
+        parsed = HtmlDocumentParser(cleaner=HtmlTextCleaner()).parse(raw)
 
         self.assertEqual(parsed.title, "RAG Project Page")
         self.assertEqual(parsed.metadata["description"], "Project description")
@@ -84,7 +86,10 @@ class IngestionPipelineTest(unittest.TestCase):
         self.assertNotIn("Footer text", parsed.text)
 
     def test_ingestion_pipeline_records_bad_file_without_dropping_good_files(self) -> None:
-        result = IngestionPipeline(loader=FakeMixedLoader()).ingest_directory(Path("data/raw/papers"))
+        result = IngestionPipeline(
+            loader=FakeMixedLoader(),
+            parser_registry=ParserRegistry(parsers=[MarkdownParser(cleaner=BasicTextCleaner())]),
+        ).ingest_directory(Path("data/raw/papers"))
 
         self.assertEqual(len(result.documents), 1)
         self.assertEqual(len(result.failures), 1)
@@ -105,12 +110,21 @@ class IngestionPipelineTest(unittest.TestCase):
         )
 
         with self.assertRaises(AppError) as context:
-            PdfDocumentParser().parse(raw)
+            PdfDocumentParser(cleaner=PdfTextCleaner()).parse(raw)
 
         self.assertEqual(context.exception.code, ErrorCode.DOCUMENT_PARSE_FAILED)
 
+    def test_factory_applies_non_recursive_loader_config(self) -> None:
+        settings = Settings(loader_recursive_iter=False)
+        loader = build_local_document_loader(settings)
 
-class FakeMixedLoader(LocalDocumentLoader):
+        paths = list(loader.iter_supported_files(Path("data/raw/papers")))
+
+        self.assertTrue(paths)
+        self.assertTrue(all(path.parent == Path("data/raw/papers") for path in paths))
+
+
+class FakeMixedLoader:
     """用于模拟一个好文件和一个坏文件。"""
 
     def iter_supported_files(self, source_dir: Path):
