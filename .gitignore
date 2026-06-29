@@ -1,2 +1,5 @@
 .idea
 .tmp_tests/
+
+data/raw/papers/pdf
+-data/raw/papers/pdf/.gitkeep
