@@ -10,6 +10,7 @@ from app.core.errors import AppError, ErrorCode
 from app.core.models import RawDocument
 from app.factory import build_local_document_loader, build_local_text_loader
 from app.ingest.cleaners import BasicTextCleaner, HtmlTextCleaner, PdfTextCleaner
+from app.ingest.loaders import DocumentIdentityBuilder, LocalDocumentLoader, LocalDocumentLoaderConfig
 from app.ingest.parsers import HtmlDocumentParser, MarkdownParser, PdfDocumentParser, ParserRegistry
 from app.ingest.pipeline import IngestionPipeline
 
@@ -122,6 +123,32 @@ class IngestionPipelineTest(unittest.TestCase):
 
         self.assertTrue(paths)
         self.assertTrue(all(path.parent == Path("data/raw/papers") for path in paths))
+
+    def test_loader_skips_hidden_paths_ignored_dirs_relative_paths_and_temp_files(self) -> None:
+        loader = LocalDocumentLoader(
+            config=LocalDocumentLoaderConfig(
+                recursive=True,
+                ignored_dir_names=frozenset({"__pycache__"}),
+                ignored_relative_paths=("ignored/indexes",),
+                skip_hidden_paths=True,
+                temporary_file_prefixes=("~$",),
+                temporary_file_suffixes=(".tmp",),
+            ),
+            identity_builder=DocumentIdentityBuilder(),
+        )
+        source_dir = Path("data/raw/papers")
+        paths = [
+            source_dir / "visible.md",
+            source_dir / "__pycache__" / "cached.md",
+            source_dir / ".hidden" / "draft.md",
+            source_dir / "ignored" / "indexes" / "manifest.md",
+            source_dir / "~$office.md",
+            source_dir / "download.tmp",
+        ]
+
+        kept_paths = [path for path in paths if not loader._should_skip_path(path, source_dir)]
+
+        self.assertEqual(kept_paths, [source_dir / "visible.md"])
 
 
 class FakeMixedLoader:
