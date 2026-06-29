@@ -11,14 +11,13 @@ import argparse
 from pathlib import Path
 
 from app.core.config import Settings
-from app.indexing.index_builder import IndexBuilder
-from app.pipeline import RagPipeline
+from app.factory import build_index_builder, build_rag_pipeline
 
 
 def build_index(source: Path, settings: Settings):
     """构建练习用内存索引。"""
 
-    builder = IndexBuilder(settings)
+    builder = build_index_builder(settings)
     return builder.build_from_directory(source)
 
 
@@ -35,7 +34,7 @@ def handle_index(args: argparse.Namespace) -> None:
 def handle_ask(args: argparse.Namespace) -> None:
     settings = Settings.from_env()
     index, build_result = build_index(Path(args.source), settings)
-    pipeline = RagPipeline(settings=settings, index=index)
+    pipeline = build_rag_pipeline(settings=settings, index=index)
     answer = pipeline.ask(args.question)
 
     print("回答：")
@@ -76,4 +75,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

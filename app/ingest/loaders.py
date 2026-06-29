@@ -69,6 +69,17 @@ class DocumentIdentityBuilder:
         return f"v_{digest}"
 
 
+@dataclass(frozen=True)
+class LocalDocumentLoaderConfig:
+    """本地文档扫描配置。
+
+    默认值只存在于配置对象里。LocalDocumentLoader 必须显式接收这个配置对象，
+    避免生产代码里出现一部分 loader 使用 env 配置、一部分 loader 使用隐式默认值。
+    """
+
+    recursive: bool = True
+
+
 class LocalDocumentLoader:
     """加载本地论文和文档文件。
 
@@ -79,8 +90,13 @@ class LocalDocumentLoader:
     supported_suffixes = {".pdf", ".md", ".markdown", ".html", ".htm", ".txt"}
     text_suffixes = {".md", ".markdown", ".html", ".htm", ".txt"}
 
-    def __init__(self, identity_builder: DocumentIdentityBuilder | None = None) -> None:
-        self._identity_builder = identity_builder or DocumentIdentityBuilder()
+    def __init__(
+        self,
+        config: LocalDocumentLoaderConfig,
+        identity_builder: DocumentIdentityBuilder,
+    ) -> None:
+        self._config = config
+        self._identity_builder = identity_builder
 
     def load_directory(self, source_dir: Path) -> list[RawDocument]:
         """加载目录下所有支持的文档文件。
@@ -112,7 +128,9 @@ class LocalDocumentLoader:
         4. 在不改变 load_file 职责的前提下，保持输出路径顺序稳定。
         """
 
-        for path in sorted(source_dir.rglob("*")):
+        globber = source_dir.rglob if self._config.recursive else source_dir.glob
+
+        for path in sorted(globber("*")):
             if path.is_file() and path.suffix.lower() in self.supported_suffixes:
                 yield path
 

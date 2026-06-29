@@ -12,9 +12,8 @@ from app.core.config import Settings
 from app.core.errors import AppError, ErrorCode
 from app.core.models import RagAnswer, RagTrace
 from app.generation.answer_generator import MockAnswerGenerator
-from app.indexing.index_builder import RagIndex
 from app.retrieval.context_packer import SimpleContextPacker
-from app.retrieval.retrievers import Retriever, VectorRetriever
+from app.retrieval.retrievers import Retriever
 
 
 class RagPipeline:
@@ -23,16 +22,15 @@ class RagPipeline:
     def __init__(
         self,
         settings: Settings,
-        index: RagIndex,
         *,
-        retriever: Retriever | None = None,
-        context_packer: SimpleContextPacker | None = None,
-        answer_generator: MockAnswerGenerator | None = None,
+        retriever: Retriever,
+        context_packer: SimpleContextPacker,
+        answer_generator: MockAnswerGenerator,
     ) -> None:
         self._settings = settings
-        self._retriever = retriever or VectorRetriever(index.embedding_client, index.vector_store)
-        self._context_packer = context_packer or SimpleContextPacker(settings.max_context_chars)
-        self._answer_generator = answer_generator or MockAnswerGenerator()
+        self._retriever = retriever
+        self._context_packer = context_packer
+        self._answer_generator = answer_generator
 
     def ask(self, question: str) -> RagAnswer:
         """根据用户问题执行一次 RAG 问答。"""

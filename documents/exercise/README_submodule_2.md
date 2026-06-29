@@ -98,6 +98,23 @@ app/ingest/loaders.py
 - 新代码优先使用 `LocalDocumentLoader`。
 - `LocalTextLoader` 只是为了兼容子模块 1 的旧测试和旧代码。
 - `LocalDocumentLoader` 会读取真实文件字节，并根据后缀判断 `file_type`。
+- `LocalDocumentLoader` 必须显式接收 `LocalDocumentLoaderConfig`，不要在类内部私自创建配置。
+
+### 2.2.1 Factory 统一组装
+
+位置：
+
+```text
+app/factory.py
+```
+
+说明：
+
+- `factory.py` 是当前项目的对象组装入口。
+- `Settings` 到各模块配置对象的转换在 factory 中完成。
+- 生产路径不要直接裸写 `LocalDocumentLoader()`、`IndexBuilder(settings)` 或 `RagPipeline(...)`。
+- 底层类只声明自己需要哪些依赖，不负责猜默认依赖。
+- 后续真实 embedding、真实 LLM、持久化向量库也应该从 factory 接入。
 
 ### 2.3 Cleaner
 
@@ -297,7 +314,7 @@ app/ingest/loaders.py
 任务：
 
 - 改造 `LocalDocumentLoader.iter_supported_files()`。
-- 支持调用方配置是否递归扫描子目录。
+- 支持调用方配置是否递归扫描子目录。当前这部分已经完成，配置从 `.env` 进入 `Settings`，再由 `factory.py` 转换为 `LocalDocumentLoaderConfig`。
 - 默认跳过隐藏目录和工程产物目录，例如：
   - `.git`
   - `.tmp_tests`
@@ -313,6 +330,8 @@ app/ingest/loaders.py
 
 - `load_file()` 仍然只负责加载单个文件，不要让它承担目录扫描策略。
 - 目录扫描策略应该放在 loader 初始化参数或独立配置对象中，而不是写死在循环内部。
+- 不要让 `LocalDocumentLoader` import `Settings`。
+- 不要写 `config or LocalDocumentLoaderConfig()` 这类隐式默认配置。
 - 测试代码和案例由我补充，你只需要专注功能实现。
 
 ### TODO 子模块2-练习2：PDF 页眉页脚检测配置化

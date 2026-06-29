@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     index_storage_path: Path = Field(default=Path("data/indexes"), description="索引持久化目录")
     debug_trace: bool = Field(default=False, description="是否在响应中返回完整 trace")
 
+    loader_recursive_iter: bool = Field(default=True, description="loader 加载本地文档时是否递归遍历子目录")
+
     @model_validator(mode="after")
     def validate_chunk_window(self) -> "Settings":
         """校验多个配置项之间的关系。

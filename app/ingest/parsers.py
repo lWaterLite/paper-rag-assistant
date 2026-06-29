@@ -39,14 +39,8 @@ def build_block_id(document: RawDocument, block_index: int, text: str) -> str:
 class ParserRegistry:
     """根据 file_type 选择对应解析器。"""
 
-    def __init__(self, parsers: list[DocumentParser] | None = None) -> None:
-        default_parsers: list[DocumentParser] = [
-            MarkdownParser(),
-            HtmlDocumentParser(),
-            PdfDocumentParser(),
-            PlainTextParser(),
-        ]
-        self._parsers = parsers or default_parsers
+    def __init__(self, parsers: list[DocumentParser]) -> None:
+        self._parsers = parsers
 
     def parse(self, document: RawDocument) -> ParsedDocument:
         """解析文档。"""
@@ -62,8 +56,8 @@ class PlainTextParser:
 
     supported_file_types = {"txt", "text"}
 
-    def __init__(self, cleaner: BasicTextCleaner | None = None) -> None:
-        self._cleaner = cleaner or BasicTextCleaner()
+    def __init__(self, cleaner: BasicTextCleaner) -> None:
+        self._cleaner = cleaner
 
     def parse(self, document: RawDocument) -> ParsedDocument:
         """解析普通文本。"""
@@ -224,8 +218,8 @@ class HtmlDocumentParser:
 
     supported_file_types = {"html"}
 
-    def __init__(self, cleaner: HtmlTextCleaner | None = None) -> None:
-        self._cleaner = cleaner or HtmlTextCleaner()
+    def __init__(self, cleaner: HtmlTextCleaner) -> None:
+        self._cleaner = cleaner
 
     def parse(self, document: RawDocument) -> ParsedDocument:
         """解析 HTML 正文和 metadata。"""
@@ -296,8 +290,8 @@ class PdfDocumentParser:
 
     supported_file_types = {"pdf"}
 
-    def __init__(self, cleaner: PdfTextCleaner | None = None) -> None:
-        self._cleaner = cleaner or PdfTextCleaner()
+    def __init__(self, cleaner: PdfTextCleaner) -> None:
+        self._cleaner = cleaner
 
     def parse(self, document: RawDocument) -> ParsedDocument:
         """解析 PDF。

@@ -8,11 +8,10 @@ from pathlib import Path
 
 from app.core.config import Settings
 from app.core.models import DocumentChunk, RagTrace
-from app.indexing.embedding_cache import EmbeddingCache, InMemoryEmbeddingCache
-from app.indexing.embeddings import EmbeddingClient, MockEmbeddingClient
+from app.indexing.embedding_cache import EmbeddingCache
+from app.indexing.embeddings import EmbeddingClient
 from app.indexing.vector_store import InMemoryVectorStore
 from app.ingest.chunkers import CharacterChunker
-from app.ingest.loaders import LocalDocumentLoader
 from app.ingest.pipeline import IngestionFailure, IngestionPipeline
 from app.indexing.manifest import IndexManifest
 from app.storage.repositories import InMemoryDocumentRepository
@@ -48,21 +47,21 @@ class IndexBuilder:
     def __init__(
         self,
         settings: Settings,
-        loader: LocalDocumentLoader | None = None,
-        ingestion_pipeline: IngestionPipeline | None = None,
-        chunker: CharacterChunker | None = None,
-        embedding_client: EmbeddingClient | None = None,
-        embedding_cache: EmbeddingCache | None = None,
-        vector_store: InMemoryVectorStore | None = None,
-        repository: InMemoryDocumentRepository | None = None,
+        *,
+        ingestion_pipeline: IngestionPipeline,
+        chunker: CharacterChunker,
+        embedding_client: EmbeddingClient,
+        embedding_cache: EmbeddingCache,
+        vector_store: InMemoryVectorStore,
+        repository: InMemoryDocumentRepository,
     ) -> None:
         self._settings = settings
-        self._ingestion_pipeline = ingestion_pipeline or IngestionPipeline(loader=loader or LocalDocumentLoader())
-        self._chunker = chunker or CharacterChunker(settings)
-        self._embedding_client = embedding_client or MockEmbeddingClient(settings)
-        self._embedding_cache = embedding_cache or InMemoryEmbeddingCache()
-        self._vector_store = vector_store or InMemoryVectorStore()
-        self._repository = repository or InMemoryDocumentRepository()
+        self._ingestion_pipeline = ingestion_pipeline
+        self._chunker = chunker
+        self._embedding_client = embedding_client
+        self._embedding_cache = embedding_cache
+        self._vector_store = vector_store
+        self._repository = repository
 
     def build_from_directory(self, source_dir: Path) -> tuple[RagIndex, IndexBuildResult]:
         """从目录构建内存索引。"""

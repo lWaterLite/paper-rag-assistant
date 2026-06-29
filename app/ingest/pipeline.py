@@ -12,7 +12,7 @@ from pathlib import Path
 
 from app.core.errors import AppError, ErrorCode
 from app.core.models import ParsedDocument, RagTrace, RawDocument
-from app.ingest.loaders import LocalDocumentLoader
+from app.ingest.loaders import DocumentLoader
 from app.ingest.parsers import ParserRegistry
 
 
@@ -61,11 +61,11 @@ class IngestionPipeline:
 
     def __init__(
         self,
-        loader: LocalDocumentLoader | None = None,
-        parser_registry: ParserRegistry | None = None,
+        loader: DocumentLoader,
+        parser_registry: ParserRegistry,
     ) -> None:
-        self._loader = loader or LocalDocumentLoader()
-        self._parser_registry = parser_registry or ParserRegistry()
+        self._loader = loader
+        self._parser_registry = parser_registry
 
     def ingest_directory(self, source_dir: Path) -> IngestionResult:
         """摄取目录中的所有支持文件。"""
