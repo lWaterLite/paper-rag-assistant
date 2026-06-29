@@ -7,7 +7,7 @@ from pathlib import Path
 
 from app.core.errors import AppError, ErrorCode
 from app.core.models import RawDocument
-from app.ingest.loaders import LocalDocumentLoader
+from app.ingest.loaders import LocalDocumentLoader, LocalTextLoader
 from app.ingest.parsers import HtmlDocumentParser, MarkdownParser, PdfDocumentParser
 from app.ingest.pipeline import IngestionPipeline
 
@@ -23,6 +23,13 @@ class IngestionPipelineTest(unittest.TestCase):
         self.assertTrue(all(document.raw_bytes for document in documents))
         self.assertTrue(all(document.content_hash for document in documents))
         self.assertTrue(all(document.version_id.startswith("v_") for document in documents))
+
+    def test_local_text_loader_keeps_legacy_text_only_scope(self) -> None:
+        documents = LocalTextLoader().load_directory(Path("data/raw/papers"))
+
+        self.assertGreaterEqual(len(documents), 2)
+        self.assertEqual({document.file_type for document in documents}, {"markdown"})
+        self.assertTrue(all(document.source_path.endswith(".md") for document in documents))
 
     def test_markdown_parser_extracts_frontmatter_and_section_blocks(self) -> None:
         raw = RawDocument(

@@ -101,7 +101,16 @@ class LocalDocumentLoader:
         return documents
 
     def iter_supported_files(self, source_dir: Path) -> Iterable[Path]:
-        """按稳定顺序遍历支持的文件。"""
+        """按稳定顺序遍历支持的文件。
+
+        TODO 子模块2-练习1：
+        请把这里升级成真实工程可用的目录扫描策略。
+        需要支持：
+        1. 可配置是否递归扫描子目录。
+        2. 跳过隐藏目录和工程产物目录，例如 .git、.tmp_tests、__pycache__、data/indexes。
+        3. 跳过临时文件，例如以 "~$" 开头或以 ".tmp" 结尾的文件。
+        4. 在不改变 load_file 职责的前提下，保持输出路径顺序稳定。
+        """
 
         for path in sorted(source_dir.rglob("*")):
             if path.is_file() and path.suffix.lower() in self.supported_suffixes:
@@ -188,15 +197,3 @@ class LocalTextLoader(LocalDocumentLoader):
         """兼容旧测试中的私有方法调用。"""
 
         return DocumentIdentityBuilder.build_version_id(doc_id, content_hash)
-
-
-class StrictTextLoader(LocalDocumentLoader):
-    """只加载文本类文件的 loader。
-
-    TODO 子模块2-练习1：
-    当前类直接继承 LocalDocumentLoader。请你为它补充一个测试：
-    当目录中同时存在 .md、.html、.pdf 时，StrictTextLoader 应只返回 .md/.txt。
-    """
-
-    supported_suffixes = {".md", ".markdown", ".txt"}
-    text_suffixes = {".md", ".markdown", ".txt"}

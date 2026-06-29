@@ -228,4 +228,4 @@ def _looks_like_heading(text: str) -> bool:
 # TODO 子模块2-练习2：
 # 当前 PDF 页眉页脚检测只看页面顶部和底部各两行。
 # 请你把它改造成可配置策略，例如 edge_line_count=3、min_repeat_ratio=0.6，
-# 并补充测试验证阈值变化会影响清洗结果。
+# 并让调用方可以根据不同论文版式调整清洗强度。

@@ -92,7 +92,6 @@ app/ingest/loaders.py
 - `DocumentIdentityBuilder`
 - `LocalDocumentLoader`
 - `LocalTextLoader`
-- `StrictTextLoader`
 
 说明：
 
@@ -287,24 +286,34 @@ $env:PYTHONDONTWRITEBYTECODE='1'
 
 只列代码任务，不再列思考题。
 
-### TODO 子模块2-练习1：StrictTextLoader 测试
+### TODO 子模块2-练习1：目录扫描策略
 
 位置：
 
 ```text
 app/ingest/loaders.py
-tests/
 ```
 
 任务：
 
-- 为 `StrictTextLoader` 补充测试。
-- 当目录中同时存在 `.md`、`.txt`、`.html`、`.pdf` 时，它只应该加载 `.md`、`.markdown`、`.txt`。
+- 改造 `LocalDocumentLoader.iter_supported_files()`。
+- 支持调用方配置是否递归扫描子目录。
+- 默认跳过隐藏目录和工程产物目录，例如：
+  - `.git`
+  - `.tmp_tests`
+  - `__pycache__`
+  - `data/indexes`
+- 跳过常见临时文件，例如：
+  - 以 `~$` 开头的 Office 临时文件。
+  - 以 `.tmp` 结尾的临时文件。
+- 保持扫描输出顺序稳定，避免同一批文档每次构建索引顺序不同。
+- 不要把“是否支持某个文件类型”的判断塞进 parser，文件类型过滤仍然属于 loader 的发现阶段。
 
 注意：
 
-- 测试中尽量避免依赖系统临时目录。
-- 可以使用 fake path/loader，或在已有样例目录中构造稳定测试数据。
+- `load_file()` 仍然只负责加载单个文件，不要让它承担目录扫描策略。
+- 目录扫描策略应该放在 loader 初始化参数或独立配置对象中，而不是写死在循环内部。
+- 测试代码和案例由我补充，你只需要专注功能实现。
 
 ### TODO 子模块2-练习2：PDF 页眉页脚检测配置化
 
@@ -321,13 +330,13 @@ app/ingest/cleaners.py
   - `edge_line_count`
   - `min_repeat_ratio`
   - `min_line_length`
-  - `max_line_length`
-- 补充测试，验证阈值变化会影响页眉页脚删除结果。
+- `max_line_length`
 
 注意：
 
 - 不要把整页中高频出现的普通术语误删。
 - 只检测页面顶部和底部区域更安全。
+- 测试代码和案例由我补充，你只需要专注功能实现。
 
 ### TODO 子模块2-练习3：IngestionReportWriter
 
@@ -462,4 +471,3 @@ tags:
 - ingestion report 还没有持久化，需要你完成 TODO。
 
 这些不是偷懒，而是刻意把工程分层打清楚：先让真实文档能稳定进入系统，再逐步提高解析质量。
-
