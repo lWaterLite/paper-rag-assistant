@@ -9,7 +9,7 @@ from app.core.config import Settings
 from app.core.errors import AppError, ErrorCode
 from app.core.models import RawDocument
 from app.factory import build_local_document_loader, build_local_text_loader
-from app.ingest.cleaners import BasicTextCleaner, HtmlTextCleaner, PdfTextCleaner
+from app.ingest.cleaners import BasicTextCleaner, HtmlTextCleaner, PdfTextCleaner, PdfTextCleanerConfig
 from app.ingest.loaders import DocumentIdentityBuilder, LocalDocumentLoader, LocalDocumentLoaderConfig
 from app.ingest.parsers import HtmlDocumentParser, MarkdownParser, PdfDocumentParser, ParserRegistry
 from app.ingest.pipeline import IngestionPipeline
@@ -111,7 +111,7 @@ class IngestionPipelineTest(unittest.TestCase):
         )
 
         with self.assertRaises(AppError) as context:
-            PdfDocumentParser(cleaner=PdfTextCleaner()).parse(raw)
+            PdfDocumentParser(cleaner=PdfTextCleaner(config=PdfTextCleanerConfig())).parse(raw)
 
         self.assertEqual(context.exception.code, ErrorCode.DOCUMENT_PARSE_FAILED)
 
@@ -149,6 +149,25 @@ class IngestionPipelineTest(unittest.TestCase):
         kept_paths = [path for path in paths if not loader._should_skip_path(path, source_dir)]
 
         self.assertEqual(kept_paths, [source_dir / "visible.md"])
+
+    def test_pdf_cleaner_config_controls_repeated_edge_detection(self) -> None:
+        pages = [
+            (1, "Conference Header\nBody A\nConference Header"),
+            (2, "Conference Header\nBody B\nConference Header"),
+            (3, "Different Header\nBody C\nDifferent Header"),
+        ]
+        strict_cleaner = PdfTextCleaner(
+            config=PdfTextCleanerConfig(edge_line_count=1, min_repeat_ratio=1.0)
+        )
+        lenient_cleaner = PdfTextCleaner(
+            config=PdfTextCleanerConfig(edge_line_count=1, min_repeat_ratio=0.6)
+        )
+
+        self.assertEqual(strict_cleaner._detect_repeated_edge_lines(pages), set())
+        self.assertEqual(
+            lenient_cleaner._detect_repeated_edge_lines(pages),
+            {"Conference Header"},
+        )
 
 
 class FakeMixedLoader:

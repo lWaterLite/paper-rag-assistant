@@ -93,6 +93,18 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(settings.index_storage_path, Path("data/env-index"))
         self.assertTrue(settings.debug_trace)
 
+    def test_settings_rejects_invalid_pdf_cleaner_ratio(self) -> None:
+        with self.assertRaises(ValidationError) as context:
+            Settings(min_repeat_ratio=1.5)
+
+        self.assertIn("min_repeat_ratio", str(context.exception))
+
+    def test_settings_rejects_invalid_pdf_line_length_window(self) -> None:
+        with self.assertRaises(ValidationError) as context:
+            Settings(min_line_length=20, max_line_length=10)
+
+        self.assertIn("max_line_length", str(context.exception))
+
 
 if __name__ == "__main__":
     unittest.main()
