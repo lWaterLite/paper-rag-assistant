@@ -111,8 +111,8 @@ app/factory.py
 说明：
 
 - `factory.py` 是当前项目的对象组装入口。
-- `Settings` 到各模块配置对象的转换在 factory 中完成。
-- 生产路径不要直接裸写 `LocalDocumentLoader()`、`IndexBuilder(settings)` 或 `RagPipeline(...)`。
+- `EnvSettings` 和 `ProjectSettings` 到各模块 `Config` 对象的转换在 factory 中完成。
+- 生产路径不要直接裸写 `LocalDocumentLoader()`、`IndexBuilder(...)` 或 `RagPipeline(...)`。
 - 底层类只声明自己需要哪些依赖，不负责猜默认依赖。
 - 后续真实 embedding、真实 LLM、持久化向量库也应该从 factory 接入。
 
@@ -314,7 +314,7 @@ app/ingest/loaders.py
 任务：
 
 - 改造 `LocalDocumentLoader.iter_supported_files()`。
-- 支持调用方配置是否递归扫描子目录。当前这部分已经完成，配置从 `.env` 进入 `Settings`，再由 `factory.py` 转换为 `LocalDocumentLoaderConfig`。
+- 支持调用方配置是否递归扫描子目录。当前这部分已经完成，配置从 `config.toml` 进入 `ProjectSettings`，再由 `factory.py` 转换为 `LocalDocumentLoaderConfig`。
 - 默认跳过隐藏目录和工程产物目录，例如：
   - `.git`
   - `.tmp_tests`
@@ -330,7 +330,7 @@ app/ingest/loaders.py
 
 - `load_file()` 仍然只负责加载单个文件，不要让它承担目录扫描策略。
 - 目录扫描策略应该放在 loader 初始化参数或独立配置对象中，而不是写死在循环内部。
-- 不要让 `LocalDocumentLoader` import `Settings`。
+- 不要让 `LocalDocumentLoader` import `EnvSettings`。
 - 不要写 `config or LocalDocumentLoaderConfig()` 这类隐式默认配置。
 - 测试代码和案例由我补充，你只需要专注功能实现。
 
@@ -401,7 +401,7 @@ app/ingest/pipeline.py
 
 注意：
 
-- 写文件属于副作用，不要放到 `Settings`。
+- 写文件属于副作用，不要放到 `EnvSettings`。
 - 可以由 CLI 或索引构建入口显式调用。
 
 ### TODO 子模块2-练习4：真实 PDF 质量检查

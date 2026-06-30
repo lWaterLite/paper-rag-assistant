@@ -51,7 +51,7 @@ LocalTextLoader
 
 我没有为你安装依赖，也没有修改虚拟环境。
 
-当前练习已经使用 `pydantic` 和 `pydantic-settings` 来管理项目配置。它们已经写入 `pyproject.toml`，但你需要自行同步或安装依赖。
+当前练习已经使用 `pydantic` 和 `pydantic-EnvSettings` 来管理项目配置。它们已经写入 `pyproject.toml`，但你需要自行同步或安装依赖。
 
 如果你使用 uv，可以运行：
 
@@ -62,13 +62,13 @@ uv sync
 如果你使用 pip，可以运行：
 
 ```powershell
-python -m pip install "pydantic>=2.7" "pydantic-settings>=2.2"
+python -m pip install "pydantic>=2.7" "pydantic-EnvSettings>=2.2"
 ```
 
 这两个库的作用：
 
 - `pydantic`：负责类型转换、字段约束和跨字段校验。
-- `pydantic-settings`：负责从环境变量、`.env` 文件等来源读取配置。
+- `pydantic-EnvSettings`：负责从环境变量、`.env` 文件等来源读取配置。
 
 如果你后续要把它升级成真实工程，可以自行考虑这些配置：
 
@@ -178,14 +178,14 @@ python -m unittest discover -s tests
 
 ### 练习 1：配置校验
 
-位置：`app/core/config.py`
+位置：`app/core/ProjectSettings.py`
 
-当前已升级为 `pydantic-settings` 方案。你需要重点阅读：
+当前已升级为 `pydantic-EnvSettings` 方案。你需要重点阅读：
 
 - `SettingsConfigDict`
 - `Field(default=..., gt=..., ge=...)`
 - `model_validator(mode="after")`
-- `Settings.from_env()`
+- `EnvSettings.from_env()`
 - `ValidationError` 和项目统一 `AppError` 的区别
 
 追加任务：
