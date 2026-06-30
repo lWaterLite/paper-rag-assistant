@@ -314,7 +314,7 @@ app/ingest/loaders.py
 任务：
 
 - 改造 `LocalDocumentLoader.iter_supported_files()`。
-- 支持调用方配置是否递归扫描子目录。当前这部分已经完成，配置从 `config.toml` 进入 `ProjectSettings`，再由 `factory.py` 转换为 `LocalDocumentLoaderConfig`。
+- 支持调用方配置是否递归扫描子目录。当前这部分已经完成，配置从 `settings.toml` 进入 `ProjectSettings`，再由 `factory.py` 转换为 `LocalDocumentLoaderConfig`。
 - 默认跳过隐藏目录和工程产物目录，例如：
   - `.git`
   - `.tmp_tests`
