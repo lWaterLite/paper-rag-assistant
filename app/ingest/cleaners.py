@@ -8,6 +8,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 from dataclasses import dataclass, field
+from math import ceil
 from typing import Protocol
 
 from app.core.models import ParseIssue
@@ -75,11 +76,36 @@ class BasicTextCleaner:
         return "\n".join(cleaned_lines)
 
 
+@dataclass(frozen=True)
+class PdfTextCleanerConfig:
+    """PDF 页眉页脚检测配置。"""
+
+    edge_line_count: int = 2
+    min_repeat_ratio: float = 0.6
+    min_line_length: int = 3
+    max_line_length: int = 120
+
+    def __post_init__(self) -> None:
+        """校验 PDF 清洗配置，避免无意义的阈值进入清洗逻辑。"""
+
+        if self.edge_line_count <= 0:
+            raise ValueError("edge_line_count 必须大于 0")
+        if not 0 < self.min_repeat_ratio <= 1:
+            raise ValueError("min_repeat_ratio 必须在 (0, 1] 范围内")
+        if self.min_line_length <= 0:
+            raise ValueError("min_line_length 必须大于 0")
+        if self.max_line_length < self.min_line_length:
+            raise ValueError("max_line_length 必须大于等于 min_line_length")
+
+
 class PdfTextCleaner(BasicTextCleaner):
     """PDF 文本清洗器。
 
     这里实现的是保守规则：只修复非常常见、风险相对低的问题。
     """
+
+    def __init__(self, config: PdfTextCleanerConfig):
+        self._config = config
 
     def clean_pages(self, pages: list[tuple[int, str]]) -> CleanedText:
         """清洗按页提取出的 PDF 文本。"""
@@ -142,9 +168,13 @@ class PdfTextCleaner(BasicTextCleaner):
 
         return "\n\n".join(paragraphs)
 
-    @staticmethod
-    def _detect_repeated_edge_lines(pages: list[tuple[int, str]]) -> set[str]:
+    def _detect_repeated_edge_lines(self, pages: list[tuple[int, str]]) -> set[str]:
         """检测多页重复出现的顶部/底部短文本。"""
+
+        min_line_length = self._config.min_line_length
+        max_line_length = self._config.max_line_length
+        edge_line_count = self._config.edge_line_count
+        min_repeat_ratio = self._config.min_repeat_ratio
 
         if len(pages) < 3:
             return set()
@@ -152,20 +182,20 @@ class PdfTextCleaner(BasicTextCleaner):
         counter: Counter[str] = Counter()
         for _, text in pages:
             non_empty = [line.strip() for line in text.splitlines() if line.strip()]
-            edge_lines = [*non_empty[:2], *non_empty[-2:]]
-            for line in edge_lines:
-                if 3 <= len(line) <= 120:
+            edge_lines = [*non_empty[:edge_line_count], *non_empty[-edge_line_count:]]
+            for line in dict.fromkeys(edge_lines):
+                if min_line_length <= len(line) <= max_line_length:
                     counter[line] += 1
 
-        threshold = max(2, len(pages) // 2)
+        threshold = max(2, ceil(len(pages) * min_repeat_ratio))
         return {line for line, count in counter.items() if count >= threshold}
 
     @staticmethod
     def _remove_repeated_edge_lines(
-        text: str,
-        repeated_lines: set[str],
-        page_number: int,
-        issues: list[ParseIssue],
+            text: str,
+            repeated_lines: set[str],
+            page_number: int,
+            issues: list[ParseIssue],
     ) -> str:
         """移除检测出的重复页眉页脚。"""
 
@@ -223,9 +253,3 @@ def _looks_like_heading(text: str) -> bool:
     if re.match(r"^\d+(\.\d+)*\s+\S+", stripped):
         return True
     return stripped.isupper() and len(stripped) <= 120
-
-
-# TODO 子模块2-练习2：
-# 当前 PDF 页眉页脚检测只看页面顶部和底部各两行。
-# 请你把它改造成可配置策略，例如 edge_line_count=3、min_repeat_ratio=0.6，
-# 并让调用方可以根据不同论文版式调整清洗强度。

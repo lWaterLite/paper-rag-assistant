@@ -13,7 +13,7 @@ from app.indexing.embeddings import EmbeddingClient, MockEmbeddingClient
 from app.indexing.index_builder import IndexBuilder, RagIndex
 from app.indexing.vector_store import InMemoryVectorStore
 from app.ingest.chunkers import CharacterChunker
-from app.ingest.cleaners import BasicTextCleaner, HtmlTextCleaner, PdfTextCleaner
+from app.ingest.cleaners import BasicTextCleaner, HtmlTextCleaner, PdfTextCleaner, PdfTextCleanerConfig
 from app.ingest.loaders import (
     DocumentIdentityBuilder,
     LocalDocumentLoader,
@@ -32,6 +32,15 @@ def build_loader_config(settings: Settings) -> LocalDocumentLoaderConfig:
     """从应用 Settings 转换成本地文档 loader 配置。"""
 
     return LocalDocumentLoaderConfig(recursive=settings.loader_recursive_iter)
+
+
+def build_pdf_text_cleaner_config(settings: Settings) -> PdfTextCleanerConfig:
+    return PdfTextCleanerConfig(
+        edge_line_count=settings.edge_line_count,
+        min_repeat_ratio=settings.min_repeat_ratio,
+        min_line_length=settings.min_line_length,
+        max_line_length=settings.max_line_length,
+    )
 
 
 def build_document_identity_builder() -> DocumentIdentityBuilder:
@@ -57,8 +66,11 @@ def build_local_text_loader(settings: Settings) -> LocalTextLoader:
         identity_builder=build_document_identity_builder(),
     )
 
+def build_pdf_text_cleaner(settings: Settings) -> PdfTextCleaner:
+    return PdfTextCleaner(config=build_pdf_text_cleaner_config(settings))
 
-def build_parser_registry() -> ParserRegistry:
+
+def build_parser_registry(settings: Settings) -> ParserRegistry:
     """创建文档解析器注册表。"""
 
     text_cleaner = BasicTextCleaner()
@@ -66,7 +78,7 @@ def build_parser_registry() -> ParserRegistry:
         parsers=[
             MarkdownParser(cleaner=text_cleaner),
             HtmlDocumentParser(cleaner=HtmlTextCleaner()),
-            PdfDocumentParser(cleaner=PdfTextCleaner()),
+            PdfDocumentParser(cleaner=build_pdf_text_cleaner(settings)),
             PlainTextParser(cleaner=text_cleaner),
         ]
     )
@@ -77,18 +89,18 @@ def build_ingestion_pipeline(settings: Settings) -> IngestionPipeline:
 
     return IngestionPipeline(
         loader=build_local_document_loader(settings),
-        parser_registry=build_parser_registry(),
+        parser_registry=build_parser_registry(settings),
     )
 
 
 def build_index_builder(
-    settings: Settings,
-    *,
-    ingestion_pipeline: IngestionPipeline | None = None,
-    embedding_client: EmbeddingClient | None = None,
-    embedding_cache: EmbeddingCache | None = None,
-    vector_store: InMemoryVectorStore | None = None,
-    repository: InMemoryDocumentRepository | None = None,
+        settings: Settings,
+        *,
+        ingestion_pipeline: IngestionPipeline | None = None,
+        embedding_client: EmbeddingClient | None = None,
+        embedding_cache: EmbeddingCache | None = None,
+        vector_store: InMemoryVectorStore | None = None,
+        repository: InMemoryDocumentRepository | None = None,
 ) -> IndexBuilder:
     """创建离线索引构建器。
 
@@ -107,18 +119,19 @@ def build_index_builder(
 
 
 def build_rag_pipeline(
-    settings: Settings,
-    index: RagIndex,
-    *,
-    retriever: Retriever | None = None,
-    context_packer: SimpleContextPacker | None = None,
-    answer_generator: MockAnswerGenerator | None = None,
+        settings: Settings,
+        index: RagIndex,
+        *,
+        retriever: Retriever | None = None,
+        context_packer: SimpleContextPacker | None = None,
+        answer_generator: MockAnswerGenerator | None = None,
 ) -> RagPipeline:
     """创建在线 RAG 问答 pipeline。"""
 
     return RagPipeline(
         settings=settings,
         retriever=retriever if retriever is not None else VectorRetriever(index.embedding_client, index.vector_store),
-        context_packer=context_packer if context_packer is not None else SimpleContextPacker(settings.max_context_chars),
+        context_packer=context_packer if context_packer is not None else SimpleContextPacker(
+            settings.max_context_chars),
         answer_generator=answer_generator if answer_generator is not None else MockAnswerGenerator(),
     )

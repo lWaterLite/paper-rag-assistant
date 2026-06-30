@@ -41,6 +41,11 @@ class Settings(BaseSettings):
 
     loader_recursive_iter: bool = Field(default=True, description="loader 加载本地文档时是否递归遍历子目录")
 
+    edge_line_count: int = Field(default=2, gt=0, description="每页顶部和底部参与页眉页脚检测的行数")
+    min_repeat_ratio: float = Field(default=0.6, gt=0, le=1, description="某一行被认为是页眉页脚时在页面边缘重复出现的比例")
+    min_line_length: int = Field(default=3, gt=0, description="参与页眉页脚检测行的最小长度")
+    max_line_length: int = Field(default=120, gt=0, description="参与页眉页脚检测行的最大长度")
+
     @model_validator(mode="after")
     def validate_chunk_window(self) -> "Settings":
         """校验多个配置项之间的关系。
@@ -53,6 +58,11 @@ class Settings(BaseSettings):
             raise ValueError(
                 f"chunk_overlap 必须小于 chunk_size，当前 chunk_overlap={self.chunk_overlap}，"
                 f"chunk_size={self.chunk_size}"
+            )
+        if self.max_line_length < self.min_line_length:
+            raise ValueError(
+                f"max_line_length 必须大于等于 min_line_length，当前 max_line_length={self.max_line_length}，"
+                f"min_line_length={self.min_line_length}"
             )
         return self
 
