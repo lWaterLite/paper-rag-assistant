@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from app.core.config import Settings
+from app.core.settings import EnvSettings, ProjectSettings
 from app.core.errors import AppError, ErrorCode
 from app.core.models import RagAnswer
 from app.factory import build_index_builder, build_rag_pipeline
@@ -19,8 +19,8 @@ class RagPipelineTest(unittest.TestCase):
     """验证离线索引流程与在线问答流程。"""
 
     def test_index_builder_builds_in_memory_index(self) -> None:
-        settings = Settings(chunk_size=120, chunk_overlap=20, top_k=2)
-        index, result = build_index_builder(settings).build_from_directory(SAMPLE_SOURCE_DIR)
+        env_settings = EnvSettings(chunk_size=120, chunk_overlap=20, top_k=2)
+        index, result = build_index_builder(env_settings, ProjectSettings()).build_from_directory(SAMPLE_SOURCE_DIR)
 
         self.assertGreater(result.document_count, 0)
         self.assertGreater(result.chunk_count, 0)
@@ -29,26 +29,26 @@ class RagPipelineTest(unittest.TestCase):
         self.assertEqual(result.manifest.document_count, result.document_count)
         self.assertEqual(result.manifest.chunk_count, result.chunk_count)
         self.assertEqual(result.manifest.vector_count, result.vector_count)
-        self.assertEqual(result.manifest.chunk_size, settings.chunk_size)
-        self.assertEqual(result.manifest.chunk_overlap, settings.chunk_overlap)
+        self.assertEqual(result.manifest.chunk_size, env_settings.chunk_size)
+        self.assertEqual(result.manifest.chunk_overlap, env_settings.chunk_overlap)
         self.assertEqual(result.manifest.embedding_provider, "mock")
         self.assertGreater(len(result.manifest.document_versions), 0)
 
     def test_pipeline_returns_structured_answer(self) -> None:
-        settings = Settings(chunk_size=120, chunk_overlap=20, top_k=2)
-        index, _ = build_index_builder(settings).build_from_directory(SAMPLE_SOURCE_DIR)
-        answer = build_rag_pipeline(settings=settings, index=index).ask("RAG 为什么需要引用？")
+        env_settings = EnvSettings(chunk_size=120, chunk_overlap=20, top_k=2)
+        index, _ = build_index_builder(env_settings, ProjectSettings()).build_from_directory(SAMPLE_SOURCE_DIR)
+        answer = build_rag_pipeline(env_settings=env_settings, index=index).ask("RAG 为什么需要引用？")
 
         self.assertTrue(answer.answer)
         self.assertTrue(answer.trace_id.startswith("trace_"))
-        self.assertLessEqual(len(answer.retrieved_chunks), settings.top_k)
+        self.assertLessEqual(len(answer.retrieved_chunks), env_settings.top_k)
         self.assertGreater(len(answer.citations), 0)
 
     def test_pipeline_marks_trace_success_when_all_stages_succeed(self) -> None:
-        settings = Settings(chunk_size=120, chunk_overlap=20, top_k=2)
-        index, _ = build_index_builder(settings).build_from_directory(SAMPLE_SOURCE_DIR)
+        env_settings = EnvSettings(chunk_size=120, chunk_overlap=20, top_k=2)
+        index, _ = build_index_builder(env_settings, ProjectSettings()).build_from_directory(SAMPLE_SOURCE_DIR)
         answer_generator = CapturingAnswerGenerator()
-        pipeline = build_rag_pipeline(settings=settings, index=index, answer_generator=answer_generator)
+        pipeline = build_rag_pipeline(env_settings=env_settings, index=index, answer_generator=answer_generator)
 
         pipeline.ask("正常问题")
 
@@ -57,9 +57,9 @@ class RagPipelineTest(unittest.TestCase):
         self.assertIsNone(answer_generator.trace.failure_type)
 
     def test_pipeline_records_failure_trace_when_retrieval_fails(self) -> None:
-        settings = Settings(chunk_size=120, chunk_overlap=20, top_k=2)
-        index, _ = build_index_builder(settings).build_from_directory(SAMPLE_SOURCE_DIR)
-        pipeline = build_rag_pipeline(settings=settings, index=index, retriever=FailingRetriever())
+        env_settings = EnvSettings(chunk_size=120, chunk_overlap=20, top_k=2)
+        index, _ = build_index_builder(env_settings, ProjectSettings()).build_from_directory(SAMPLE_SOURCE_DIR)
+        pipeline = build_rag_pipeline(env_settings=env_settings, index=index, retriever=FailingRetriever())
 
         with self.assertRaises(AppError) as context:
             pipeline.ask("会失败的问题")
@@ -73,9 +73,9 @@ class RagPipelineTest(unittest.TestCase):
         self.assertEqual(error.trace.stages[-1].status, "error")
 
     def test_pipeline_records_failure_trace_when_context_packing_fails(self) -> None:
-        settings = Settings(chunk_size=120, chunk_overlap=20, top_k=2)
-        index, _ = build_index_builder(settings).build_from_directory(SAMPLE_SOURCE_DIR)
-        pipeline = build_rag_pipeline(settings=settings, index=index, context_packer=FailingContextPacker())
+        env_settings = EnvSettings(chunk_size=120, chunk_overlap=20, top_k=2)
+        index, _ = build_index_builder(env_settings, ProjectSettings()).build_from_directory(SAMPLE_SOURCE_DIR)
+        pipeline = build_rag_pipeline(env_settings=env_settings, index=index, context_packer=FailingContextPacker())
 
         with self.assertRaises(AppError) as context:
             pipeline.ask("会失败的问题")
@@ -87,9 +87,9 @@ class RagPipelineTest(unittest.TestCase):
         self.assertEqual([stage.stage for stage in error.trace.stages], ["retrieval", "context_packing"])
 
     def test_pipeline_records_failure_trace_when_generation_fails(self) -> None:
-        settings = Settings(chunk_size=120, chunk_overlap=20, top_k=2)
-        index, _ = build_index_builder(settings).build_from_directory(SAMPLE_SOURCE_DIR)
-        pipeline = build_rag_pipeline(settings=settings, index=index, answer_generator=FailingAnswerGenerator())
+        env_settings = EnvSettings(chunk_size=120, chunk_overlap=20, top_k=2)
+        index, _ = build_index_builder(env_settings, ProjectSettings()).build_from_directory(SAMPLE_SOURCE_DIR)
+        pipeline = build_rag_pipeline(env_settings=env_settings, index=index, answer_generator=FailingAnswerGenerator())
 
         with self.assertRaises(AppError) as context:
             pipeline.ask("会失败的问题")

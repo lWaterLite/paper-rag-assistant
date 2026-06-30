@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from app.core.config import Settings
+from app.core.settings import EnvSettings
 from app.core.models import ParsedDocument
 from app.ingest.chunkers import SectionAwareChunker
 
@@ -26,7 +26,7 @@ class SectionAwareChunkerTest(unittest.TestCase):
 
     def test_split_prefers_markdown_sections(self) -> None:
         text = "# Intro\n第一节内容。\n\n## Eval\n第二节内容。"
-        chunks = SectionAwareChunker(Settings(chunk_size=100, chunk_overlap=10)).split(build_document(text))
+        chunks = SectionAwareChunker(EnvSettings(chunk_size=100, chunk_overlap=10)).split(build_document(text))
 
         self.assertEqual(len(chunks), 2)
         self.assertEqual(chunks[0].section, "Intro")
@@ -38,7 +38,7 @@ class SectionAwareChunkerTest(unittest.TestCase):
 
     def test_long_section_is_split_again(self) -> None:
         text = "# Long\n" + "a" * 130
-        chunks = SectionAwareChunker(Settings(chunk_size=60, chunk_overlap=10)).split(build_document(text))
+        chunks = SectionAwareChunker(EnvSettings(chunk_size=60, chunk_overlap=10)).split(build_document(text))
 
         self.assertGreater(len(chunks), 1)
         self.assertTrue(all(chunk.section == "Long" for chunk in chunks))
@@ -46,7 +46,7 @@ class SectionAwareChunkerTest(unittest.TestCase):
 
     def test_chunks_keep_document_title_and_version_fields(self) -> None:
         text = "# Intro\n第一节内容。"
-        chunks = SectionAwareChunker(Settings(chunk_size=100, chunk_overlap=10)).split(build_document(text))
+        chunks = SectionAwareChunker(EnvSettings(chunk_size=100, chunk_overlap=10)).split(build_document(text))
 
         self.assertEqual(chunks[0].title, "测试文档")
         self.assertEqual(chunks[0].content_hash, "hash_test")
@@ -54,7 +54,7 @@ class SectionAwareChunkerTest(unittest.TestCase):
 
     def test_char_offsets_point_to_original_text(self) -> None:
         text = "# Intro\n第一节内容。\n\n## Eval\n第二节内容。"
-        chunks = SectionAwareChunker(Settings(chunk_size=100, chunk_overlap=10)).split(build_document(text))
+        chunks = SectionAwareChunker(EnvSettings(chunk_size=100, chunk_overlap=10)).split(build_document(text))
 
         for chunk in chunks:
             start = chunk.metadata["char_start"]
