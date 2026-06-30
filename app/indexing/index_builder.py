@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from app.core.config import Settings
+from app.core.settings import EnvSettings
 from app.core.models import DocumentChunk, RagTrace
 from app.indexing.embedding_cache import EmbeddingCache
 from app.indexing.embeddings import EmbeddingClient
@@ -46,7 +46,7 @@ class IndexBuilder:
 
     def __init__(
         self,
-        settings: Settings,
+        settings: EnvSettings,
         *,
         ingestion_pipeline: IngestionPipeline,
         chunker: CharacterChunker,

@@ -8,7 +8,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from app.core.config import Settings
+from app.core.settings import EnvSettings
 from app.core.errors import AppError, ErrorCode
 from app.core.models import RagAnswer, RagTrace
 from app.generation.answer_generator import MockAnswerGenerator
@@ -21,7 +21,7 @@ class RagPipeline:
 
     def __init__(
         self,
-        settings: Settings,
+        settings: EnvSettings,
         *,
         retriever: Retriever,
         context_packer: SimpleContextPacker,

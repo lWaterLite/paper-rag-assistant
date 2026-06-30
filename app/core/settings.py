@@ -1,21 +1,22 @@
 """应用配置。
 
-这里使用 pydantic-settings 管理项目配置。
-它负责从环境变量和 .env 文件读取配置，并用 pydantic 完成类型转换与字段校验。
+EnvSettings 负责读取 .env 和环境变量，适合环境相关、敏感或部署覆盖项。
+ProjectSettings 负责读取 settings.toml，适合结构化工程配置。
 """
 
 from __future__ import annotations
 
+import tomllib
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, ValidationError, model_validator
+from pydantic import BaseModel, Field, ValidationError, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.errors import AppError, ErrorCode
 
 
-class Settings(BaseSettings):
+class EnvSettings(BaseSettings):
     """RAG pipeline 的基础配置。
 
     这里故意只保留子模块 1 需要理解的配置项，避免一开始就陷入外部模型和数据库细节。
@@ -39,15 +40,8 @@ class Settings(BaseSettings):
     index_storage_path: Path = Field(default=Path("data/indexes"), description="索引持久化目录")
     debug_trace: bool = Field(default=False, description="是否在响应中返回完整 trace")
 
-    loader_recursive_iter: bool = Field(default=True, description="loader 加载本地文档时是否递归遍历子目录")
-
-    edge_line_count: int = Field(default=2, gt=0, description="每页顶部和底部参与页眉页脚检测的行数")
-    min_repeat_ratio: float = Field(default=0.6, gt=0, le=1, description="某一行被认为是页眉页脚时在页面边缘重复出现的比例")
-    min_line_length: int = Field(default=3, gt=0, description="参与页眉页脚检测行的最小长度")
-    max_line_length: int = Field(default=120, gt=0, description="参与页眉页脚检测行的最大长度")
-
     @model_validator(mode="after")
-    def validate_chunk_window(self) -> "Settings":
+    def validate_chunk_window(self) -> "EnvSettings":
         """校验多个配置项之间的关系。
 
         Field 适合校验单个字段，例如大于 0。
@@ -59,6 +53,46 @@ class Settings(BaseSettings):
                 f"chunk_overlap 必须小于 chunk_size，当前 chunk_overlap={self.chunk_overlap}，"
                 f"chunk_size={self.chunk_size}"
             )
+        return self
+
+    @classmethod
+    def from_env(cls) -> "EnvSettings":
+        """从环境变量读取配置。
+
+        业务入口使用这个方法，可以把 pydantic 的 ValidationError 转换成项目统一错误。
+        测试或内部代码也可以直接使用 EnvSettings(...)，直接获得 pydantic 的标准校验行为。
+        """
+        try:
+            return cls()
+        except ValidationError as exc:
+            raise AppError(ErrorCode.INVALID_CONFIG, _format_validation_error(exc)) from exc
+
+
+class LoaderSettings(BaseModel):
+    """本地文档 loader 的结构化配置。"""
+
+    recursive: bool = True
+    ignored_dir_names: frozenset[str] = Field(
+        default_factory=lambda: frozenset({".git", ".idea", "__pycache__", ".tmp_tests"})
+    )
+    ignored_relative_paths: tuple[str, ...] = ("data/indexes",)
+    skip_hidden_paths: bool = True
+    temporary_file_prefixes: tuple[str, ...] = ("~$",)
+    temporary_file_suffixes: tuple[str, ...] = (".tmp", ".part", ".crdownload")
+
+
+class PdfCleanerSettings(BaseModel):
+    """PDF 文本清洗器的结构化配置。"""
+
+    edge_line_count: int = Field(default=2, gt=0)
+    min_repeat_ratio: float = Field(default=0.6, gt=0, le=1)
+    min_line_length: int = Field(default=3, gt=0)
+    max_line_length: int = Field(default=120, gt=0)
+
+    @model_validator(mode="after")
+    def validate_line_length_window(self) -> "PdfCleanerSettings":
+        """校验页眉页脚候选行长度窗口。"""
+
         if self.max_line_length < self.min_line_length:
             raise ValueError(
                 f"max_line_length 必须大于等于 min_line_length，当前 max_line_length={self.max_line_length}，"
@@ -66,17 +100,30 @@ class Settings(BaseSettings):
             )
         return self
 
-    @classmethod
-    def from_env(cls) -> "Settings":
-        """从环境变量读取配置。
 
-        业务入口使用这个方法，可以把 pydantic 的 ValidationError 转换成项目统一错误。
-        测试或内部代码也可以直接使用 Settings(...)，直接获得 pydantic 的标准校验行为。
-        """
-        try:
+class ProjectSettings(BaseModel):
+    """从 settings.toml 读取的结构化工程配置。"""
+
+    loader: LoaderSettings = Field(default_factory=LoaderSettings)
+    pdf_cleaner: PdfCleanerSettings = Field(default_factory=PdfCleanerSettings)
+
+    @classmethod
+    def from_toml(cls, path: Path | str = Path("settings.toml")) -> "ProjectSettings":
+        """从 TOML 文件读取结构化配置。"""
+
+        config_path = Path(path)
+        if not config_path.exists():
             return cls()
-        except ValidationError as exc:
-            raise AppError(ErrorCode.INVALID_CONFIG, _format_validation_error(exc)) from exc
+
+        try:
+            data = tomllib.loads(config_path.read_text(encoding="utf-8"))
+            return cls.model_validate(data)
+        except (OSError, tomllib.TOMLDecodeError, ValidationError) as exc:
+            if isinstance(exc, ValidationError):
+                message = _format_validation_error(exc)
+            else:
+                message = f"配置文件读取失败：{exc}"
+            raise AppError(ErrorCode.INVALID_CONFIG, message) from exc
 
 
 def _format_validation_error(error: ValidationError) -> str:

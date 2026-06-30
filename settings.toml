@@ -1,0 +1,18 @@
+# paper-rag-assistant 结构化工程配置
+#
+# .env 继续用于环境相关、敏感或部署覆盖项。
+# 本文件用于 loader、cleaner 等结构化配置。
+
+[loader]
+recursive = true
+ignored_dir_names = [".git", ".idea", "__pycache__", ".tmp_tests"]
+ignored_relative_paths = ["data/indexes"]
+skip_hidden_paths = true
+temporary_file_prefixes = ["~$"]
+temporary_file_suffixes = [".tmp", ".part", ".crdownload"]
+
+[pdf_cleaner]
+edge_line_count = 2
+min_repeat_ratio = 0.6
+min_line_length = 3
+max_line_length = 120

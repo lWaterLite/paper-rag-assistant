@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from app.core.config import Settings
+from app.core.settings import EnvSettings, ProjectSettings
 from app.generation.answer_generator import MockAnswerGenerator
 from app.indexing.embedding_cache import EmbeddingCache, InMemoryEmbeddingCache
 from app.indexing.embeddings import EmbeddingClient, MockEmbeddingClient
@@ -28,18 +28,27 @@ from app.retrieval.retrievers import Retriever, VectorRetriever
 from app.storage.repositories import InMemoryDocumentRepository
 
 
-def build_loader_config(settings: Settings) -> LocalDocumentLoaderConfig:
-    """从应用 Settings 转换成本地文档 loader 配置。"""
+def build_loader_config(project_settings: ProjectSettings) -> LocalDocumentLoaderConfig:
+    """从结构化 ProjectSettings 转换成本地文档 loader 配置。"""
 
-    return LocalDocumentLoaderConfig(recursive=settings.loader_recursive_iter)
+    return LocalDocumentLoaderConfig(
+        recursive=project_settings.loader.recursive,
+        ignored_dir_names=project_settings.loader.ignored_dir_names,
+        ignored_relative_paths=project_settings.loader.ignored_relative_paths,
+        skip_hidden_paths=project_settings.loader.skip_hidden_paths,
+        temporary_file_prefixes=project_settings.loader.temporary_file_prefixes,
+        temporary_file_suffixes=project_settings.loader.temporary_file_suffixes,
+    )
 
 
-def build_pdf_text_cleaner_config(settings: Settings) -> PdfTextCleanerConfig:
+def build_pdf_text_cleaner_config(project_settings: ProjectSettings) -> PdfTextCleanerConfig:
+    """从结构化 ProjectSettings 转换成 PDF cleaner 配置。"""
+
     return PdfTextCleanerConfig(
-        edge_line_count=settings.edge_line_count,
-        min_repeat_ratio=settings.min_repeat_ratio,
-        min_line_length=settings.min_line_length,
-        max_line_length=settings.max_line_length,
+        edge_line_count=project_settings.pdf_cleaner.edge_line_count,
+        min_repeat_ratio=project_settings.pdf_cleaner.min_repeat_ratio,
+        min_line_length=project_settings.pdf_cleaner.min_line_length,
+        max_line_length=project_settings.pdf_cleaner.max_line_length,
     )
 
 
@@ -49,28 +58,31 @@ def build_document_identity_builder() -> DocumentIdentityBuilder:
     return DocumentIdentityBuilder()
 
 
-def build_local_document_loader(settings: Settings) -> LocalDocumentLoader:
+def build_local_document_loader(project_settings: ProjectSettings) -> LocalDocumentLoader:
     """创建完整 ingestion 使用的本地文档 loader。"""
 
     return LocalDocumentLoader(
-        config=build_loader_config(settings),
+        config=build_loader_config(project_settings),
         identity_builder=build_document_identity_builder(),
     )
 
 
-def build_local_text_loader(settings: Settings) -> LocalTextLoader:
+def build_local_text_loader(project_settings: ProjectSettings) -> LocalTextLoader:
     """创建兼容旧文本流程的 loader。"""
 
     return LocalTextLoader(
-        config=build_loader_config(settings),
+        config=build_loader_config(project_settings),
         identity_builder=build_document_identity_builder(),
     )
 
-def build_pdf_text_cleaner(settings: Settings) -> PdfTextCleaner:
-    return PdfTextCleaner(config=build_pdf_text_cleaner_config(settings))
+
+def build_pdf_text_cleaner(project_settings: ProjectSettings) -> PdfTextCleaner:
+    """创建 PDF 文本清洗器。"""
+
+    return PdfTextCleaner(config=build_pdf_text_cleaner_config(project_settings))
 
 
-def build_parser_registry(settings: Settings) -> ParserRegistry:
+def build_parser_registry(project_settings: ProjectSettings) -> ParserRegistry:
     """创建文档解析器注册表。"""
 
     text_cleaner = BasicTextCleaner()
@@ -78,23 +90,24 @@ def build_parser_registry(settings: Settings) -> ParserRegistry:
         parsers=[
             MarkdownParser(cleaner=text_cleaner),
             HtmlDocumentParser(cleaner=HtmlTextCleaner()),
-            PdfDocumentParser(cleaner=build_pdf_text_cleaner(settings)),
+            PdfDocumentParser(cleaner=build_pdf_text_cleaner(project_settings)),
             PlainTextParser(cleaner=text_cleaner),
         ]
     )
 
 
-def build_ingestion_pipeline(settings: Settings) -> IngestionPipeline:
+def build_ingestion_pipeline(project_settings: ProjectSettings) -> IngestionPipeline:
     """创建文档摄取 pipeline。"""
 
     return IngestionPipeline(
-        loader=build_local_document_loader(settings),
-        parser_registry=build_parser_registry(settings),
+        loader=build_local_document_loader(project_settings),
+        parser_registry=build_parser_registry(project_settings),
     )
 
 
 def build_index_builder(
-        settings: Settings,
+        env_settings: EnvSettings,
+        project_settings: ProjectSettings,
         *,
         ingestion_pipeline: IngestionPipeline | None = None,
         embedding_client: EmbeddingClient | None = None,
@@ -108,10 +121,10 @@ def build_index_builder(
     """
 
     return IndexBuilder(
-        settings=settings,
-        ingestion_pipeline=ingestion_pipeline if ingestion_pipeline is not None else build_ingestion_pipeline(settings),
-        chunker=CharacterChunker(settings),
-        embedding_client=embedding_client if embedding_client is not None else MockEmbeddingClient(settings),
+        settings=env_settings,
+        ingestion_pipeline=ingestion_pipeline if ingestion_pipeline is not None else build_ingestion_pipeline(project_settings),
+        chunker=CharacterChunker(env_settings),
+        embedding_client=embedding_client if embedding_client is not None else MockEmbeddingClient(env_settings),
         embedding_cache=embedding_cache if embedding_cache is not None else InMemoryEmbeddingCache(),
         vector_store=vector_store if vector_store is not None else InMemoryVectorStore(),
         repository=repository if repository is not None else InMemoryDocumentRepository(),
@@ -119,7 +132,7 @@ def build_index_builder(
 
 
 def build_rag_pipeline(
-        settings: Settings,
+        env_settings: EnvSettings,
         index: RagIndex,
         *,
         retriever: Retriever | None = None,
@@ -129,9 +142,9 @@ def build_rag_pipeline(
     """创建在线 RAG 问答 pipeline。"""
 
     return RagPipeline(
-        settings=settings,
+        settings=env_settings,
         retriever=retriever if retriever is not None else VectorRetriever(index.embedding_client, index.vector_store),
         context_packer=context_packer if context_packer is not None else SimpleContextPacker(
-            settings.max_context_chars),
+            env_settings.max_context_chars),
         answer_generator=answer_generator if answer_generator is not None else MockAnswerGenerator(),
     )

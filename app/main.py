@@ -10,20 +10,21 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from app.core.config import Settings
+from app.core.settings import EnvSettings, ProjectSettings
 from app.factory import build_index_builder, build_rag_pipeline
 
 
-def build_index(source: Path, settings: Settings):
+def build_index(source: Path, env_settings: EnvSettings, project_settings: ProjectSettings):
     """构建练习用内存索引。"""
 
-    builder = build_index_builder(settings)
+    builder = build_index_builder(env_settings, project_settings)
     return builder.build_from_directory(source)
 
 
 def handle_index(args: argparse.Namespace) -> None:
-    settings = Settings.from_env()
-    _, result = build_index(Path(args.source), settings)
+    env_settings = EnvSettings.from_env()
+    project_settings = ProjectSettings.from_toml()
+    _, result = build_index(Path(args.source), env_settings, project_settings)
     print("索引构建完成")
     print(f"- 文档数量：{result.document_count}")
     print(f"- chunk 数量：{result.chunk_count}")
@@ -32,9 +33,10 @@ def handle_index(args: argparse.Namespace) -> None:
 
 
 def handle_ask(args: argparse.Namespace) -> None:
-    settings = Settings.from_env()
-    index, build_result = build_index(Path(args.source), settings)
-    pipeline = build_rag_pipeline(settings=settings, index=index)
+    env_settings = EnvSettings.from_env()
+    project_settings = ProjectSettings.from_toml()
+    index, build_result = build_index(Path(args.source), env_settings, project_settings)
+    pipeline = build_rag_pipeline(env_settings=env_settings, index=index)
     answer = pipeline.ask(args.question)
 
     print("回答：")

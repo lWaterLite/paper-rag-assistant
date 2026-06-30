@@ -9,7 +9,7 @@ import hashlib
 import math
 from typing import Protocol
 
-from app.core.config import Settings
+from app.core.settings import EnvSettings
 
 
 class EmbeddingClient(Protocol):
@@ -40,7 +40,7 @@ class MockEmbeddingClient:
     它不理解真实语义，只适合学习 pipeline 结构和编写测试。
     """
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: EnvSettings) -> None:
         self._dimension = settings.mock_embedding_dimension
 
     @property

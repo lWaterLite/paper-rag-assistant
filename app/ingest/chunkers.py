@@ -8,7 +8,7 @@ from __future__ import annotations
 import hashlib
 from abc import ABC, abstractmethod
 
-from app.core.config import Settings
+from app.core.settings import EnvSettings
 from app.core.models import DocumentChunk, ParsedDocument
 
 
@@ -26,7 +26,7 @@ def _build_chunk_id(version_id: str, chunk_index: int, chunk_text: str) -> str:
 class Chunker(ABC):
     """切分器抽象基类。"""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: EnvSettings) -> None:
         self._chunk_size = settings.chunk_size
         self._chunk_overlap = settings.chunk_overlap
 
@@ -38,7 +38,7 @@ class Chunker(ABC):
 class CharacterChunker(Chunker):
     """基于字符长度的简单 chunker。"""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: EnvSettings) -> None:
         super().__init__(settings)
 
     def split(self, document: ParsedDocument) -> list[DocumentChunk]:
@@ -94,7 +94,7 @@ class SectionAwareChunker(Chunker):
     如果某个小节超过 chunk_size，再对这个小节内部进行字符级二次切分。
     """
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: EnvSettings) -> None:
         super().__init__(settings)
 
     def split(self, document: ParsedDocument) -> list[DocumentChunk]:
@@ -187,4 +187,3 @@ class SectionAwareChunker(Chunker):
             start += step
 
         return chunks
-
