@@ -16,3 +16,6 @@ edge_line_count = 2
 min_repeat_ratio = 0.6
 min_line_length = 3
 max_line_length = 120
+
+[ingestion_report]
+output_dir = "logs"

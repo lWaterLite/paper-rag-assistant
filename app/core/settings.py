@@ -101,11 +101,18 @@ class PdfCleanerSettings(BaseModel):
         return self
 
 
+class IngestionReportSettings(BaseModel):
+    """文档摄取报告的结构化配置。"""
+
+    output_dir: Path = Field(default=Path("logs"), description="摄取报告 JSON 的输出目录")
+
+
 class ProjectSettings(BaseModel):
     """从 settings.toml 读取的结构化工程配置。"""
 
     loader: LoaderSettings = Field(default_factory=LoaderSettings)
     pdf_cleaner: PdfCleanerSettings = Field(default_factory=PdfCleanerSettings)
+    ingestion_report: IngestionReportSettings = Field(default_factory=IngestionReportSettings)
 
     @classmethod
     def from_toml(cls, path: Path | str = Path("settings.toml")) -> "ProjectSettings":

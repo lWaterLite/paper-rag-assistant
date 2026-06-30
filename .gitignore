@@ -1,6 +1,7 @@
 .idea
 .tmp_tests/
 .tmp_config_tests/
+logs/
 
 data/raw/papers/pdf
 -data/raw/papers/pdf/.gitkeep

@@ -39,6 +39,9 @@ class DocumentLoader(Protocol):
     def load_directory(self, source_dir: Path) -> list[RawDocument]:
         """加载目录中的文件。"""
 
+    def iter_supported_files(self, source_dir: Path) -> Iterable[Path]:
+        """遍历目录中支持的文件。"""
+
 
 class DocumentIdentityBuilder:
     """文档身份生成器。

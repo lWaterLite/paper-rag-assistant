@@ -21,7 +21,7 @@ from app.ingest.loaders import (
     LocalTextLoader,
 )
 from app.ingest.parsers import HtmlDocumentParser, MarkdownParser, ParserRegistry, PdfDocumentParser, PlainTextParser
-from app.ingest.pipeline import IngestionPipeline
+from app.ingest.pipeline import IngestionPipeline, IngestionReportConfig, IngestionReportWriter
 from app.pipeline import RagPipeline
 from app.retrieval.context_packer import SimpleContextPacker
 from app.retrieval.retrievers import Retriever, VectorRetriever
@@ -50,6 +50,12 @@ def build_pdf_text_cleaner_config(project_settings: ProjectSettings) -> PdfTextC
         min_line_length=project_settings.pdf_cleaner.min_line_length,
         max_line_length=project_settings.pdf_cleaner.max_line_length,
     )
+
+
+def build_ingestion_report_config(project_settings: ProjectSettings) -> IngestionReportConfig:
+    """从结构化 ProjectSettings 转换成 ingestion report 配置。"""
+
+    return IngestionReportConfig(output_dir=project_settings.ingestion_report.output_dir)
 
 
 def build_document_identity_builder() -> DocumentIdentityBuilder:
@@ -114,6 +120,7 @@ def build_index_builder(
         embedding_cache: EmbeddingCache | None = None,
         vector_store: InMemoryVectorStore | None = None,
         repository: InMemoryDocumentRepository | None = None,
+        ingestion_report_writer: IngestionReportWriter | None = None,
 ) -> IndexBuilder:
     """创建离线索引构建器。
 
@@ -128,6 +135,8 @@ def build_index_builder(
         embedding_cache=embedding_cache if embedding_cache is not None else InMemoryEmbeddingCache(),
         vector_store=vector_store if vector_store is not None else InMemoryVectorStore(),
         repository=repository if repository is not None else InMemoryDocumentRepository(),
+        ingestion_report_writer=ingestion_report_writer if ingestion_report_writer is not None else IngestionReportWriter(),
+        ingestion_report_config=build_ingestion_report_config(project_settings),
     )
 
 

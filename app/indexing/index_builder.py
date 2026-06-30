@@ -12,7 +12,7 @@ from app.indexing.embedding_cache import EmbeddingCache
 from app.indexing.embeddings import EmbeddingClient
 from app.indexing.vector_store import InMemoryVectorStore
 from app.ingest.chunkers import CharacterChunker
-from app.ingest.pipeline import IngestionFailure, IngestionPipeline
+from app.ingest.pipeline import IngestionFailure, IngestionPipeline, IngestionReportConfig, IngestionReportWriter
 from app.indexing.manifest import IndexManifest
 from app.storage.repositories import InMemoryDocumentRepository
 
@@ -30,6 +30,7 @@ class IndexBuildResult:
     embedding_cache_misses: int = 0
     skipped_existing_chunks: int = 0
     ingestion_failures: list[IngestionFailure] = field(default_factory=list)
+    ingestion_report_path: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -54,6 +55,8 @@ class IndexBuilder:
         embedding_cache: EmbeddingCache,
         vector_store: InMemoryVectorStore,
         repository: InMemoryDocumentRepository,
+        ingestion_report_writer: IngestionReportWriter,
+        ingestion_report_config: IngestionReportConfig,
     ) -> None:
         self._settings = settings
         self._ingestion_pipeline = ingestion_pipeline
@@ -62,6 +65,8 @@ class IndexBuilder:
         self._embedding_cache = embedding_cache
         self._vector_store = vector_store
         self._repository = repository
+        self._ingestion_report_writer = ingestion_report_writer
+        self._ingestion_report_config = ingestion_report_config
 
     def build_from_directory(self, source_dir: Path) -> tuple[RagIndex, IndexBuildResult]:
         """从目录构建内存索引。"""
@@ -76,6 +81,11 @@ class IndexBuilder:
             self._repository.save_raw(document)
         for document in parsed_documents:
             self._repository.save_parsed(document)
+        ingestion_report_output_path = self._prepare_ingestion_report_output()
+        ingestion_report_path = self._ingestion_report_writer.write(
+            ingestion_result,
+            ingestion_report_output_path,
+        )
         trace.record_stage(
             "ingestion",
             "success",
@@ -83,6 +93,7 @@ class IndexBuilder:
             {
                 "document_count": len(parsed_documents),
                 "failed_files": len(ingestion_result.failures),
+                "report_path": ingestion_report_path.as_posix(),
             },
         )
 
@@ -144,8 +155,20 @@ class IndexBuilder:
             embedding_cache_misses=cache_misses,
             skipped_existing_chunks=skipped_existing_chunks,
             ingestion_failures=ingestion_result.failures,
+            ingestion_report_path=ingestion_report_path,
         )
         return index, result
+
+    def _prepare_ingestion_report_output(self) -> Path:
+        """准备 ingestion 报告输出路径。
+
+        目录创建属于索引构建流程的运行产物准备，不放在 writer 中。
+        writer 只负责把报告内容写入已经确定的文件路径。
+        """
+
+        output_path = self._ingestion_report_config.output_path
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        return output_path
 
     def _embed_chunks_with_cache(self, chunks: list[DocumentChunk]) -> tuple[list[list[float]], int, int]:
         """使用缓存批量生成 chunk embedding。

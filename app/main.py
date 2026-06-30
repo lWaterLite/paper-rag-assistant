@@ -29,6 +29,8 @@ def handle_index(args: argparse.Namespace) -> None:
     print(f"- 文档数量：{result.document_count}")
     print(f"- chunk 数量：{result.chunk_count}")
     print(f"- 向量数量：{result.vector_count}")
+    if result.ingestion_report_path is not None:
+        print(f"- ingestion 报告：{result.ingestion_report_path.as_posix()}")
     print(f"- trace_id：{result.trace.trace_id}")
 
 
