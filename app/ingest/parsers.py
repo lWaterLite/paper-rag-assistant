@@ -10,12 +10,11 @@ import re
 from datetime import UTC, datetime
 from html import unescape
 from html.parser import HTMLParser
-from io import BytesIO
 from typing import Protocol
 
 from app.core.errors import AppError, ErrorCode
-from app.core.models import ParseIssue, ParsedBlock, ParsedDocument, RawDocument
-from app.ingest.cleaners import BasicTextCleaner, CleanedText, HtmlTextCleaner, PdfTextCleaner
+from app.core.models import BlockType, ParseIssue, ParsedBlock, ParsedDocument, RawDocument
+from app.ingest.cleaners import BasicTextCleaner, HtmlTextCleaner, PdfTextCleaner
 
 
 class DocumentParser(Protocol):
@@ -101,7 +100,8 @@ class PlainTextParser:
         cleaned = BasicTextCleaner().clean(text)
         return cleaned.text, cleaned.metadata
 
-    def _build_paragraph_blocks(self, document: RawDocument, text: str) -> list[ParsedBlock]:
+    @staticmethod
+    def _build_paragraph_blocks(document: RawDocument, text: str) -> list[ParsedBlock]:
         """按空行切成段落块。"""
 
         blocks: list[ParsedBlock] = []
@@ -182,7 +182,8 @@ class MarkdownParser(PlainTextParser):
             metadata[key.strip()] = value.strip().strip('"').strip("'")
         return metadata, body
 
-    def _build_markdown_blocks(self, document: RawDocument, text: str) -> list[ParsedBlock]:
+    @staticmethod
+    def _build_markdown_blocks(document: RawDocument, text: str) -> list[ParsedBlock]:
         """把 Markdown 文本切成带 section 的 block。"""
 
         blocks: list[ParsedBlock] = []
@@ -258,12 +259,13 @@ class HtmlDocumentParser:
                 return line.strip()
         return fallback
 
-    def _build_html_blocks(self, document: RawDocument, text: str) -> list[ParsedBlock]:
+    @staticmethod
+    def _build_html_blocks(document: RawDocument, text: str) -> list[ParsedBlock]:
         blocks: list[ParsedBlock] = []
         cursor = 0
         current_section: str | None = None
         for block_index, paragraph in enumerate(_split_paragraphs(text)):
-            block_type = "heading" if len(paragraph) <= 120 and not paragraph.endswith((".", "。")) else "paragraph"
+            block_type: BlockType = "heading" if len(paragraph) <= 120 and not paragraph.endswith((".", "。")) else "paragraph"
             if block_type == "heading":
                 current_section = paragraph
             start = text.find(paragraph, cursor)
@@ -296,8 +298,8 @@ class PdfDocumentParser:
     def parse(self, document: RawDocument) -> ParsedDocument:
         """解析 PDF。
 
-        优先使用 PyMuPDF。如果环境中没有 PyMuPDF，则尝试 pypdf。
-        两者都没有时抛出明确错误，让用户自行安装依赖。
+        当前项目统一使用 PyMuPDF 作为 PDF 解析基础。
+        它能提供页面、文本块和坐标等信息，后续更适合继续扩展 layout-aware 解析。
         """
 
         if not document.raw_bytes:
@@ -336,24 +338,17 @@ class PdfDocumentParser:
         )
 
     def _extract_pages(self, raw_bytes: bytes, source_path: str) -> tuple[list[tuple[int, str]], dict[str, str]]:
-        """从 PDF 字节中提取每页文本。"""
+        """使用 PyMuPDF 从 PDF 字节中提取每页文本。"""
 
         try:
             return self._extract_pages_with_pymupdf(raw_bytes)
-        except ImportError:
-            pass
-        except Exception as exc:
-            raise AppError(ErrorCode.DOCUMENT_PARSE_FAILED, f"PyMuPDF 解析 PDF 失败：{source_path}") from exc
-
-        try:
-            return self._extract_pages_with_pypdf(raw_bytes)
         except ImportError as exc:
             raise AppError(
                 ErrorCode.DOCUMENT_PARSE_FAILED,
-                "解析 PDF 需要安装 PyMuPDF 或 pypdf。建议执行：uv add pymupdf，或 pip install pymupdf",
+                "解析 PDF 需要安装 PyMuPDF。建议执行：uv add pymupdf，或 pip install pymupdf",
             ) from exc
         except Exception as exc:
-            raise AppError(ErrorCode.DOCUMENT_PARSE_FAILED, f"pypdf 解析 PDF 失败：{source_path}") from exc
+            raise AppError(ErrorCode.DOCUMENT_PARSE_FAILED, f"PyMuPDF 解析 PDF 失败：{source_path}") from exc
 
     @staticmethod
     def _extract_pages_with_pymupdf(raw_bytes: bytes) -> tuple[list[tuple[int, str]], dict[str, str]]:
@@ -367,15 +362,6 @@ class PdfDocumentParser:
                 pages.append((index, page.get_text("text")))
         return pages, metadata
 
-    @staticmethod
-    def _extract_pages_with_pypdf(raw_bytes: bytes) -> tuple[list[tuple[int, str]], dict[str, str]]:
-        from pypdf import PdfReader
-
-        reader = PdfReader(BytesIO(raw_bytes))
-        metadata = {key.lstrip("/").lower(): str(value) for key, value in (reader.metadata or {}).items() if value}
-        pages = [(index, page.extract_text() or "") for index, page in enumerate(reader.pages, start=1)]
-        return pages, metadata
-
     def _build_pdf_blocks(self, document: RawDocument, pages: list[tuple[int, str]]) -> list[ParsedBlock]:
         """按页和段落生成 PDF blocks。"""
 
@@ -383,9 +369,9 @@ class PdfDocumentParser:
         block_index = 0
         current_section: str | None = None
         for page_number, page_text in pages:
-            page_cleaned = self._cleaner.clean(self._cleaner._merge_pdf_line_breaks(page_text))
+            page_cleaned = self._cleaner.clean(self._cleaner.merge_pdf_line_breaks(page_text))
             for paragraph in _split_paragraphs(page_cleaned.text):
-                block_type = "heading" if _looks_like_pdf_heading(paragraph) else "paragraph"
+                block_type: BlockType = "heading" if _looks_like_pdf_heading(paragraph) else "paragraph"
                 if block_type == "heading":
                     current_section = paragraph
                 blocks.append(
@@ -502,7 +488,7 @@ def _split_paragraphs(text: str) -> list[str]:
     return [part.strip() for part in re.split(r"\n\s*\n", text) if part.strip()]
 
 
-def _classify_markdown_block(text: str) -> str:
+def _classify_markdown_block(text: str) -> BlockType:
     """粗略识别 Markdown block 类型。"""
 
     stripped = text.strip()

@@ -159,7 +159,7 @@ app/ingest/parsers.py
 - `ParserRegistry` 根据 `RawDocument.file_type` 选择解析器。
 - Markdown 会提取简单 frontmatter。
 - HTML 会去掉 `nav`、`footer`、`script`、`style` 等噪声。
-- PDF 会优先使用 PyMuPDF；如果没有，再尝试 pypdf。
+- PDF 统一使用 PyMuPDF 解析。
 
 ### 2.5 Ingestion Pipeline
 
@@ -210,18 +210,6 @@ uv add "pymupdf>=1.24"
 
 ```powershell
 pip install "pymupdf>=1.24"
-```
-
-备用 PDF 解析库：
-
-```powershell
-uv add "pypdf>=4.2"
-```
-
-或：
-
-```powershell
-pip install "pypdf>=4.2"
 ```
 
 项目中已经在 `pyproject.toml` 增加了可选依赖组：

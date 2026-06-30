@@ -121,7 +121,7 @@ class PdfTextCleaner(BasicTextCleaner):
                 page_number,
                 issues,
             )
-            fixed_line_breaks = self._merge_pdf_line_breaks(without_headers)
+            fixed_line_breaks = self.merge_pdf_line_breaks(without_headers)
             cleaned_page_texts.append(fixed_line_breaks.strip())
 
         merged = "\n\n".join(text for text in cleaned_page_texts if text)
@@ -138,7 +138,7 @@ class PdfTextCleaner(BasicTextCleaner):
         )
 
     @staticmethod
-    def _merge_pdf_line_breaks(text: str) -> str:
+    def merge_pdf_line_breaks(text: str) -> str:
         """合并 PDF 中常见的段内错误换行。"""
 
         lines = [line.strip() for line in text.splitlines()]
