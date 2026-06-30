@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 from pydantic import ValidationError
 
-from app.core.settings import EnvSettings, PdfCleanerSettings, ProjectSettings
+from app.core.settings import EnvSettings, IngestionReportSettings, PdfCleanerSettings, ProjectSettings
 from app.core.errors import AppError, ErrorCode
 
 
@@ -123,6 +123,9 @@ edge_line_count = 3
 min_repeat_ratio = 0.75
 min_line_length = 4
 max_line_length = 80
+
+[ingestion_report]
+output_dir = ".tmp_tests/ingestion-reports"
 """.strip(),
                 encoding="utf-8",
             )
@@ -135,9 +138,15 @@ max_line_length = 80
             self.assertEqual(project_settings.pdf_cleaner.edge_line_count, 3)
             self.assertEqual(project_settings.pdf_cleaner.min_repeat_ratio, 0.75)
             self.assertEqual(project_settings.pdf_cleaner.max_line_length, 80)
+            self.assertEqual(project_settings.ingestion_report.output_dir, Path(".tmp_tests/ingestion-reports"))
         finally:
             if config_path.parent.exists():
                 shutil.rmtree(config_path.parent, ignore_errors=True)
+
+    def test_ingestion_report_settings_uses_logs_as_default_dir(self) -> None:
+        settings = IngestionReportSettings()
+
+        self.assertEqual(settings.output_dir, Path("logs"))
 
 
 if __name__ == "__main__":

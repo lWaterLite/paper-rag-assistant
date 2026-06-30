@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import unittest
+import uuid
 from pathlib import Path
 
-from app.core.settings import EnvSettings, ProjectSettings
+from app.core.settings import EnvSettings, IngestionReportSettings, ProjectSettings
 from app.factory import build_index_builder
 from app.indexing.embedding_cache import InMemoryEmbeddingCache
 
@@ -71,6 +73,29 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
         self.assertEqual(second_result.embedding_cache_misses, 0)
         self.assertEqual(index.vector_store.count(), first_result.chunk_count)
         self.assertEqual(client.embedded_text_count, first_result.chunk_count)
+
+    def test_index_builder_writes_ingestion_report_from_project_settings(self) -> None:
+        env_settings = EnvSettings(chunk_size=120, chunk_overlap=20)
+        report_dir = Path(".tmp_tests") / f"ingestion_reports_{uuid.uuid4().hex}"
+        project_settings = ProjectSettings(
+            ingestion_report=IngestionReportSettings(output_dir=report_dir)
+        )
+
+        self.assertFalse(report_dir.exists())
+
+        _, result = build_index_builder(env_settings, project_settings).build_from_directory(Path("data/raw/papers"))
+
+        self.assertTrue(report_dir.exists())
+        self.assertEqual(result.ingestion_report_path, report_dir / "ingestion_report.json")
+        self.assertTrue(result.ingestion_report_path.exists())
+
+        report = json.loads(result.ingestion_report_path.read_text(encoding="utf-8"))
+        self.assertEqual(report["source_dir"], "data/raw/papers")
+        self.assertEqual(report["succeeded"], result.document_count)
+        self.assertEqual(report["failed"], len(result.ingestion_failures))
+        self.assertTrue(report["trace_id"].startswith("trace_"))
+        self.assertEqual(result.trace.stages[0].detail["report_path"], result.ingestion_report_path.as_posix())
+        self.assertEqual(report["trace"]["final_status"], "success")
 
 
 if __name__ == "__main__":

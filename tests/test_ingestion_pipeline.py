@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import unittest
+import uuid
 from pathlib import Path
 
 from app.core.settings import LoaderSettings, ProjectSettings
@@ -12,7 +14,7 @@ from app.factory import build_local_document_loader, build_local_text_loader
 from app.ingest.cleaners import BasicTextCleaner, HtmlTextCleaner, PdfTextCleaner, PdfTextCleanerConfig
 from app.ingest.loaders import DocumentIdentityBuilder, LocalDocumentLoader, LocalDocumentLoaderConfig
 from app.ingest.parsers import HtmlDocumentParser, MarkdownParser, PdfDocumentParser, ParserRegistry
-from app.ingest.pipeline import IngestionPipeline
+from app.ingest.pipeline import IngestionPipeline, IngestionReportWriter
 
 
 class IngestionPipelineTest(unittest.TestCase):
@@ -169,9 +171,38 @@ class IngestionPipelineTest(unittest.TestCase):
             {"Conference Header"},
         )
 
+    def test_ingestion_report_writer_writes_json_report(self) -> None:
+        result = IngestionPipeline(
+            loader=FakeMixedLoader(),
+            parser_registry=ParserRegistry(parsers=[MarkdownParser(cleaner=BasicTextCleaner())]),
+        ).ingest_directory(Path("data/raw/papers"))
+
+        output_path = Path(".tmp_tests") / f"ingestion_report_{uuid.uuid4().hex}.json"
+        output_path.parent.mkdir(exist_ok=True)
+        written_path = IngestionReportWriter().write(result, output_path)
+
+        report = json.loads(written_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(written_path, output_path)
+        self.assertEqual(report["trace_id"], result.trace.trace_id)
+        self.assertEqual(report["source_dir"], "data/raw/papers")
+        self.assertEqual(report["succeeded"], 1)
+        self.assertEqual(report["failed"], 1)
+        self.assertFalse(report["success"])
+        self.assertEqual(report["documents"][0]["doc_id"], "doc_good")
+        self.assertEqual(report["documents"][0]["title"], "Good Paper")
+        self.assertEqual(report["documents"][0]["block_count"], 2)
+        self.assertEqual(report["failures"][0]["stage"], "loading")
+        self.assertEqual(report["trace"]["final_status"], "success")
+
 
 class FakeMixedLoader:
     """用于模拟一个好文件和一个坏文件。"""
+
+    supported_suffixes = {".md", ".txt"}
+
+    def load_directory(self, source_dir: Path) -> list[RawDocument]:
+        return [self.load_file(path) for path in self.iter_supported_files(source_dir)]
 
     def iter_supported_files(self, source_dir: Path):
         yield source_dir / "good.md"
