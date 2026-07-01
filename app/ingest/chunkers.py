@@ -84,13 +84,22 @@ def estimate_token_count(text: str, tokenizer: TokenizerName) -> int:
 def _regex_token_spans(text: str) -> list[tuple[int, int]]:
     """用轻量规则切出 token span。
 
-    TODO 子模块3-练习1：
-    当前规则会把英文缩写和带小数点的数字拆得比较粗糙。
-    请只改进这个函数，让 `U.S.A.`、`3.14`、`2024-06` 这类文本的 token span 更合理。
-    不要改动 chunker 主流程。
+    这是无第三方 tokenizer 时的工程 fallback，不追求和真实 embedding 模型完全一致。
+    规则按优先级排列：先匹配应该保持为整体的特殊 token，再匹配普通词、数字、
+    中文字符和剩余非空白符号。
     """
 
-    pattern = re.compile(r"[\u4e00-\u9fff]|[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*|\S")
+    pattern = re.compile(
+        r"""
+        (?:[A-Za-z]\.){2,}              # 英文缩写，例如 U.S.A.、e.g.
+        |\d+(?:[./:-]\d+)+              # 小数、日期或版本号，例如 3.14、2024-06
+        |[A-Za-z]+(?:[-_'][A-Za-z]+)*   # 英文单词或连字符词，例如 retrieval-augmented
+        |\d+                            # 普通整数
+        |[\u4e00-\u9fff]                # CJK 字符，当前阶段按单字估算
+        |\S                             # 兜底：标点、符号等非空白字符
+        """,
+        re.VERBOSE,
+    )
     return [(match.start(), match.end()) for match in pattern.finditer(text)]
 
 
