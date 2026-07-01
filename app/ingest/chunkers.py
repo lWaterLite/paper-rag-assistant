@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from app.core.models import DocumentChunk, ParsedBlock, ParsedDocument
+from app.ingest.chunk_metadata import ChunkMetadata, ChunkMetadataBuilder
 
 ChunkingStrategy = Literal["character", "fixed_token", "section_aware"]
 TokenizerName = Literal["char_approx", "simple_regex"]
@@ -138,6 +139,7 @@ class Chunker(ABC):
         self._config = config
         self._chunk_size = config.chunk_size
         self._chunk_overlap = config.chunk_overlap
+        self._metadata_builder = ChunkMetadataBuilder()
 
     @property
     def config(self) -> ChunkerConfig:
@@ -164,22 +166,20 @@ class Chunker(ABC):
     ) -> DocumentChunk:
         """统一构造 DocumentChunk，保证 metadata 形状一致。"""
 
-        metadata = {
-            **document.metadata,
-            "chunker": type(self).__name__,
-            "chunking_strategy": self._config.strategy,
-            "chunk_size": self._chunk_size,
-            "chunk_overlap": self._chunk_overlap,
-            "tokenizer": self._config.tokenizer,
-        }
-        if char_start is not None:
-            metadata["char_start"] = char_start
-        if char_end is not None:
-            metadata["char_end"] = char_end
-        if section is not None:
-            metadata["section_title"] = section
-        if extra_metadata:
-            metadata.update(extra_metadata)
+        metadata = self._metadata_builder.build(
+            document_metadata=document.metadata,
+            chunk_metadata=ChunkMetadata(
+                chunker=type(self).__name__,
+                chunking_strategy=self._config.strategy,
+                chunk_size=self._chunk_size,
+                chunk_overlap=self._chunk_overlap,
+                tokenizer=self._config.tokenizer,
+                char_start=char_start,
+                char_end=char_end,
+                section_title=section,
+            ),
+            extra_metadata=extra_metadata,
+        )
 
         return DocumentChunk(
             chunk_id=_build_chunk_id(document.version_id, chunk_index, text),
