@@ -64,6 +64,21 @@ class ChunkingTest(unittest.TestCase):
     def test_estimate_token_count_supports_simple_regex_tokenizer(self) -> None:
         self.assertEqual(estimate_token_count("RAG 系统 2024-06", "simple_regex"), 4)
 
+    def test_simple_regex_tokenizer_keeps_common_acronym_decimal_and_date_tokens(self) -> None:
+        text = "U.S.A. score is 3.14 on 2024-06."
+        document = build_document(text)
+        chunker = FixedTokenChunker(
+            ChunkerConfig(
+                strategy="fixed_token",
+                chunk_size=1,
+                chunk_overlap=0,
+                tokenizer="simple_regex",
+            )
+        )
+        tokens = [chunk.text for chunk in chunker.split(document)]
+
+        self.assertEqual(tokens, ["U.S.A.", "score", "is", "3.14", "on", "2024-06", "."])
+
     def test_chunking_report_writer_outputs_quality_summary(self) -> None:
         document = build_document("# Intro\n内容", source_path="paper.pdf")
         config = ChunkerConfig(strategy="section_aware", chunk_size=100, chunk_overlap=10)
