@@ -383,14 +383,52 @@ class SectionAwareChunker(Chunker):
         return sections
 
 
-def build_chunker(config: ChunkerConfig) -> Chunker:
-    """根据配置创建 chunker。"""
+class ChunkerRegistry:
+    """chunker 策略注册表。
 
-    if config.strategy == "character":
-        return CharacterChunker(config)
-    if config.strategy == "fixed_token":
-        return FixedTokenChunker(config)
-    return SectionAwareChunker(config)
+    registry 负责维护“策略名称 -> chunker 类”的映射。
+    调用方只需要根据配置请求创建 chunker，不需要知道具体有哪些实现类。
+    """
+
+    def __init__(self) -> None:
+        self._chunker_classes: dict[str, type[Chunker]] = {}
+
+    def register(self, name: str, chunker_class: type[Chunker]) -> None:
+        """注册一个 chunker 策略。"""
+
+        normalized_name = name.strip()
+        if not normalized_name:
+            raise ValueError("chunker 策略名称不能为空")
+        if normalized_name in self._chunker_classes:
+            raise ValueError(f"chunker 策略已注册：{normalized_name}")
+        self._chunker_classes[normalized_name] = chunker_class
+
+    def create(self, config: ChunkerConfig) -> Chunker:
+        """根据配置创建 chunker。"""
+
+        chunker_class = self._chunker_classes.get(config.strategy)
+        if chunker_class is None:
+            supported_strategies = ", ".join(self.list_strategies()) or "无"
+            raise ValueError(
+                f"未知 chunking strategy：{config.strategy}，"
+                f"当前已注册策略：{supported_strategies}"
+            )
+        return chunker_class(config)
+
+    def list_strategies(self) -> tuple[str, ...]:
+        """返回已注册策略名称，方便调试和测试。"""
+
+        return tuple(sorted(self._chunker_classes))
+
+
+def build_default_chunker_registry() -> ChunkerRegistry:
+    """创建项目内置 chunker 策略注册表。"""
+
+    registry = ChunkerRegistry()
+    registry.register("character", CharacterChunker)
+    registry.register("fixed_token", FixedTokenChunker)
+    registry.register("section_aware", SectionAwareChunker)
+    return registry
 
 
 def _build_section_group(section: str | None, blocks: list[ParsedBlock]) -> SectionGroup:

@@ -12,7 +12,7 @@ from app.indexing.embedding_cache import EmbeddingCache, InMemoryEmbeddingCache
 from app.indexing.embeddings import EmbeddingClient, MockEmbeddingClient
 from app.indexing.index_builder import IndexBuilder, RagIndex
 from app.indexing.vector_store import InMemoryVectorStore
-from app.ingest.chunkers import Chunker, ChunkerConfig, build_chunker
+from app.ingest.chunkers import Chunker, ChunkerConfig, ChunkerRegistry, build_default_chunker_registry
 from app.ingest.chunking_report import ChunkingReportConfig, ChunkingReportWriter
 from app.ingest.cleaners import BasicTextCleaner, HtmlTextCleaner, PdfTextCleaner, PdfTextCleanerConfig
 from app.ingest.loaders import (
@@ -76,10 +76,18 @@ def build_chunking_report_config(project_settings: ProjectSettings) -> ChunkingR
     return ChunkingReportConfig(output_dir=project_settings.chunking_report.output_dir)
 
 
-def build_configured_chunker(project_settings: ProjectSettings) -> Chunker:
-    """根据项目配置创建 chunker。"""
+def build_configured_chunker(
+        project_settings: ProjectSettings,
+        *,
+        chunker_registry: ChunkerRegistry | None = None,
+) -> Chunker:
+    """根据项目配置创建 chunker。
 
-    return build_chunker(build_chunker_config(project_settings))
+    默认使用项目内置 registry；调用方也可以传入已经注册过外部策略的 registry。
+    """
+
+    registry = chunker_registry if chunker_registry is not None else build_default_chunker_registry()
+    return registry.create(build_chunker_config(project_settings))
 
 
 def build_document_identity_builder() -> DocumentIdentityBuilder:
@@ -146,6 +154,7 @@ def build_index_builder(
         repository: InMemoryDocumentRepository | None = None,
         ingestion_report_writer: IngestionReportWriter | None = None,
         chunking_report_writer: ChunkingReportWriter | None = None,
+        chunker_registry: ChunkerRegistry | None = None,
 ) -> IndexBuilder:
     """创建离线索引构建器。
 
@@ -155,7 +164,7 @@ def build_index_builder(
     return IndexBuilder(
         settings=env_settings,
         ingestion_pipeline=ingestion_pipeline if ingestion_pipeline is not None else build_ingestion_pipeline(project_settings),
-        chunker=build_configured_chunker(project_settings),
+        chunker=build_configured_chunker(project_settings, chunker_registry=chunker_registry),
         embedding_client=embedding_client if embedding_client is not None else MockEmbeddingClient(env_settings),
         embedding_cache=embedding_cache if embedding_cache is not None else InMemoryEmbeddingCache(),
         vector_store=vector_store if vector_store is not None else InMemoryVectorStore(),
