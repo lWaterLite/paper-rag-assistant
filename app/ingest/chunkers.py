@@ -14,7 +14,6 @@ from typing import Literal
 
 from app.core.models import DocumentChunk, ParsedBlock, ParsedDocument
 
-
 ChunkingStrategy = Literal["character", "fixed_token", "section_aware"]
 TokenizerName = Literal["char_approx", "simple_regex"]
 
@@ -151,17 +150,17 @@ class Chunker(ABC):
         """把解析后的文档切成 chunks。"""
 
     def _build_chunk(
-        self,
-        *,
-        document: ParsedDocument,
-        chunk_index: int,
-        text: str,
-        section: str | None = None,
-        page_start: int | None = None,
-        page_end: int | None = None,
-        char_start: int | None = None,
-        char_end: int | None = None,
-        extra_metadata: dict[str, int | str | bool | None] | None = None,
+            self,
+            *,
+            document: ParsedDocument,
+            chunk_index: int,
+            text: str,
+            section: str | None = None,
+            page_start: int | None = None,
+            page_end: int | None = None,
+            char_start: int | None = None,
+            char_end: int | None = None,
+            extra_metadata: dict[str, int | str | bool | None] | None = None,
     ) -> DocumentChunk:
         """统一构造 DocumentChunk，保证 metadata 形状一致。"""
 
@@ -334,10 +333,7 @@ class SectionAwareChunker(Chunker):
     def _split_markdown_sections(text: str) -> list[SectionGroup]:
         """按 Markdown 标题拆分没有 ParsedBlock 的文本。
 
-        TODO 子模块3-练习2：
         当前 fallback 只识别以 `#` 开头的 Markdown 标题。
-        请扩展它，让 `1. Introduction`、`2 Related Work` 这类常见论文标题也能成为 section。
-        不要修改 ParsedBlock 主路径。
         """
 
         sections: list[SectionGroup] = []
@@ -400,9 +396,6 @@ def build_chunker(config: ChunkerConfig) -> Chunker:
 def _build_section_group(section: str | None, blocks: list[ParsedBlock]) -> SectionGroup:
     """把同一个 section 下的 blocks 聚合为文本组。"""
 
-    # TODO 子模块3-练习3：
-    # 当 blocks 中出现 block_type == "reference" 的块时，将 section 统一归一化为 "References"。
-    # 只改这里的 section 决策，不要改动 ParsedBlock 数据模型。
     text = "\n\n".join(block.text.strip() for block in blocks if block.text.strip())
     page_values = [page for block in blocks for page in (block.page_start, block.page_end) if page is not None]
     char_starts = [block.char_start for block in blocks if block.char_start is not None]

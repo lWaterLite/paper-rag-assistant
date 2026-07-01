@@ -82,9 +82,6 @@ class ChunkingReportWriter:
             "missing_source_path_count": len(missing_source_path),
             "missing_page_count": len(missing_page),
             "missing_section_count": len(missing_section),
-            # TODO 子模块3-练习4：
-            # 在报告中补充 section 级别统计，例如 section_count、top_sections。
-            # 只需要扩展报告字段和对应测试，不要改动 chunker 主流程。
             "documents": _build_document_summaries(documents, chunks),
         }
 
