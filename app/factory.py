@@ -12,8 +12,9 @@ from app.indexing.embedding_cache import EmbeddingCache, InMemoryEmbeddingCache
 from app.indexing.embeddings import EmbeddingClient, MockEmbeddingClient
 from app.indexing.index_builder import IndexBuilder, RagIndex
 from app.indexing.vector_store import InMemoryVectorStore
+from app.ingest.chunking.registry import ChunkerRegistry, build_default_chunker_registry
 from app.ingest.chunking.report import ChunkingReportConfig, ChunkingReportWriter
-from app.ingest.chunking.strategies import Chunker, ChunkerConfig, ChunkerRegistry, build_default_chunker_registry
+from app.ingest.chunking.strategies import Chunker, ChunkerConfig
 from app.ingest.cleaners import BasicTextCleaner, HtmlTextCleaner, PdfTextCleaner, PdfTextCleanerConfig
 from app.ingest.loaders import (
     DocumentIdentityBuilder,

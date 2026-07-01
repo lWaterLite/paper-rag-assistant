@@ -26,25 +26,27 @@
    - 定义跨领域复用的结构化 metadata 基类。
 3. `app/ingest/chunking/metadata.py`
    - 定义 chunking 领域的 metadata 契约和构造器。
-4. `app/ingest/chunking/report.py`
+4. `app/ingest/chunking/registry.py`
+   - 定义 chunker 策略注册表和默认内置策略注册入口。
+5. `app/ingest/chunking/report.py`
    - 定义 chunking 质量报告 writer，把 chunking 结果转成可检查的 JSON 报告。
-5. `app/ingest/chunking/quality.py`
+6. `app/ingest/chunking/quality.py`
    - 定义 chunking 质量检查器，把 chunking 结果转换成质量验收结果。
-6. `app/ingest/chunking/__init__.py`
+7. `app/ingest/chunking/__init__.py`
    - 定义 chunking 子系统的公开导出入口。
-7. `app/core/settings.py`
+8. `app/core/settings.py`
    - 定义从 `settings.toml` 读取的结构化 Settings。
-8. `settings.toml`
+9. `settings.toml`
    - 保存非敏感、结构化、工程运行相关配置。
-9. `app/factory.py`
+10. `app/factory.py`
    - 作为 composition root，把 Settings 转换成各功能模块真正接收的 Config，并统一组装对象。
-10. `app/indexing/index_builder.py`
+11. `app/indexing/index_builder.py`
    - 离线索引构建主流程，负责串联 ingestion、chunking、embedding、vector store、manifest 和 report。
-11. `tests/test_chunking.py`
+12. `tests/test_chunking.py`
    - 测试 chunking 策略选择、token 切分行为和 report 输出。
-12. `tests/test_metadata.py`
+13. `tests/test_metadata.py`
    - 测试通用 metadata 基类和 chunk metadata 构造器。
-13. `tests/test_section_aware_chunker.py`
+14. `tests/test_section_aware_chunker.py`
    - 测试 section-aware chunker 如何保留 section、page、char offset 等 metadata。
 
 整体数据流如下：
@@ -116,13 +118,13 @@ output_dir = "logs"
 ### 类型别名
 
 ```python
-ChunkingStrategy = Literal["character", "fixed_token", "section_aware"]
+ChunkingStrategy = str
 TokenizerName = Literal["char_approx", "simple_regex"]
 ```
 
-这两个类型让策略名称和 tokenizer 名称有明确边界。它们不是随便传字符串，而是被限制在当前系统支持的值里。
+`ChunkingStrategy` 当前是开放字符串。这样外部模块可以注册新的 chunker 策略名，例如 `semantic`、`layout_aware`。
 
-这是一种轻量枚举做法。项目继续扩大后，也可以改成 `Enum`。
+策略名称是否合法不再由 `Literal` 静态限制，而是交给 `ChunkerRegistry` 检查。`TokenizerName` 仍然是封闭 `Literal`，因为当前 tokenizer 仍然只有内置选项。
 
 ### `ChunkerConfig`
 
@@ -275,6 +277,8 @@ class TextWindow:
 5. 构造 chunk 时写入 section、page、char offset 和 block count。
 
 这类策略非常适合论文 RAG，因为论文问答往往需要稳定引用页码和章节。
+
+## `app/ingest/chunking/registry.py` 代码讲解
 
 ### `ChunkerRegistry`
 
@@ -568,7 +572,7 @@ registry.register("custom_strategy", CustomChunker)
 
 这样外部策略可以进入 composition root，而不是被 `build_default_chunker_registry()` 固定死。
 
-不过当前配置层的 `strategy` 仍然是封闭的 `Literal`，所以真正使用 `"custom_strategy"` 作为配置值，还需要后续放宽 Settings/Config 的 strategy 类型。
+当前配置层的 `strategy` 已经放宽为字符串。真正使用 `"custom_strategy"` 时，配置层会接受这个名字，随后由 `ChunkerRegistry` 判断它是否已经注册。
 
 ## `app/indexing/index_builder.py` 代码讲解
 
@@ -666,8 +670,8 @@ ingestion report 和 chunking report 都是 pipeline artifact。
 
 你应该重点阅读：
 
-1. `app/ingest/chunking/strategies.py` 中的 `ChunkerRegistry`。
-2. `app/ingest/chunking/strategies.py` 中的 `build_default_chunker_registry()`。
+1. `app/ingest/chunking/registry.py` 中的 `ChunkerRegistry`。
+2. `app/ingest/chunking/registry.py` 中的 `build_default_chunker_registry()`。
 3. `app/factory.py` 中的 `build_configured_chunker(...)`。
 4. `tests/test_chunking.py` 中的 registry 测试。
 
@@ -709,15 +713,17 @@ chunker = build_configured_chunker(
 )
 ```
 
-注意：上面的示例用于说明“registry 注入链路”，不是推荐在真实业务中覆盖内置策略。真实扩展新策略时，应注册新的策略名，并同步处理配置层限制。
+注意：上面的示例用于说明“registry 注入链路”，不是推荐在真实业务中覆盖内置策略。真实扩展新策略时，应注册新的策略名。
 
-后续可能的修改方案：
+当前已经完成的外部策略支持方案：
 
-1. 当前 `ChunkingSettings.strategy` 和 `ChunkerConfig.strategy` 仍然使用封闭的 `Literal` 类型，适合内置策略。
-2. 如果要支持真正外部策略，例如 `semantic`、`layout_aware`，需要把 strategy 类型从封闭 `Literal` 放宽为 `str`。
-3. 放宽后，策略名称是否合法不再由 Pydantic Literal 判断，而是交给 `ChunkerRegistry.create(config)` 判断。
-4. 如果 registry 构建过程未来变复杂，可以进一步引入 `ChunkerRegistryProvider` 或应用级 dependency container。
-5. 当前项目暂时使用“直接注入 registry 对象”，因为语义清楚、实现简单、测试容易。
+1. `ChunkingSettings.strategy` 和 `ChunkerConfig.strategy` 已经放宽为 `str`。
+2. 配置层只校验策略名是非空字符串，并做 `strip()` 标准化。
+3. 策略名称是否合法由 `ChunkerRegistry.validate_strategy(...)` 判断。
+4. `ChunkerRegistry.create(config)` 会先调用校验器，再创建 chunker。
+5. `ChunkerRegistry.register(...)` 会检查注册对象必须是 `Chunker` 子类。
+6. 如果 registry 构建过程未来变复杂，可以进一步引入 `ChunkerRegistryProvider` 或应用级 dependency container。
+7. 当前项目暂时使用“直接注入 registry 对象”，因为语义清楚、实现简单、测试容易。
 
 你要学习的重点：
 

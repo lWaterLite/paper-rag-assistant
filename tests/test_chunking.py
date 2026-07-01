@@ -7,17 +7,18 @@ import shutil
 import unittest
 import uuid
 from pathlib import Path
+from typing import cast
 
 from app.core.models import ParsedDocument
-from app.core.settings import ProjectSettings
+from app.core.settings import ChunkingSettings, ProjectSettings
 from app.factory import build_configured_chunker
+from app.ingest.chunking.registry import ChunkerRegistry, build_default_chunker_registry
 from app.ingest.chunking.strategies import (
     CharacterChunker,
+    Chunker,
     ChunkerConfig,
-    ChunkerRegistry,
     FixedTokenChunker,
     SectionAwareChunker,
-    build_default_chunker_registry,
     estimate_token_count,
 )
 from app.ingest.chunking.report import ChunkingReportWriter
@@ -60,13 +61,40 @@ class ChunkingTest(unittest.TestCase):
 
         self.assertIn("已注册", str(context.exception))
 
+    def test_registry_rejects_invalid_chunker_class(self) -> None:
+        registry = ChunkerRegistry()
+
+        with self.assertRaises(TypeError) as context:
+            registry.register("invalid", cast(type[Chunker], object))
+
+        self.assertIn("Chunker 的子类", str(context.exception))
+
     def test_factory_uses_injected_chunker_registry(self) -> None:
         registry = ChunkerRegistry()
-        registry.register("section_aware", CustomSectionAwareChunker)
+        registry.register("custom_section", CustomSectionAwareChunker)
+        project_settings = ProjectSettings(chunking=ChunkingSettings(strategy="custom_section"))
 
-        chunker = build_configured_chunker(ProjectSettings(), chunker_registry=registry)
+        chunker = build_configured_chunker(project_settings, chunker_registry=registry)
 
         self.assertIsInstance(chunker, CustomSectionAwareChunker)
+
+    def test_registry_rejects_unregistered_external_strategy(self) -> None:
+        registry = build_default_chunker_registry()
+
+        with self.assertRaises(ValueError) as context:
+            registry.create(ChunkerConfig(strategy="semantic"))
+
+        self.assertIn("未知 chunking strategy", str(context.exception))
+        self.assertIn("section_aware", str(context.exception))
+
+    def test_registry_normalizes_strategy_names_before_lookup(self) -> None:
+        registry = ChunkerRegistry()
+        registry.register("custom_section", CustomSectionAwareChunker)
+
+        chunker = registry.create(ChunkerConfig(strategy=" custom_section "))
+
+        self.assertIsInstance(chunker, CustomSectionAwareChunker)
+        self.assertEqual(chunker.config.strategy, "custom_section")
 
     def test_fixed_token_chunker_splits_by_token_window(self) -> None:
         document = build_document("alpha beta gamma delta epsilon")

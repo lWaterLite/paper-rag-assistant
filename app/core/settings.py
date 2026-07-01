@@ -110,8 +110,9 @@ class IngestionReportSettings(BaseModel):
 class ChunkingSettings(BaseModel):
     """文本切分的结构化配置。"""
 
-    strategy: Literal["character", "fixed_token", "section_aware"] = Field(
+    strategy: str = Field(
         default="section_aware",
+        min_length=1,
         description="chunking 策略",
     )
     chunk_size: int = Field(default=600, gt=0, description="每个 chunk 的目标长度")
@@ -122,6 +123,9 @@ class ChunkingSettings(BaseModel):
     def validate_chunk_window(self) -> "ChunkingSettings":
         """校验 chunking 窗口。"""
 
+        self.strategy = self.strategy.strip()
+        if not self.strategy:
+            raise ValueError("strategy 不能为空")
         if self.chunk_overlap >= self.chunk_size:
             raise ValueError(
                 f"chunk_overlap 必须小于 chunk_size，当前 chunk_overlap={self.chunk_overlap}，"

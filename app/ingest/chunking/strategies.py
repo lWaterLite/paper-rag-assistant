@@ -15,7 +15,7 @@ from typing import Literal
 from app.core.models import DocumentChunk, ParsedBlock, ParsedDocument
 from app.ingest.chunking.metadata import ChunkMetadata, ChunkMetadataBuilder
 
-ChunkingStrategy = Literal["character", "fixed_token", "section_aware"]
+ChunkingStrategy = str
 TokenizerName = Literal["char_approx", "simple_regex"]
 
 
@@ -31,6 +31,12 @@ class ChunkerConfig:
     def __post_init__(self) -> None:
         """校验 chunking 窗口，避免切分步长为 0 或负数。"""
 
+        if not isinstance(self.strategy, str):
+            raise ValueError("strategy 必须是字符串")
+        normalized_strategy = self.strategy.strip()
+        if not normalized_strategy:
+            raise ValueError("strategy 不能为空")
+        object.__setattr__(self, "strategy", normalized_strategy)
         if self.chunk_size <= 0:
             raise ValueError("chunk_size 必须大于 0")
         if self.chunk_overlap < 0:
@@ -381,54 +387,6 @@ class SectionAwareChunker(Chunker):
             )
 
         return sections
-
-
-class ChunkerRegistry:
-    """chunker 策略注册表。
-
-    registry 负责维护“策略名称 -> chunker 类”的映射。
-    调用方只需要根据配置请求创建 chunker，不需要知道具体有哪些实现类。
-    """
-
-    def __init__(self) -> None:
-        self._chunker_classes: dict[str, type[Chunker]] = {}
-
-    def register(self, name: str, chunker_class: type[Chunker]) -> None:
-        """注册一个 chunker 策略。"""
-
-        normalized_name = name.strip()
-        if not normalized_name:
-            raise ValueError("chunker 策略名称不能为空")
-        if normalized_name in self._chunker_classes:
-            raise ValueError(f"chunker 策略已注册：{normalized_name}")
-        self._chunker_classes[normalized_name] = chunker_class
-
-    def create(self, config: ChunkerConfig) -> Chunker:
-        """根据配置创建 chunker。"""
-
-        chunker_class = self._chunker_classes.get(config.strategy)
-        if chunker_class is None:
-            supported_strategies = ", ".join(self.list_strategies()) or "无"
-            raise ValueError(
-                f"未知 chunking strategy：{config.strategy}，"
-                f"当前已注册策略：{supported_strategies}"
-            )
-        return chunker_class(config)
-
-    def list_strategies(self) -> tuple[str, ...]:
-        """返回已注册策略名称，方便调试和测试。"""
-
-        return tuple(sorted(self._chunker_classes))
-
-
-def build_default_chunker_registry() -> ChunkerRegistry:
-    """创建项目内置 chunker 策略注册表。"""
-
-    registry = ChunkerRegistry()
-    registry.register("character", CharacterChunker)
-    registry.register("fixed_token", FixedTokenChunker)
-    registry.register("section_aware", SectionAwareChunker)
-    return registry
 
 
 def _build_section_group(section: str | None, blocks: list[ParsedBlock]) -> SectionGroup:

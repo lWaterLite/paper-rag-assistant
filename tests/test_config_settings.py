@@ -175,6 +175,17 @@ output_dir = ".tmp_tests/chunking-reports"
 
         self.assertIn("chunk_overlap", str(context.exception))
 
+    def test_chunking_settings_accepts_external_strategy_name(self) -> None:
+        settings = ChunkingSettings(strategy=" semantic ")
+
+        self.assertEqual(settings.strategy, "semantic")
+
+    def test_chunking_settings_rejects_blank_strategy_name(self) -> None:
+        with self.assertRaises(ValidationError) as context:
+            ChunkingSettings(strategy=" ")
+
+        self.assertIn("strategy", str(context.exception))
+
     def test_chunking_report_settings_uses_logs_as_default_dir(self) -> None:
         settings = ChunkingReportSettings()
 

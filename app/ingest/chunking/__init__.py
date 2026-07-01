@@ -7,15 +7,14 @@ from app.ingest.chunking.quality import (
     ChunkingQualityConfig,
     ChunkingQualityIssue,
 )
+from app.ingest.chunking.registry import ChunkerRegistry, build_default_chunker_registry
 from app.ingest.chunking.report import ChunkingReportConfig, ChunkingReportWriter
 from app.ingest.chunking.strategies import (
     CharacterChunker,
     Chunker,
     ChunkerConfig,
-    ChunkerRegistry,
     FixedTokenChunker,
     SectionAwareChunker,
-    build_default_chunker_registry,
     estimate_token_count,
 )
 
