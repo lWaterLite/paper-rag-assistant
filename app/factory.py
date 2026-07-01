@@ -12,7 +12,8 @@ from app.indexing.embedding_cache import EmbeddingCache, InMemoryEmbeddingCache
 from app.indexing.embeddings import EmbeddingClient, MockEmbeddingClient
 from app.indexing.index_builder import IndexBuilder, RagIndex
 from app.indexing.vector_store import InMemoryVectorStore
-from app.ingest.chunkers import CharacterChunker
+from app.ingest.chunkers import Chunker, ChunkerConfig, build_chunker
+from app.ingest.chunking_report import ChunkingReportConfig, ChunkingReportWriter
 from app.ingest.cleaners import BasicTextCleaner, HtmlTextCleaner, PdfTextCleaner, PdfTextCleanerConfig
 from app.ingest.loaders import (
     DocumentIdentityBuilder,
@@ -56,6 +57,29 @@ def build_ingestion_report_config(project_settings: ProjectSettings) -> Ingestio
     """从结构化 ProjectSettings 转换成 ingestion report 配置。"""
 
     return IngestionReportConfig(output_dir=project_settings.ingestion_report.output_dir)
+
+
+def build_chunker_config(project_settings: ProjectSettings) -> ChunkerConfig:
+    """从结构化 ProjectSettings 转换成 chunker 配置。"""
+
+    return ChunkerConfig(
+        strategy=project_settings.chunking.strategy,
+        chunk_size=project_settings.chunking.chunk_size,
+        chunk_overlap=project_settings.chunking.chunk_overlap,
+        tokenizer=project_settings.chunking.tokenizer,
+    )
+
+
+def build_chunking_report_config(project_settings: ProjectSettings) -> ChunkingReportConfig:
+    """从结构化 ProjectSettings 转换成 chunking report 配置。"""
+
+    return ChunkingReportConfig(output_dir=project_settings.chunking_report.output_dir)
+
+
+def build_configured_chunker(project_settings: ProjectSettings) -> Chunker:
+    """根据项目配置创建 chunker。"""
+
+    return build_chunker(build_chunker_config(project_settings))
 
 
 def build_document_identity_builder() -> DocumentIdentityBuilder:
@@ -121,6 +145,7 @@ def build_index_builder(
         vector_store: InMemoryVectorStore | None = None,
         repository: InMemoryDocumentRepository | None = None,
         ingestion_report_writer: IngestionReportWriter | None = None,
+        chunking_report_writer: ChunkingReportWriter | None = None,
 ) -> IndexBuilder:
     """创建离线索引构建器。
 
@@ -130,13 +155,15 @@ def build_index_builder(
     return IndexBuilder(
         settings=env_settings,
         ingestion_pipeline=ingestion_pipeline if ingestion_pipeline is not None else build_ingestion_pipeline(project_settings),
-        chunker=CharacterChunker(env_settings),
+        chunker=build_configured_chunker(project_settings),
         embedding_client=embedding_client if embedding_client is not None else MockEmbeddingClient(env_settings),
         embedding_cache=embedding_cache if embedding_cache is not None else InMemoryEmbeddingCache(),
         vector_store=vector_store if vector_store is not None else InMemoryVectorStore(),
         repository=repository if repository is not None else InMemoryDocumentRepository(),
         ingestion_report_writer=ingestion_report_writer if ingestion_report_writer is not None else IngestionReportWriter(),
         ingestion_report_config=build_ingestion_report_config(project_settings),
+        chunking_report_writer=chunking_report_writer if chunking_report_writer is not None else ChunkingReportWriter(),
+        chunking_report_config=build_chunking_report_config(project_settings),
     )
 
 

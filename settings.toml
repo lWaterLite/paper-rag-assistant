@@ -19,3 +19,12 @@ max_line_length = 120
 
 [ingestion_report]
 output_dir = "logs"
+
+[chunking]
+strategy = "section_aware"
+chunk_size = 600
+chunk_overlap = 100
+tokenizer = "char_approx"
+
+[chunking_report]
+output_dir = "logs"

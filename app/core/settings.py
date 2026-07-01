@@ -107,12 +107,43 @@ class IngestionReportSettings(BaseModel):
     output_dir: Path = Field(default=Path("logs"), description="摄取报告 JSON 的输出目录")
 
 
+class ChunkingSettings(BaseModel):
+    """文本切分的结构化配置。"""
+
+    strategy: Literal["character", "fixed_token", "section_aware"] = Field(
+        default="section_aware",
+        description="chunking 策略",
+    )
+    chunk_size: int = Field(default=600, gt=0, description="每个 chunk 的目标长度")
+    chunk_overlap: int = Field(default=100, ge=0, description="相邻 chunk 的重叠长度")
+    tokenizer: Literal["char_approx", "simple_regex"] = Field(default="char_approx", description="token 估算方式")
+
+    @model_validator(mode="after")
+    def validate_chunk_window(self) -> "ChunkingSettings":
+        """校验 chunking 窗口。"""
+
+        if self.chunk_overlap >= self.chunk_size:
+            raise ValueError(
+                f"chunk_overlap 必须小于 chunk_size，当前 chunk_overlap={self.chunk_overlap}，"
+                f"chunk_size={self.chunk_size}"
+            )
+        return self
+
+
+class ChunkingReportSettings(BaseModel):
+    """chunking 质量报告配置。"""
+
+    output_dir: Path = Field(default=Path("logs"), description="chunking 报告 JSON 的输出目录")
+
+
 class ProjectSettings(BaseModel):
     """从 settings.toml 读取的结构化工程配置。"""
 
     loader: LoaderSettings = Field(default_factory=LoaderSettings)
     pdf_cleaner: PdfCleanerSettings = Field(default_factory=PdfCleanerSettings)
     ingestion_report: IngestionReportSettings = Field(default_factory=IngestionReportSettings)
+    chunking: ChunkingSettings = Field(default_factory=ChunkingSettings)
+    chunking_report: ChunkingReportSettings = Field(default_factory=ChunkingReportSettings)
 
     @classmethod
     def from_toml(cls, path: Path | str = Path("settings.toml")) -> "ProjectSettings":

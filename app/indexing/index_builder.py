@@ -11,7 +11,8 @@ from app.core.models import DocumentChunk, RagTrace
 from app.indexing.embedding_cache import EmbeddingCache
 from app.indexing.embeddings import EmbeddingClient
 from app.indexing.vector_store import InMemoryVectorStore
-from app.ingest.chunkers import CharacterChunker
+from app.ingest.chunkers import Chunker
+from app.ingest.chunking_report import ChunkingReportConfig, ChunkingReportWriter
 from app.ingest.pipeline import IngestionFailure, IngestionPipeline, IngestionReportConfig, IngestionReportWriter
 from app.indexing.manifest import IndexManifest
 from app.storage.repositories import InMemoryDocumentRepository
@@ -31,6 +32,7 @@ class IndexBuildResult:
     skipped_existing_chunks: int = 0
     ingestion_failures: list[IngestionFailure] = field(default_factory=list)
     ingestion_report_path: Path | None = None
+    chunking_report_path: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -50,13 +52,15 @@ class IndexBuilder:
         settings: EnvSettings,
         *,
         ingestion_pipeline: IngestionPipeline,
-        chunker: CharacterChunker,
+        chunker: Chunker,
         embedding_client: EmbeddingClient,
         embedding_cache: EmbeddingCache,
         vector_store: InMemoryVectorStore,
         repository: InMemoryDocumentRepository,
         ingestion_report_writer: IngestionReportWriter,
         ingestion_report_config: IngestionReportConfig,
+        chunking_report_writer: ChunkingReportWriter,
+        chunking_report_config: ChunkingReportConfig,
     ) -> None:
         self._settings = settings
         self._ingestion_pipeline = ingestion_pipeline
@@ -67,6 +71,8 @@ class IndexBuilder:
         self._repository = repository
         self._ingestion_report_writer = ingestion_report_writer
         self._ingestion_report_config = ingestion_report_config
+        self._chunking_report_writer = chunking_report_writer
+        self._chunking_report_config = chunking_report_config
 
     def build_from_directory(self, source_dir: Path) -> tuple[RagIndex, IndexBuildResult]:
         """从目录构建内存索引。"""
@@ -103,7 +109,22 @@ class IndexBuilder:
             chunks = self._chunker.split(document)
             all_chunks.extend(chunks)
         self._repository.save_chunks(all_chunks)
-        trace.record_stage("chunking", "success", started, {"chunk_count": len(all_chunks)})
+        chunking_report_output_path = self._prepare_chunking_report_output()
+        chunking_report_path = self._chunking_report_writer.write(
+            documents=parsed_documents,
+            chunks=all_chunks,
+            config=self._chunker.config,
+            output_path=chunking_report_output_path,
+        )
+        trace.record_stage(
+            "chunking",
+            "success",
+            started,
+            {
+                "chunk_count": len(all_chunks),
+                "report_path": chunking_report_path.as_posix(),
+            },
+        )
 
         started = time.perf_counter()
         chunks_to_index = [
@@ -129,8 +150,8 @@ class IndexBuilder:
         manifest = IndexManifest.build(
             source_dir=source_dir,
             chunker=type(self._chunker).__name__,
-            chunk_size=self._settings.chunk_size,
-            chunk_overlap=self._settings.chunk_overlap,
+            chunk_size=self._chunker.config.chunk_size,
+            chunk_overlap=self._chunker.config.chunk_overlap,
             embedding_provider=self._embedding_client.provider,
             embedding_model=self._embedding_client.model_name,
             embedding_dimension=self._embedding_client.dimension,
@@ -156,6 +177,7 @@ class IndexBuilder:
             skipped_existing_chunks=skipped_existing_chunks,
             ingestion_failures=ingestion_result.failures,
             ingestion_report_path=ingestion_report_path,
+            chunking_report_path=chunking_report_path,
         )
         return index, result
 
@@ -167,6 +189,13 @@ class IndexBuilder:
         """
 
         output_path = self._ingestion_report_config.output_path
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        return output_path
+
+    def _prepare_chunking_report_output(self) -> Path:
+        """准备 chunking 报告输出路径。"""
+
+        output_path = self._chunking_report_config.output_path
         output_path.parent.mkdir(parents=True, exist_ok=True)
         return output_path
 
