@@ -22,19 +22,25 @@
 
 1. `app/ingest/chunkers.py`
    - 定义 chunking 策略、chunker 抽象、具体 chunker 实现、chunk metadata 构造逻辑。
-2. `app/ingest/chunking_report.py`
+2. `app/core/metadata.py`
+   - 定义跨领域复用的结构化 metadata 基类。
+3. `app/ingest/chunk_metadata.py`
+   - 定义 chunking 领域的 metadata 契约和构造器。
+4. `app/ingest/chunking_report.py`
    - 定义 chunking 质量报告 writer，把 chunking 结果转成可检查的 JSON 报告。
-3. `app/core/settings.py`
+5. `app/core/settings.py`
    - 定义从 `settings.toml` 读取的结构化 Settings。
-4. `settings.toml`
+6. `settings.toml`
    - 保存非敏感、结构化、工程运行相关配置。
-5. `app/factory.py`
+7. `app/factory.py`
    - 作为 composition root，把 Settings 转换成各功能模块真正接收的 Config，并统一组装对象。
-6. `app/indexing/index_builder.py`
+8. `app/indexing/index_builder.py`
    - 离线索引构建主流程，负责串联 ingestion、chunking、embedding、vector store、manifest 和 report。
-7. `tests/test_chunking.py`
+9. `tests/test_chunking.py`
    - 测试 chunking 策略选择、token 切分行为和 report 输出。
-8. `tests/test_section_aware_chunker.py`
+10. `tests/test_metadata.py`
+   - 测试通用 metadata 基类和 chunk metadata 构造器。
+11. `tests/test_section_aware_chunker.py`
    - 测试 section-aware chunker 如何保留 section、page、char offset 等 metadata。
 
 整体数据流如下：
@@ -224,6 +230,8 @@ class TextWindow:
 
 如果没有这个统一入口，不同 chunker 很容易出现字段缺失、字段命名不一致、metadata 结构漂移等问题。
 
+当前 `_build_chunk(...)` 不再直接手写 metadata 字典，而是通过 `ChunkMetadata` 和 `ChunkMetadataBuilder` 完成结构化构造。这样 `Chunker` 仍然负责创建 `DocumentChunk`，但 metadata 字段契约被拆到了独立模块中。
+
 ### `CharacterChunker`
 
 `CharacterChunker` 是 baseline 策略。
@@ -290,6 +298,70 @@ chunker = build_configured_chunker(
 
 这里的工程重点是：`IndexBuilder` 不知道也不关心具体 chunker 类，它只接收一个实现了 `Chunker` 接口的对象。
 
+## `app/core/metadata.py` 代码讲解
+
+`metadata.py` 放在 `app/core` 中，因为 `BaseMetadata` 不是 chunking 专属能力。未来 loader、parser、retrieval、generation、evaluation 都可能需要结构化 metadata。
+
+### `BaseMetadata`
+
+`BaseMetadata` 是一个很薄的基类，只提供通用序列化能力：
+
+```python
+metadata.to_dict()
+```
+
+默认会过滤值为 `None` 的字段。这样上层可以用 dataclass 明确声明 metadata 契约，同时最终仍然输出普通 `dict[str, Any]`，兼容现有 `DocumentChunk.metadata`。
+
+这个基类刻意不包含 chunking、retrieval、citation 等业务逻辑。它只知道如何把结构化字段转成字典。
+
+## `app/ingest/chunk_metadata.py` 代码讲解
+
+`chunk_metadata.py` 是 chunking 领域的 metadata 契约层。它依赖 `app/core/metadata.py`，但 `core` 不依赖它。
+
+这个依赖方向很重要：
+
+```text
+app/core/metadata.py
+  <- app/ingest/chunk_metadata.py
+  <- app/ingest/chunkers.py
+```
+
+### `ChunkMetadata`
+
+`ChunkMetadata` 继承 `BaseMetadata`，用于声明 `DocumentChunk.metadata` 中由 chunking 子系统维护的标准字段：
+
+1. `chunker`
+2. `chunking_strategy`
+3. `chunk_size`
+4. `chunk_overlap`
+5. `tokenizer`
+6. `char_start`
+7. `char_end`
+8. `section_title`
+9. `token_start`
+10. `token_end`
+11. `section_block_count`
+
+这样做的意义是把 metadata 字段契约从 `_build_chunk(...)` 的手写 dict 中提取出来。以后字段发生变化，可以先看 `ChunkMetadata`，而不是到多个 chunker 里翻找。
+
+### `ChunkMetadataBuilder`
+
+`ChunkMetadataBuilder` 负责组合三类 metadata：
+
+1. 原始文档 metadata，例如 `filename`、`suffix`。
+2. 标准 chunk metadata，例如 `chunker`、`chunking_strategy`。
+3. 策略扩展 metadata，例如 `token_start`、`token_end`、`section_block_count`。
+
+合并顺序是：
+
+```text
+document metadata -> standard chunk metadata -> extra metadata
+```
+
+这表示越靠后的 metadata 优先级越高。比如原始文档里如果刚好有一个 `chunker` 字段，标准 chunk metadata 会覆盖它，避免核心契约被上游 metadata 污染。
+
+`ChunkMetadataBuilder` 当前是无状态 builder，所以 `build(...)` 是静态方法。它仍然保留 builder 类，是为了表达“metadata 合并策略”这个工程职责。
+
 ## `app/ingest/chunking_report.py` 代码讲解
 
 ### `ChunkingReportConfig`
@@ -329,6 +401,128 @@ chunker = build_configured_chunker(
 7. 每篇文档的 chunk 摘要。
 
 这份报告的作用不是给用户展示漂亮数据，而是帮助工程验收：策略是否切得太碎、metadata 是否丢失、PDF 页码是否保留下来。
+
+## `app/ingest/chunking_quality.py` 代码讲解
+
+`chunking_quality.py` 是 chunking 质量检查模块。它和 `chunking_report.py` 是一组相邻但职责不同的工程部件：
+
+1. `ChunkingReportWriter` 负责统计和输出事实。
+2. `ChunkingQualityChecker` 负责根据规则判断这些事实是否可接受。
+
+它不读取文件、不写 JSON、不创建目录、不读取 `settings.toml`，也不调用 chunker 或 embedding。
+
+### `ChunkingQualityConfig`
+
+`ChunkingQualityConfig` 表示质量检查规则。
+
+它包含：
+
+1. `allow_empty_chunks`
+   - 是否允许空 chunk。
+2. `require_doc_id`
+   - 是否要求每个 chunk 都有 `doc_id`。
+3. `require_source_path`
+   - 是否要求每个 chunk 都有 `source_path`。
+4. `min_avg_token_count`
+   - 平均 token 数过低时，说明 chunk 可能切得太碎。
+5. `max_avg_token_count`
+   - 平均 token 数过高时，说明 chunk 可能过长。
+6. `max_missing_pdf_page_ratio`
+   - PDF chunk 缺失页码的最大允许比例。
+7. `max_missing_section_ratio`
+   - chunk 缺失 section 的最大允许比例。
+8. `avg_token_issue_severity`
+   - token 均值问题默认是 warning。
+9. `missing_section_issue_severity`
+   - section 缺失问题默认是 warning。
+
+这里的设计重点是：质量规则通过 Config 传入，而不是写死在 checker 内部。不同项目、不同文档类型可以使用不同质量门槛。
+
+### `ChunkingQualityIssue`
+
+`ChunkingQualityIssue` 表示一条结构化质量问题。
+
+它包含：
+
+1. `code`
+   - 面向程序判断，例如 `empty_chunk_found`。
+2. `message`
+   - 面向人阅读的说明。
+3. `severity`
+   - `info`、`warning` 或 `error`。
+4. `value`
+   - 实际检查值。
+5. `threshold`
+   - 规则阈值。
+6. `metadata`
+   - 额外上下文，例如 PDF chunk 总数和缺失页码数量。
+
+使用结构化 issue，而不是只返回字符串，是为了后续能方便地接入 CLI、API、CI、日志和报告。
+
+### `ChunkingQualityCheckResult`
+
+`ChunkingQualityCheckResult` 表示一次检查的整体结果。
+
+它包含：
+
+1. `issues`
+   - 所有质量问题。
+2. `checked_document_count`
+   - 本次检查覆盖的文档数。
+3. `checked_chunk_count`
+   - 本次检查覆盖的 chunk 数。
+4. `passed`
+   - 派生属性，只要没有 `error` 级别 issue，就认为通过。
+5. `error_count`
+   - error 数量。
+6. `warning_count`
+   - warning 数量。
+
+这里故意让 warning 不阻断通过。因为有些问题属于质量提示，例如 section 缺失比例偏高，不一定所有场景都必须中止流程。
+
+### `ChunkingQualityChecker`
+
+`ChunkingQualityChecker` 是执行检查的服务类。
+
+它的公开入口是：
+
+```python
+result = ChunkingQualityChecker().check(
+    documents=documents,
+    chunks=chunks,
+    config=config,
+)
+```
+
+内部规则被拆成多个私有方法：
+
+1. `_check_empty_result`
+   - 有解析后文档，但没有产生任何 chunk。
+2. `_check_required_identity_fields`
+   - 检查 `doc_id` 和 `source_path`。
+3. `_check_empty_chunks`
+   - 检查空 chunk。
+4. `_check_avg_token_count`
+   - 检查平均 token 数是否过低或过高。
+5. `_check_pdf_page_ratio`
+   - 检查 PDF chunk 页码缺失比例。
+6. `_check_section_ratio`
+   - 检查 section 缺失比例。
+
+这种拆分方式的重点是让规则可读、可测试、可扩展。以后如果新增规则，例如“过短 chunk 比例”“重复 chunk 比例”“跨页 chunk 比例”，可以继续添加私有检查方法，而不需要把一个大函数越写越长。
+
+### 为什么不接入主流程
+
+当前 checker 暂时没有接入 `IndexBuilder`，这是刻意保留的边界。
+
+原因是质量检查接入主流程后还需要决定策略：
+
+1. 发现 warning 是否继续构建索引。
+2. 发现 error 是否中止构建。
+3. 是否把 quality result 写入 report。
+4. 是否允许通过配置关闭某些规则。
+
+这些属于更高一层的 pipeline policy。当前阶段先把 checker 做成独立模块，更方便你学习它和 report writer 的职责区别。
 
 ## `app/factory.py` 代码讲解
 
@@ -538,39 +732,41 @@ chunker = build_configured_chunker(
 
 ### 练习 2：新增 chunking 质量检查模块
 
-当前 `ChunkingReportWriter` 会输出质量数据，但还没有一个独立模块负责判断质量是否达标。
+本练习已经作为示例代码完成。当前已经新增 `app/ingest/chunking_quality.py`，用于判断 chunking 结果是否满足质量规则。
 
-你的任务是新增一个质量检查模块，让系统能把 report 数据转成可执行的质量判断。
+你应该重点阅读：
 
-建议新增文件：
+1. `app/ingest/chunking_quality.py` 中的 `ChunkingQualityConfig`。
+2. `app/ingest/chunking_quality.py` 中的 `ChunkingQualityIssue`。
+3. `app/ingest/chunking_quality.py` 中的 `ChunkingQualityCheckResult`。
+4. `app/ingest/chunking_quality.py` 中的 `ChunkingQualityChecker`。
+5. `tests/test_chunking_quality.py` 中的质量检查测试。
 
-```text
-app/ingest/chunking_quality.py
+当前实现的核心结构是：
+
+```python
+result = ChunkingQualityChecker().check(
+    documents=documents,
+    chunks=chunks,
+    config=ChunkingQualityConfig(),
+)
 ```
 
-建议包含的结构：
-
-1. `ChunkingQualityConfig`
-   - 例如最小平均 token、最大缺失页码比例、是否允许空 chunk。
-2. `ChunkingQualityIssue`
-   - 表示一条质量问题，例如 `empty_chunk_found`、`missing_page_too_high`。
-3. `ChunkingQualityChecker`
-   - 接收 documents、chunks、config，返回 issues。
-
-它可以先不接入主流程，先作为独立模块完成。后续如果需要，再接入 `IndexBuilder`。
+它先作为独立模块存在，暂时不接入 `IndexBuilder`。这样可以保持职责清楚：checker 负责判断质量，pipeline 负责决定是否中止流程。
 
 你要学习的重点：
 
 1. report 和 quality checker 的职责区别。
 2. 为什么质量规则不应该硬塞进 writer。
 3. 如何为工程验收建立独立模块。
+4. 为什么 error 可以阻断通过，而 warning 只作为质量提示。
 
 验收标准：
 
 1. checker 不负责写文件。
 2. checker 不负责创建目录。
 3. checker 不读取 `settings.toml`。
-4. 测试覆盖至少一个通过案例和一个失败案例。
+4. 测试覆盖通过案例、失败案例、warning 案例和配置校验案例。
 
 ### 练习 3：实现 chunking 实验运行器
 
@@ -610,29 +806,65 @@ app/ingest/chunking_experiment.py
 
 ### 练习 4：整理 chunk metadata 契约到代码层
 
-当前 metadata 契约主要体现在 `_build_chunk(...)` 中。随着字段变多，契约可能变得分散。
+本练习已经作为示例代码完成。当前已经将 chunk metadata 从 `_build_chunk(...)` 中拆出，形成通用基类和 chunking 专属 metadata 构造层。
 
-你的任务是考虑是否需要把 chunk metadata 构造独立成一个更明确的组件。
+你应该重点阅读：
 
-可选方向：
+1. `app/core/metadata.py` 中的 `BaseMetadata`。
+2. `app/ingest/chunk_metadata.py` 中的 `ChunkMetadata`。
+3. `app/ingest/chunk_metadata.py` 中的 `ChunkMetadataBuilder`。
+4. `app/ingest/chunkers.py` 中 `_build_chunk(...)` 如何使用 builder。
+5. `tests/test_metadata.py` 中对 metadata 契约的测试。
+6. `tests/test_chunking.py` 中对 chunker 输出 metadata 的契约测试。
 
-1. 新增 `ChunkMetadataBuilder`。
-2. 或者新增 `ChunkMetadataPolicy`。
-3. 或者保持当前 `_build_chunk(...)`，但补充测试保护字段契约。
+当前实现采用两层结构：
 
-这个练习不是要求你一定拆类，而是要求你基于当前代码判断“现在拆不拆”。如果你选择不拆，也需要用测试或文档说明理由。
+```text
+app/core/metadata.py
+  BaseMetadata
+
+app/ingest/chunk_metadata.py
+  ChunkMetadata
+  ChunkMetadataBuilder
+```
+
+这样分层的原因是：
+
+1. `BaseMetadata` 是跨领域通用能力，未来 parser、retrieval、generation metadata 都可能复用。
+2. `ChunkMetadata` 是 chunking 领域契约，应该放在 ingest/chunking 相关模块中。
+3. `ChunkMetadataBuilder` 表达 metadata 合并策略，避免 `_build_chunk(...)` 继续膨胀。
+
+当前核心结构是：
+
+```python
+metadata = ChunkMetadataBuilder().build(
+    document_metadata=document.metadata,
+    chunk_metadata=ChunkMetadata(...),
+    extra_metadata=extra_metadata,
+)
+```
+
+其中合并优先级是：
+
+```text
+document metadata -> standard chunk metadata -> extra metadata
+```
+
+你提出的判断也记录在这里：如果一个 metadata 基类未来可能被多个领域复用，它不应该放在 chunk 专属文件中，而应该放在 `app/core` 这样的通用层。
 
 你要学习的重点：
 
-1. 不是所有 helper 都应该升级成类。
-2. 抽象应该服务于变化点，而不是为了看起来更高级。
-3. metadata 契约需要被测试保护。
+1. 通用抽象应该放在更稳定、更底层的位置。
+2. 领域契约应该放在对应领域模块中。
+3. 抽象应该服务于字段契约和变化点，而不是为了看起来更高级。
+4. metadata 契约需要被测试保护。
 
 验收标准：
 
 1. chunk 必须保留身份字段和来源字段。
 2. 不同 chunker 输出的基础 metadata 形状一致。
-3. 新增或调整字段时，测试能发现破坏性变更。
+3. `BaseMetadata` 不包含 chunking 业务逻辑。
+4. 新增或调整字段时，测试能发现破坏性变更。
 
 ## 建议练习顺序
 
