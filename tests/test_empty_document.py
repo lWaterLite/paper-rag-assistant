@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import unittest
 
-from app.core.settings import EnvSettings
 from app.core.models import RawDocument
-from app.ingest.chunkers import CharacterChunker, SectionAwareChunker
+from app.ingest.chunkers import CharacterChunker, ChunkerConfig, SectionAwareChunker
 from app.ingest.cleaners import BasicTextCleaner
 from app.ingest.parsers import PlainTextParser
 
@@ -38,13 +37,17 @@ class EmptyDocumentTest(unittest.TestCase):
 
     def test_character_chunker_returns_empty_list_for_empty_document(self) -> None:
         parsed = PlainTextParser(cleaner=BasicTextCleaner()).parse(build_empty_raw_document())
-        chunks = CharacterChunker(EnvSettings(chunk_size=100, chunk_overlap=10)).split(parsed)
+        chunks = CharacterChunker(
+            ChunkerConfig(strategy="character", chunk_size=100, chunk_overlap=10)
+        ).split(parsed)
 
         self.assertEqual(chunks, [])
 
     def test_section_aware_chunker_returns_empty_list_for_empty_document(self) -> None:
         parsed = PlainTextParser(cleaner=BasicTextCleaner()).parse(build_empty_raw_document())
-        chunks = SectionAwareChunker(EnvSettings(chunk_size=100, chunk_overlap=10)).split(parsed)
+        chunks = SectionAwareChunker(
+            ChunkerConfig(strategy="section_aware", chunk_size=100, chunk_overlap=10)
+        ).split(parsed)
 
         self.assertEqual(chunks, [])
 

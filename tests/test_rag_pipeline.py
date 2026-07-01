@@ -20,7 +20,8 @@ class RagPipelineTest(unittest.TestCase):
 
     def test_index_builder_builds_in_memory_index(self) -> None:
         env_settings = EnvSettings(chunk_size=120, chunk_overlap=20, top_k=2)
-        index, result = build_index_builder(env_settings, ProjectSettings()).build_from_directory(SAMPLE_SOURCE_DIR)
+        project_settings = ProjectSettings()
+        index, result = build_index_builder(env_settings, project_settings).build_from_directory(SAMPLE_SOURCE_DIR)
 
         self.assertGreater(result.document_count, 0)
         self.assertGreater(result.chunk_count, 0)
@@ -29,8 +30,8 @@ class RagPipelineTest(unittest.TestCase):
         self.assertEqual(result.manifest.document_count, result.document_count)
         self.assertEqual(result.manifest.chunk_count, result.chunk_count)
         self.assertEqual(result.manifest.vector_count, result.vector_count)
-        self.assertEqual(result.manifest.chunk_size, env_settings.chunk_size)
-        self.assertEqual(result.manifest.chunk_overlap, env_settings.chunk_overlap)
+        self.assertEqual(result.manifest.chunk_size, project_settings.chunking.chunk_size)
+        self.assertEqual(result.manifest.chunk_overlap, project_settings.chunking.chunk_overlap)
         self.assertEqual(result.manifest.embedding_provider, "mock")
         self.assertGreater(len(result.manifest.document_versions), 0)
 

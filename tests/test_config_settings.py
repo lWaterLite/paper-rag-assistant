@@ -15,7 +15,14 @@ from unittest.mock import patch
 
 from pydantic import ValidationError
 
-from app.core.settings import EnvSettings, IngestionReportSettings, PdfCleanerSettings, ProjectSettings
+from app.core.settings import (
+    ChunkingReportSettings,
+    ChunkingSettings,
+    EnvSettings,
+    IngestionReportSettings,
+    PdfCleanerSettings,
+    ProjectSettings,
+)
 from app.core.errors import AppError, ErrorCode
 
 
@@ -126,6 +133,15 @@ max_line_length = 80
 
 [ingestion_report]
 output_dir = ".tmp_tests/ingestion-reports"
+
+[chunking]
+strategy = "fixed_token"
+chunk_size = 256
+chunk_overlap = 32
+tokenizer = "simple_regex"
+
+[chunking_report]
+output_dir = ".tmp_tests/chunking-reports"
 """.strip(),
                 encoding="utf-8",
             )
@@ -139,12 +155,28 @@ output_dir = ".tmp_tests/ingestion-reports"
             self.assertEqual(project_settings.pdf_cleaner.min_repeat_ratio, 0.75)
             self.assertEqual(project_settings.pdf_cleaner.max_line_length, 80)
             self.assertEqual(project_settings.ingestion_report.output_dir, Path(".tmp_tests/ingestion-reports"))
+            self.assertEqual(project_settings.chunking.strategy, "fixed_token")
+            self.assertEqual(project_settings.chunking.chunk_size, 256)
+            self.assertEqual(project_settings.chunking.chunk_overlap, 32)
+            self.assertEqual(project_settings.chunking.tokenizer, "simple_regex")
+            self.assertEqual(project_settings.chunking_report.output_dir, Path(".tmp_tests/chunking-reports"))
         finally:
             if config_path.parent.exists():
                 shutil.rmtree(config_path.parent, ignore_errors=True)
 
     def test_ingestion_report_settings_uses_logs_as_default_dir(self) -> None:
         settings = IngestionReportSettings()
+
+        self.assertEqual(settings.output_dir, Path("logs"))
+
+    def test_chunking_settings_rejects_invalid_overlap(self) -> None:
+        with self.assertRaises(ValidationError) as context:
+            ChunkingSettings(chunk_size=100, chunk_overlap=100)
+
+        self.assertIn("chunk_overlap", str(context.exception))
+
+    def test_chunking_report_settings_uses_logs_as_default_dir(self) -> None:
+        settings = ChunkingReportSettings()
 
         self.assertEqual(settings.output_dir, Path("logs"))
 

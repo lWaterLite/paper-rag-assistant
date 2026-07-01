@@ -7,7 +7,7 @@ import unittest
 import uuid
 from pathlib import Path
 
-from app.core.settings import EnvSettings, IngestionReportSettings, ProjectSettings
+from app.core.settings import ChunkingReportSettings, EnvSettings, IngestionReportSettings, ProjectSettings
 from app.factory import build_index_builder
 from app.indexing.embedding_cache import InMemoryEmbeddingCache
 
@@ -77,17 +77,22 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
     def test_index_builder_writes_ingestion_report_from_project_settings(self) -> None:
         env_settings = EnvSettings(chunk_size=120, chunk_overlap=20)
         report_dir = Path(".tmp_tests") / f"ingestion_reports_{uuid.uuid4().hex}"
+        chunking_report_dir = Path(".tmp_tests") / f"chunking_reports_{uuid.uuid4().hex}"
         project_settings = ProjectSettings(
-            ingestion_report=IngestionReportSettings(output_dir=report_dir)
+            ingestion_report=IngestionReportSettings(output_dir=report_dir),
+            chunking_report=ChunkingReportSettings(output_dir=chunking_report_dir),
         )
 
         self.assertFalse(report_dir.exists())
+        self.assertFalse(chunking_report_dir.exists())
 
         _, result = build_index_builder(env_settings, project_settings).build_from_directory(Path("data/raw/papers"))
 
         self.assertTrue(report_dir.exists())
         self.assertEqual(result.ingestion_report_path, report_dir / "ingestion_report.json")
         self.assertTrue(result.ingestion_report_path.exists())
+        self.assertEqual(result.chunking_report_path, chunking_report_dir / "chunking_report.json")
+        self.assertTrue(result.chunking_report_path.exists())
 
         report = json.loads(result.ingestion_report_path.read_text(encoding="utf-8"))
         self.assertEqual(report["source_dir"], "data/raw/papers")
@@ -96,6 +101,11 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
         self.assertTrue(report["trace_id"].startswith("trace_"))
         self.assertEqual(result.trace.stages[0].detail["report_path"], result.ingestion_report_path.as_posix())
         self.assertEqual(report["trace"]["final_status"], "success")
+
+        chunking_report = json.loads(result.chunking_report_path.read_text(encoding="utf-8"))
+        self.assertEqual(chunking_report["chunk_count"], result.chunk_count)
+        self.assertEqual(chunking_report["document_count"], result.document_count)
+        self.assertEqual(result.trace.stages[1].detail["report_path"], result.chunking_report_path.as_posix())
 
 
 if __name__ == "__main__":
