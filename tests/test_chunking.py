@@ -9,12 +9,15 @@ import uuid
 from pathlib import Path
 
 from app.core.models import ParsedDocument
+from app.core.settings import ProjectSettings
+from app.factory import build_configured_chunker
 from app.ingest.chunkers import (
     CharacterChunker,
     ChunkerConfig,
+    ChunkerRegistry,
     FixedTokenChunker,
     SectionAwareChunker,
-    build_chunker,
+    build_default_chunker_registry,
     estimate_token_count,
 )
 from app.ingest.chunking_report import ChunkingReportWriter
@@ -37,10 +40,33 @@ def build_document(text: str, *, source_path: str = "paper.md") -> ParsedDocumen
 class ChunkingTest(unittest.TestCase):
     """验证 chunking 策略与报告输出。"""
 
-    def test_build_chunker_uses_configured_strategy(self) -> None:
-        self.assertIsInstance(build_chunker(ChunkerConfig(strategy="character")), CharacterChunker)
-        self.assertIsInstance(build_chunker(ChunkerConfig(strategy="fixed_token")), FixedTokenChunker)
-        self.assertIsInstance(build_chunker(ChunkerConfig(strategy="section_aware")), SectionAwareChunker)
+    def test_default_registry_uses_configured_strategy(self) -> None:
+        registry = build_default_chunker_registry()
+
+        self.assertEqual(
+            registry.list_strategies(),
+            ("character", "fixed_token", "section_aware"),
+        )
+        self.assertIsInstance(registry.create(ChunkerConfig(strategy="character")), CharacterChunker)
+        self.assertIsInstance(registry.create(ChunkerConfig(strategy="fixed_token")), FixedTokenChunker)
+        self.assertIsInstance(registry.create(ChunkerConfig(strategy="section_aware")), SectionAwareChunker)
+
+    def test_registry_rejects_duplicate_strategy(self) -> None:
+        registry = ChunkerRegistry()
+        registry.register("character", CharacterChunker)
+
+        with self.assertRaises(ValueError) as context:
+            registry.register("character", CharacterChunker)
+
+        self.assertIn("已注册", str(context.exception))
+
+    def test_factory_uses_injected_chunker_registry(self) -> None:
+        registry = ChunkerRegistry()
+        registry.register("section_aware", CustomSectionAwareChunker)
+
+        chunker = build_configured_chunker(ProjectSettings(), chunker_registry=registry)
+
+        self.assertIsInstance(chunker, CustomSectionAwareChunker)
 
     def test_fixed_token_chunker_splits_by_token_window(self) -> None:
         document = build_document("alpha beta gamma delta epsilon")
@@ -103,6 +129,10 @@ class ChunkingTest(unittest.TestCase):
         self.assertEqual(report["document_count"], 1)
         self.assertEqual(report["chunk_count"], len(chunks))
         self.assertEqual(report["documents"][0]["doc_id"], "doc_test")
+
+
+class CustomSectionAwareChunker(SectionAwareChunker):
+    """测试用外部 chunker，用于验证 registry 注入链路。"""
 
 
 if __name__ == "__main__":
