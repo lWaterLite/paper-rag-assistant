@@ -87,6 +87,21 @@ class ChunkingTest(unittest.TestCase):
         self.assertEqual(chunks[1].metadata["token_start"], 2)
         self.assertEqual(chunks[1].metadata["token_end"], 5)
 
+    def test_chunker_outputs_standard_chunk_metadata_contract(self) -> None:
+        document = build_document("alpha beta gamma")
+        chunker = CharacterChunker(ChunkerConfig(strategy="character", chunk_size=20, chunk_overlap=0))
+
+        chunk = chunker.split(document)[0]
+
+        self.assertEqual(chunk.metadata["filename"], "paper.md")
+        self.assertEqual(chunk.metadata["chunker"], "CharacterChunker")
+        self.assertEqual(chunk.metadata["chunking_strategy"], "character")
+        self.assertEqual(chunk.metadata["chunk_size"], 20)
+        self.assertEqual(chunk.metadata["chunk_overlap"], 0)
+        self.assertEqual(chunk.metadata["tokenizer"], "char_approx")
+        self.assertEqual(chunk.metadata["char_start"], 0)
+        self.assertEqual(chunk.metadata["char_end"], len("alpha beta gamma"))
+
     def test_estimate_token_count_supports_simple_regex_tokenizer(self) -> None:
         self.assertEqual(estimate_token_count("RAG 系统 2024-06", "simple_regex"), 4)
 
