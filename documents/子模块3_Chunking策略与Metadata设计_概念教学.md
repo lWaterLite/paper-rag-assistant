@@ -941,13 +941,13 @@ PDF 的物理页码不一定等于论文显示页码。
 建议把 chunking 子系统拆成几个部分：
 
 ```text
-app/ingest/chunkers.py
+app/ingest/chunking/strategies.py
   Chunker
   CharacterChunker
   FixedTokenChunker
   SectionAwareChunker
 
-app/ingest/chunking_report.py
+app/ingest/chunking/report.py
   ChunkingReportWriter
   ChunkingQualityReport
 
@@ -1136,4 +1136,3 @@ Section-aware chunker 可以选择只在同一 section 内 overlap。
 6. 对同一批真实论文生成不同 chunk 配置的统计报告。
 
 本子模块完成后，后续子模块 4 的 embedding 和索引就会有更可靠的输入。
-

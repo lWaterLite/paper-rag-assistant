@@ -6,7 +6,7 @@ import unittest
 from dataclasses import dataclass
 
 from app.core.metadata import BaseMetadata
-from app.ingest.chunk_metadata import ChunkMetadata, ChunkMetadataBuilder
+from app.ingest.chunking.metadata import ChunkMetadata, ChunkMetadataBuilder
 
 
 @dataclass(frozen=True)

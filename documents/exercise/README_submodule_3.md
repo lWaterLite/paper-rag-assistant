@@ -20,27 +20,31 @@
 
 核心文件如下：
 
-1. `app/ingest/chunkers.py`
+1. `app/ingest/chunking/strategies.py`
    - 定义 chunking 策略、chunker 抽象、具体 chunker 实现、chunk metadata 构造逻辑。
 2. `app/core/metadata.py`
    - 定义跨领域复用的结构化 metadata 基类。
-3. `app/ingest/chunk_metadata.py`
+3. `app/ingest/chunking/metadata.py`
    - 定义 chunking 领域的 metadata 契约和构造器。
-4. `app/ingest/chunking_report.py`
+4. `app/ingest/chunking/report.py`
    - 定义 chunking 质量报告 writer，把 chunking 结果转成可检查的 JSON 报告。
-5. `app/core/settings.py`
+5. `app/ingest/chunking/quality.py`
+   - 定义 chunking 质量检查器，把 chunking 结果转换成质量验收结果。
+6. `app/ingest/chunking/__init__.py`
+   - 定义 chunking 子系统的公开导出入口。
+7. `app/core/settings.py`
    - 定义从 `settings.toml` 读取的结构化 Settings。
-6. `settings.toml`
+8. `settings.toml`
    - 保存非敏感、结构化、工程运行相关配置。
-7. `app/factory.py`
+9. `app/factory.py`
    - 作为 composition root，把 Settings 转换成各功能模块真正接收的 Config，并统一组装对象。
-8. `app/indexing/index_builder.py`
+10. `app/indexing/index_builder.py`
    - 离线索引构建主流程，负责串联 ingestion、chunking、embedding、vector store、manifest 和 report。
-9. `tests/test_chunking.py`
+11. `tests/test_chunking.py`
    - 测试 chunking 策略选择、token 切分行为和 report 输出。
-10. `tests/test_metadata.py`
+12. `tests/test_metadata.py`
    - 测试通用 metadata 基类和 chunk metadata 构造器。
-11. `tests/test_section_aware_chunker.py`
+13. `tests/test_section_aware_chunker.py`
    - 测试 section-aware chunker 如何保留 section、page、char offset 等 metadata。
 
 整体数据流如下：
@@ -92,7 +96,7 @@ output_dir = "logs"
 
 ### `ChunkerConfig`
 
-`ChunkerConfig` 位于 `app/ingest/chunkers.py`，它是 chunker 真正接收的运行时配置。
+`ChunkerConfig` 位于 `app/ingest/chunking/strategies.py`，它是 chunker 真正接收的运行时配置。
 
 这里保留 Settings 和 Config 的分离，是一个很重要的工程范式：
 
@@ -107,7 +111,7 @@ output_dir = "logs"
 2. 如果以后配置来源从 TOML 改成数据库、远程配置中心或 API 参数，chunker 不需要改。
 3. 功能类不会拿到整个 `ProjectSettings`，避免配置依赖扩散。
 
-## `app/ingest/chunkers.py` 代码讲解
+## `app/ingest/chunking/strategies.py` 代码讲解
 
 ### 类型别名
 
@@ -314,16 +318,16 @@ metadata.to_dict()
 
 这个基类刻意不包含 chunking、retrieval、citation 等业务逻辑。它只知道如何把结构化字段转成字典。
 
-## `app/ingest/chunk_metadata.py` 代码讲解
+## `app/ingest/chunking/metadata.py` 代码讲解
 
-`chunk_metadata.py` 是 chunking 领域的 metadata 契约层。它依赖 `app/core/metadata.py`，但 `core` 不依赖它。
+`metadata.py` 是 chunking 领域的 metadata 契约层。它依赖 `app/core/metadata.py`，但 `core` 不依赖它。
 
 这个依赖方向很重要：
 
 ```text
 app/core/metadata.py
-  <- app/ingest/chunk_metadata.py
-  <- app/ingest/chunkers.py
+  <- app/ingest/chunking/metadata.py
+  <- app/ingest/chunking/strategies.py
 ```
 
 ### `ChunkMetadata`
@@ -362,7 +366,7 @@ document metadata -> standard chunk metadata -> extra metadata
 
 `ChunkMetadataBuilder` 当前是无状态 builder，所以 `build(...)` 是静态方法。它仍然保留 builder 类，是为了表达“metadata 合并策略”这个工程职责。
 
-## `app/ingest/chunking_report.py` 代码讲解
+## `app/ingest/chunking/report.py` 代码讲解
 
 ### `ChunkingReportConfig`
 
@@ -402,9 +406,9 @@ document metadata -> standard chunk metadata -> extra metadata
 
 这份报告的作用不是给用户展示漂亮数据，而是帮助工程验收：策略是否切得太碎、metadata 是否丢失、PDF 页码是否保留下来。
 
-## `app/ingest/chunking_quality.py` 代码讲解
+## `app/ingest/chunking/quality.py` 代码讲解
 
-`chunking_quality.py` 是 chunking 质量检查模块。它和 `chunking_report.py` 是一组相邻但职责不同的工程部件：
+`quality.py` 是 chunking 质量检查模块。它和 `report.py` 是一组相邻但职责不同的工程部件：
 
 1. `ChunkingReportWriter` 负责统计和输出事实。
 2. `ChunkingQualityChecker` 负责根据规则判断这些事实是否可接受。
@@ -662,8 +666,8 @@ ingestion report 和 chunking report 都是 pipeline artifact。
 
 你应该重点阅读：
 
-1. `app/ingest/chunkers.py` 中的 `ChunkerRegistry`。
-2. `app/ingest/chunkers.py` 中的 `build_default_chunker_registry()`。
+1. `app/ingest/chunking/strategies.py` 中的 `ChunkerRegistry`。
+2. `app/ingest/chunking/strategies.py` 中的 `build_default_chunker_registry()`。
 3. `app/factory.py` 中的 `build_configured_chunker(...)`。
 4. `tests/test_chunking.py` 中的 registry 测试。
 
@@ -732,14 +736,14 @@ chunker = build_configured_chunker(
 
 ### 练习 2：新增 chunking 质量检查模块
 
-本练习已经作为示例代码完成。当前已经新增 `app/ingest/chunking_quality.py`，用于判断 chunking 结果是否满足质量规则。
+本练习已经作为示例代码完成。当前已经新增 `app/ingest/chunking/quality.py`，用于判断 chunking 结果是否满足质量规则。
 
 你应该重点阅读：
 
-1. `app/ingest/chunking_quality.py` 中的 `ChunkingQualityConfig`。
-2. `app/ingest/chunking_quality.py` 中的 `ChunkingQualityIssue`。
-3. `app/ingest/chunking_quality.py` 中的 `ChunkingQualityCheckResult`。
-4. `app/ingest/chunking_quality.py` 中的 `ChunkingQualityChecker`。
+1. `app/ingest/chunking/quality.py` 中的 `ChunkingQualityConfig`。
+2. `app/ingest/chunking/quality.py` 中的 `ChunkingQualityIssue`。
+3. `app/ingest/chunking/quality.py` 中的 `ChunkingQualityCheckResult`。
+4. `app/ingest/chunking/quality.py` 中的 `ChunkingQualityChecker`。
 5. `tests/test_chunking_quality.py` 中的质量检查测试。
 
 当前实现的核心结构是：
@@ -777,7 +781,7 @@ result = ChunkingQualityChecker().check(
 建议新增文件：
 
 ```text
-app/ingest/chunking_experiment.py
+app/ingest/chunking/experiment.py
 ```
 
 建议包含的结构：
@@ -811,9 +815,9 @@ app/ingest/chunking_experiment.py
 你应该重点阅读：
 
 1. `app/core/metadata.py` 中的 `BaseMetadata`。
-2. `app/ingest/chunk_metadata.py` 中的 `ChunkMetadata`。
-3. `app/ingest/chunk_metadata.py` 中的 `ChunkMetadataBuilder`。
-4. `app/ingest/chunkers.py` 中 `_build_chunk(...)` 如何使用 builder。
+2. `app/ingest/chunking/metadata.py` 中的 `ChunkMetadata`。
+3. `app/ingest/chunking/metadata.py` 中的 `ChunkMetadataBuilder`。
+4. `app/ingest/chunking/strategies.py` 中 `_build_chunk(...)` 如何使用 builder。
 5. `tests/test_metadata.py` 中对 metadata 契约的测试。
 6. `tests/test_chunking.py` 中对 chunker 输出 metadata 的契约测试。
 
@@ -823,7 +827,7 @@ app/ingest/chunking_experiment.py
 app/core/metadata.py
   BaseMetadata
 
-app/ingest/chunk_metadata.py
+app/ingest/chunking/metadata.py
   ChunkMetadata
   ChunkMetadataBuilder
 ```

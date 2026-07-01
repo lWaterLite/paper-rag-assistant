@@ -11,8 +11,8 @@ from app.core.models import DocumentChunk, RagTrace
 from app.indexing.embedding_cache import EmbeddingCache
 from app.indexing.embeddings import EmbeddingClient
 from app.indexing.vector_store import InMemoryVectorStore
-from app.ingest.chunkers import Chunker
-from app.ingest.chunking_report import ChunkingReportConfig, ChunkingReportWriter
+from app.ingest.chunking.report import ChunkingReportConfig, ChunkingReportWriter
+from app.ingest.chunking.strategies import Chunker
 from app.ingest.pipeline import IngestionFailure, IngestionPipeline, IngestionReportConfig, IngestionReportWriter
 from app.indexing.manifest import IndexManifest
 from app.storage.repositories import InMemoryDocumentRepository

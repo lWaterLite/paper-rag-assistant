@@ -9,7 +9,7 @@ from pathlib import Path
 from app.core.settings import ProjectSettings
 from app.core.errors import AppError, ErrorCode
 from app.factory import build_local_text_loader
-from app.ingest.chunkers import CharacterChunker, ChunkerConfig
+from app.ingest.chunking.strategies import CharacterChunker, ChunkerConfig
 from app.ingest.cleaners import BasicTextCleaner
 from app.ingest.parsers import PlainTextParser
 

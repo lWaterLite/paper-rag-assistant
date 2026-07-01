@@ -11,7 +11,7 @@ from pathlib import Path
 from app.core.models import ParsedDocument
 from app.core.settings import ProjectSettings
 from app.factory import build_configured_chunker
-from app.ingest.chunkers import (
+from app.ingest.chunking.strategies import (
     CharacterChunker,
     ChunkerConfig,
     ChunkerRegistry,
@@ -20,7 +20,7 @@ from app.ingest.chunkers import (
     build_default_chunker_registry,
     estimate_token_count,
 )
-from app.ingest.chunking_report import ChunkingReportWriter
+from app.ingest.chunking.report import ChunkingReportWriter
 
 
 def build_document(text: str, *, source_path: str = "paper.md") -> ParsedDocument:

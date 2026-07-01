@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 
 from app.core.models import DocumentChunk, ParsedDocument
-from app.ingest.chunking_quality import ChunkingQualityChecker, ChunkingQualityConfig
+from app.ingest.chunking.quality import ChunkingQualityChecker, ChunkingQualityConfig
 
 
 def build_document(*, source_path: str = "paper.pdf") -> ParsedDocument:

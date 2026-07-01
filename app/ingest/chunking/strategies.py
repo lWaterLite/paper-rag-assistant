@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from app.core.models import DocumentChunk, ParsedBlock, ParsedDocument
-from app.ingest.chunk_metadata import ChunkMetadata, ChunkMetadataBuilder
+from app.ingest.chunking.metadata import ChunkMetadata, ChunkMetadataBuilder
 
 ChunkingStrategy = Literal["character", "fixed_token", "section_aware"]
 TokenizerName = Literal["char_approx", "simple_regex"]

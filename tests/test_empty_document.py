@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 
 from app.core.models import RawDocument
-from app.ingest.chunkers import CharacterChunker, ChunkerConfig, SectionAwareChunker
+from app.ingest.chunking.strategies import CharacterChunker, ChunkerConfig, SectionAwareChunker
 from app.ingest.cleaners import BasicTextCleaner
 from app.ingest.parsers import PlainTextParser
 

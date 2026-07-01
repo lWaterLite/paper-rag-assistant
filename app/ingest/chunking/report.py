@@ -14,7 +14,7 @@ from statistics import mean
 from typing import Any
 
 from app.core.models import DocumentChunk, ParsedDocument
-from app.ingest.chunkers import ChunkerConfig
+from app.ingest.chunking.strategies import ChunkerConfig
 
 
 @dataclass(frozen=True)
