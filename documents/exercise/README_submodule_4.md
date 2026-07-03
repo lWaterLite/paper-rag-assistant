@@ -1,0 +1,1012 @@
+# 子模块 4 练习说明：Embedding、向量索引与持久化存储
+
+本练习对应模块 2 的子模块 4，主题是把前面已经解析、清洗、切分好的 `DocumentChunk` 转换成可检索、可复现、可持久化的向量索引。
+
+这份文档延续子模块 3 的方式：先讲清楚本次生成的工程代码，再给出模块级练习。练习重点是理解“索引子系统应该如何分层、如何配置、如何持久化、如何支持后续替换真实向量库”，而不是让你把精力放在零散算法细节上。
+
+## 学习目标
+
+完成本子模块后，你应该能理解：
+
+1. 为什么 RAG 系统需要把 chunk 转成 embedding，再写入 vector store。
+2. 为什么 embedding client、vector store、embedding cache、manifest 都应该有独立接口。
+3. 为什么离线索引构建必须支持配置化、幂等、缓存、持久化和构建报告。
+4. 为什么 mock embedding 只能验证工程流程，不能验证真实检索质量。
+5. 如何设计一个后续可以替换为 FAISS、Chroma、Qdrant、pgvector 的向量存储层。
+6. 如何用 manifest 记录索引版本和关键配置，避免实验结果不可追溯。
+
+## 本次生成的代码结构
+
+核心文件如下：
+
+1. `app/indexing/configs.py`
+   - 定义 indexing 子系统的运行时 `Config`。
+   - 包括 `EmbeddingConfig`、`VectorStoreConfig`、`IndexBuilderConfig`。
+2. `app/indexing/embeddings.py`
+   - 定义 `EmbeddingClient` 协议。
+   - 实现 `MockEmbeddingClient`。
+   - 预留并实现可选的 `OpenAIEmbeddingClient`。
+   - 提供 embedding 结果维度和数值校验。
+3. `app/indexing/embedding_cache.py`
+   - 定义 `EmbeddingCache` 协议。
+   - 实现 `InMemoryEmbeddingCache` 和 `FileEmbeddingCache`。
+4. `app/indexing/vector_store.py`
+   - 定义 `VectorStore` 协议。
+   - 实现 `InMemoryVectorStore`。
+   - 实现 `LocalJsonVectorStore`，作为无第三方依赖的本地持久化 baseline。
+5. `app/indexing/manifest.py`
+   - 定义 `IndexManifest`。
+   - 定义 `IndexManifestStore`，负责 manifest 读写。
+   - 提供 manifest 与当前配置的兼容性校验。
+6. `app/indexing/report.py`
+   - 定义 `IndexBuildReportWriter`。
+   - 把一次索引构建结果写成稳定 JSON 报告。
+7. `app/indexing/index_builder.py`
+   - 离线索引构建主流程。
+   - 串联 ingestion、chunking、embedding cache、vector store、manifest 和 build report。
+8. `app/factory.py`
+   - 项目的 composition root。
+   - 把 `ProjectSettings` 转换成各功能类接收的 `Config`。
+   - 根据配置选择 mock/openai、memory/local_json 等实现。
+9. `app/core/settings.py`
+   - 增加 `EmbeddingSettings`、`VectorStoreSettings`、`IndexingSettings`。
+10. `settings.toml`
+   - 增加 `[embedding]`、`[vector_store]`、`[indexing]` 配置段。
+11. `tests/test_embedding_clients.py`
+   - 测试 mock embedding、维度校验和 OpenAI provider 缺 key 的错误。
+12. `tests/test_embedding_cache.py`
+   - 测试内存 cache 和文件 cache。
+13. `tests/test_vector_store.py`
+   - 测试内存向量库和本地 JSON 向量库。
+14. `tests/test_index_manifest.py`
+   - 测试 manifest 构建、读写和兼容性校验。
+15. `tests/test_index_builder_embedding_cache.py`
+   - 测试 IndexBuilder 的 cache 复用、跳过已有 chunk、报告写入和本地索引持久化。
+
+## 整体数据流
+
+子模块 4 接在子模块 3 后面：
+
+```text
+RawDocument
+  -> Parser / Cleaner
+  -> ParsedDocument
+  -> Chunker
+  -> DocumentChunk
+  -> EmbeddingClient
+  -> EmbeddingCache
+  -> VectorStore
+  -> IndexManifest
+  -> IndexBuildReport
+```
+
+在线检索阶段会使用子模块 4 的产物：
+
+```text
+User Query
+  -> EmbeddingClient.embed_text
+  -> VectorStore.search
+  -> RetrievedChunk
+```
+
+注意离线和在线的区别：
+
+1. 离线索引构建会处理大量文档和 chunks，重点是可恢复、可缓存、可复现。
+2. 在线检索只处理用户 query，重点是低延迟和稳定返回结果。
+
+## 配置结构讲解
+
+### `settings.toml`
+
+子模块 4 新增三段配置：
+
+```toml
+[embedding]
+provider = "mock"
+model = "mock-hash-embedding"
+dimension = 16
+batch_size = 32
+timeout_seconds = 30.0
+max_retries = 2
+api_key_env_name = "OPENAI_API_KEY"
+
+[vector_store]
+type = "local_json"
+index_dir = "data/indexes"
+collection_name = "papers_baseline"
+distance_metric = "cosine"
+persist = true
+
+[indexing]
+manifest_filename = "manifest.json"
+build_report_filename = "index_build_report.json"
+skip_existing = true
+fail_on_empty_chunk = true
+```
+
+这里仍然遵守之前讨论过的配置原则：
+
+1. `.env` 保存敏感、环境相关或部署覆盖项。
+2. `settings.toml` 保存结构化、非敏感、会影响工程行为的配置。
+3. 功能类不直接读取 `.env` 或 TOML。
+4. factory 负责把外部 `Settings` 转换成功能类使用的 `Config`。
+
+### `EmbeddingSettings` 与 `EmbeddingConfig`
+
+`EmbeddingSettings` 位于 `app/core/settings.py`，代表 TOML 中 `[embedding]` 的形状。
+
+`EmbeddingConfig` 位于 `app/indexing/configs.py`，代表 embedding client 真正接收的配置。
+
+这两个对象分开，是为了避免功能模块直接依赖外部配置系统。
+
+### `VectorStoreSettings` 与 `VectorStoreConfig`
+
+`VectorStoreSettings` 负责从 TOML 读取：
+
+```text
+type
+index_dir
+collection_name
+distance_metric
+persist
+```
+
+`VectorStoreConfig` 则提供运行时需要的路径推导：
+
+```text
+collection_dir
+vector_store_path
+embedding_cache_path
+```
+
+例如：
+
+```text
+data/indexes/papers_baseline/
+  vector_store.json
+  embedding_cache.json
+  manifest.json
+  index_build_report.json
+```
+
+### 为什么类默认值是 memory，但 settings.toml 是 local_json
+
+`ProjectSettings()` 的类默认值使用内存模式，主要是为了单元测试和无配置场景不污染真实 `data/indexes`。
+
+真实项目运行时会调用：
+
+```python
+ProjectSettings.from_toml()
+```
+
+它会读取项目根目录下的 `settings.toml`，从而启用 `local_json` 持久化。
+
+这是一种常见工程取舍：
+
+1. 类默认值尽量安全、轻量、无副作用。
+2. 项目配置文件定义真实运行策略。
+3. 测试中需要持久化时显式传入临时目录。
+
+## `app/indexing/configs.py` 代码讲解
+
+这个文件只放功能类运行时配置，不放读取 TOML 的逻辑。
+
+### `EmbeddingConfig`
+
+字段包括：
+
+```text
+provider
+model
+dimension
+batch_size
+timeout_seconds
+max_retries
+api_key_env_name
+```
+
+它会校验：
+
+1. `model` 不能为空。
+2. `dimension` 必须大于 0。
+3. `batch_size` 必须大于 0。
+4. `timeout_seconds` 必须大于 0。
+5. `max_retries` 必须大于等于 0。
+6. `api_key_env_name` 不能为空。
+
+这里的 `api_key_env_name` 不是 API key 本身，而是环境变量名。这样 manifest 或配置文件可以记录“应该从哪个环境变量读 key”，但不会泄露真实 key。
+
+### `VectorStoreConfig`
+
+字段包括：
+
+```text
+store_type
+index_dir
+collection_name
+distance_metric
+persist
+```
+
+它额外提供三个路径属性：
+
+```python
+collection_dir
+vector_store_path
+embedding_cache_path
+```
+
+这样路径拼接集中在配置对象里，业务流程不用到处手写：
+
+```python
+index_dir / collection_name / "xxx.json"
+```
+
+### `IndexBuilderConfig`
+
+字段包括：
+
+```text
+manifest_filename
+build_report_filename
+skip_existing
+fail_on_empty_chunk
+```
+
+`skip_existing` 控制重复构建时是否跳过已经写入 vector store 的 chunk。
+
+`fail_on_empty_chunk` 控制发现空 chunk 时是否直接失败。当前默认严格失败，因为空 chunk 往往说明前面的 parser、cleaner 或 chunker 有问题。
+
+## `app/indexing/embeddings.py` 代码讲解
+
+### `EmbeddingClient`
+
+`EmbeddingClient` 是协议接口：
+
+```python
+class EmbeddingClient(Protocol):
+    provider: str
+    model_name: str
+    dimension: int
+    def embed_text(self, text: str) -> list[float]: ...
+    def embed_batch(self, texts: list[str]) -> list[list[float]]: ...
+```
+
+`IndexBuilder` 只依赖这个协议，不关心底层是 mock、OpenAI、本地模型还是企业内部服务。
+
+这就是依赖倒置：
+
+```text
+IndexBuilder -> EmbeddingClient 协议
+MockEmbeddingClient -> 实现协议
+OpenAIEmbeddingClient -> 实现协议
+未来 BGEEmbeddingClient -> 实现协议
+```
+
+### `MockEmbeddingClient`
+
+mock embedding 用文本 hash 生成稳定向量：
+
+```text
+同一 model + 同一 text -> 同一 vector
+```
+
+这让测试可复现。
+
+本次修正了一个容易忽略的问题：`hashlib.blake2b` 单次 digest 最多 64 字节。现在 mock 实现会按轮次扩展 hash，因此可以支持 128、384、768 等更大的 mock 维度。
+
+但它仍然不理解真实语义。
+
+它能验证：
+
+1. pipeline 是否跑通。
+2. cache 是否命中。
+3. vector store 是否能写入和搜索。
+4. manifest 是否记录正确。
+
+它不能验证：
+
+1. RAG 检索质量。
+2. 中文 query 检索英文论文的效果。
+3. 语义相近但关键词不同的召回能力。
+
+### `OpenAIEmbeddingClient`
+
+`OpenAIEmbeddingClient` 是真实 provider 的接口层。
+
+它有几个工程特点：
+
+1. 只有配置选择 `provider = "openai"` 时才会被构造。
+2. 只有构造它时才懒加载 `openai` SDK。
+3. API key 从 `api_key_env_name` 指向的环境变量读取。
+4. 不会把 API key 写入 TOML、manifest、report 或日志。
+5. 会校验返回向量数量和维度。
+
+如果你希望使用它，需要自行添加依赖：
+
+```bash
+pip install openai
+```
+
+然后在环境中设置：
+
+```bash
+OPENAI_API_KEY=你的真实 key
+```
+
+再把 `settings.toml` 改为：
+
+```toml
+[embedding]
+provider = "openai"
+model = "text-embedding-3-small"
+dimension = 1536
+```
+
+OpenAI 官方文档说明，`text-embedding-3-small` 默认维度是 1536，`text-embedding-3-large` 默认维度是 3072，也支持通过 `dimensions` 参数缩短维度。参考：[OpenAI Embeddings Guide](https://developers.openai.com/api/docs/guides/embeddings)。
+
+### `validate_embedding_vectors`
+
+这个函数校验：
+
+1. 返回向量数量是否等于输入文本数量。
+2. 每个向量维度是否等于配置维度。
+3. 向量里是否包含 `NaN` 或 `Infinity`。
+
+维度校验非常重要。不同 embedding model 的向量不能混在同一个索引里。
+
+## `app/indexing/embedding_cache.py` 代码讲解
+
+### `EmbeddingCacheKey`
+
+cache key 包含：
+
+```text
+provider
+model_name
+dimension
+text_hash
+```
+
+这能避免错误复用旧 embedding。
+
+例如：
+
+```text
+mock / mock-hash-embedding / 16 / hash(text)
+openai / text-embedding-3-small / 1536 / hash(text)
+```
+
+即使文本相同，只要模型或维度不同，缓存就不会命中。
+
+### `InMemoryEmbeddingCache`
+
+内存 cache 用于：
+
+1. 快速测试。
+2. 单进程实验。
+3. 不希望写文件的场景。
+
+程序结束后会丢失。
+
+### `FileEmbeddingCache`
+
+文件 cache 用于本地持久化。
+
+它写入：
+
+```text
+data/indexes/papers_baseline/embedding_cache.json
+```
+
+注意一个工程细节：
+
+> 目录创建不放在 cache 的 `persist` 方法里，而由 `IndexBuilder` 在流程准备阶段统一完成。
+
+这是延续你之前提到的职责边界：writer/cache/store 只负责写文件，目录准备属于流程编排。
+
+## `app/indexing/vector_store.py` 代码讲解
+
+### `VectorStore`
+
+协议定义：
+
+```python
+add(chunk, vector)
+search(query_vector, top_k)
+count()
+contains_chunk(chunk_id)
+dimension
+persist()
+load()
+```
+
+这样后续替换向量库时，检索器和 IndexBuilder 不需要大改。
+
+### `BaseExactVectorStore`
+
+这是当前两个实现共享的精确搜索基类。
+
+它负责：
+
+1. 保存 `chunk_id -> VectorRecord`。
+2. 首次写入时确定向量维度。
+3. 后续写入时校验维度一致。
+4. 检索时使用 cosine similarity 排序。
+5. 把命中结果转换成 `RetrievedChunk`。
+
+它不是生产级向量库，但它是一个完整、可运行、可测试、无第三方依赖的 baseline。
+
+### `InMemoryVectorStore`
+
+内存向量库用于测试和快速实验。
+
+它不会落盘。
+
+### `LocalJsonVectorStore`
+
+本地 JSON 向量库用于小规模持久化 baseline。
+
+它保存：
+
+```text
+dimension
+records:
+  chunk
+  vector
+```
+
+这样重新启动后可以加载已有向量，并继续搜索。
+
+它的限制也很明确：
+
+1. 搜索是精确全量扫描，数据大了会慢。
+2. JSON 不适合非常大的向量集合。
+3. 并发写入没有事务保护。
+
+但它的好处是：
+
+1. 无需安装第三方库。
+2. 结构透明，方便学习。
+3. 接口和真实 vector store 一致，后续可替换。
+
+## `app/indexing/manifest.py` 代码讲解
+
+### `IndexManifest`
+
+manifest 记录索引如何生成：
+
+```text
+index_id
+source_dir
+created_at
+chunker
+chunk_size
+chunk_overlap
+embedding_provider
+embedding_model
+embedding_dimension
+embedding_batch_size
+vector_store_type
+vector_collection_name
+distance_metric
+document_count
+chunk_count
+vector_count
+config_hash
+document_versions
+```
+
+这比只保存一个 `index_id` 更有价值，因为你能追溯：
+
+1. 用了哪个 embedding model。
+2. 用了什么 chunking 配置。
+3. 写入了多少文档和 chunk。
+4. 用了什么 vector store。
+5. 文档版本是否变化。
+
+### `config_hash`
+
+`config_hash` 由关键配置和 `document_versions` 生成。
+
+它解决的问题是：
+
+```text
+同一个 collection 名称下，配置或文档版本是否发生变化？
+```
+
+后续做实验比较时，manifest 是非常重要的证据。
+
+### `IndexManifestStore`
+
+负责 manifest 的读写。
+
+它只写文件，不创建目录。目录由 `IndexBuilder` 准备。
+
+### `validate_manifest_compatible`
+
+校验已有 manifest 是否和当前配置兼容。
+
+当前检查：
+
+1. embedding provider。
+2. embedding model。
+3. embedding dimension。
+4. vector store type。
+5. distance metric。
+
+如果不兼容，应拒绝加载旧索引，避免把不同语义空间的向量混在一起。
+
+## `app/indexing/report.py` 代码讲解
+
+`IndexBuildReportWriter` 负责把一次构建结果写成 JSON。
+
+报告包含：
+
+```text
+index_id
+status
+document_count
+chunk_count
+vector_count
+embedding_cache_hits
+embedding_cache_misses
+skipped_existing_chunks
+empty_chunk_count
+manifest_path
+ingestion_report_path
+chunking_report_path
+manifest
+trace
+```
+
+它和 manifest 的区别：
+
+1. manifest 描述索引本身是什么。
+2. build report 描述这一次构建过程发生了什么。
+
+manifest 偏“索引说明书”，build report 偏“构建日志摘要”。
+
+## `app/indexing/index_builder.py` 代码讲解
+
+`IndexBuilder` 是子模块 4 的主流程编排者。
+
+它接收的依赖包括：
+
+```text
+IndexBuilderConfig
+EmbeddingConfig
+VectorStoreConfig
+IngestionPipeline
+Chunker
+EmbeddingClient
+EmbeddingCache
+VectorStore
+InMemoryDocumentRepository
+IndexManifestStore
+IndexBuildReportWriter
+IngestionReportWriter
+ChunkingReportWriter
+```
+
+这看起来依赖很多，但这是有意设计的。
+
+原因是：
+
+1. IndexBuilder 不应该自己偷偷 new 一个默认 embedding client。
+2. IndexBuilder 不应该自己偷偷选择 vector store。
+3. IndexBuilder 不应该读取 TOML。
+4. IndexBuilder 只负责流程编排，依赖由 factory 统一注入。
+
+这延续了你前面确认过的工厂管理范式。
+
+### 构建流程
+
+`build_from_directory` 的主流程：
+
+```text
+1. 准备输出目录
+2. ingestion
+3. 保存 raw 和 parsed document 到 repository
+4. 写 ingestion report
+5. chunking
+6. 保存 chunks 到 repository
+7. 写 chunking report
+8. 过滤空 chunk
+9. 根据 skip_existing 判断要写入哪些 chunk
+10. 使用 embedding cache 生成向量
+11. 写入 vector store
+12. 持久化 cache 和 vector store
+13. 构建并写入 manifest
+14. 写入 index build report
+15. 返回 RagIndex 和 IndexBuildResult
+```
+
+### `skip_existing`
+
+如果 `skip_existing = true`，重复构建时：
+
+```text
+已经在 vector store 中的 chunk 不再重新 embedding
+```
+
+这就是幂等构建的一部分。
+
+### `fail_on_empty_chunk`
+
+如果发现空 chunk，默认直接失败。
+
+原因是空 chunk 往往说明前面流程出现问题：
+
+1. parser 解析出空文本。
+2. cleaner 把内容清空了。
+3. chunker 产生了空片段。
+
+严格失败可以让问题尽早暴露。
+
+### `RagIndex`
+
+`RagIndex` 是构建完成后的在线检索入口对象：
+
+```text
+vector_store
+repository
+embedding_client
+manifest
+```
+
+后续子模块 5 的 `VectorRetriever` 会使用：
+
+```text
+embedding_client + vector_store
+```
+
+## `app/factory.py` 代码讲解
+
+factory 新增了几组构建函数：
+
+```python
+build_embedding_config
+build_vector_store_config
+build_index_builder_config
+build_embedding_client
+build_embedding_cache
+build_vector_store
+```
+
+这使配置流向非常清晰：
+
+```text
+settings.toml
+  -> ProjectSettings
+  -> factory
+  -> Config
+  -> 功能类
+```
+
+例如：
+
+```text
+[vector_store].type = "local_json"
+  -> VectorStoreSettings
+  -> VectorStoreConfig
+  -> LocalJsonVectorStore
+```
+
+如果以后换 Chroma，可以增加：
+
+```python
+if config.store_type == "chroma":
+    return ChromaVectorStore(...)
+```
+
+而 `IndexBuilder` 和 `VectorRetriever` 不需要知道 Chroma 的存在。
+
+## 如何运行
+
+不需要直接安装新依赖即可运行 mock + local_json baseline。
+
+在项目根目录执行：
+
+```bash
+python -m app.main index --source data/raw/papers
+```
+
+如果使用当前 `settings.toml`，会生成：
+
+```text
+data/indexes/papers_baseline/
+  vector_store.json
+  embedding_cache.json
+  manifest.json
+  index_build_report.json
+```
+
+你也可以继续运行：
+
+```bash
+python -m app.main ask "RAG 为什么需要引用？" --source data/raw/papers
+```
+
+注意：当前 `ask` 命令仍然会先构建索引再问答。后续可以在练习中把“构建索引”和“加载已有索引”拆开，这会更接近真实服务。
+
+## 如何运行测试
+
+```bash
+python -m unittest discover -s tests
+```
+
+本次新增和更新的重点测试：
+
+```bash
+python -m unittest tests.test_embedding_clients
+python -m unittest tests.test_embedding_cache
+python -m unittest tests.test_vector_store
+python -m unittest tests.test_index_manifest
+python -m unittest tests.test_index_builder_embedding_cache
+```
+
+## 本次实现的工程取舍
+
+### 为什么没有直接使用 FAISS 或 Chroma
+
+你之前明确要求不要直接改变环境，不要替你安装依赖。
+
+所以本次实现采用：
+
+```text
+LocalJsonVectorStore + exact cosine search
+```
+
+它不是最终生产方案，但它比单纯 in-memory demo 更进一步：
+
+1. 可以持久化。
+2. 可以重新加载。
+3. 可以保留 chunk 和 metadata。
+4. 可以跑通真实论文目录。
+5. 可以被统一接口替换。
+
+后续接 FAISS 或 Chroma 时，重点不是重写 IndexBuilder，而是新增一个 `VectorStore` adapter。
+
+### 为什么 vector store 中保存了完整 chunk
+
+概念文档中提到，真实系统通常会拆成：
+
+```text
+VectorStore
+  vector + chunk_id + filter metadata
+
+DocumentStore / MetadataStore
+  full text + citation metadata
+```
+
+当前 `LocalJsonVectorStore` 为了让本地 baseline 自包含，保存了完整 `DocumentChunk`。
+
+这是学习阶段的合理取舍。
+
+后续更真实的改造方向是：
+
+1. vector store 只保存 `chunk_id`、vector 和轻量 metadata。
+2. `ChunkRepository` 保存完整 chunk。
+3. 检索时先查 vector store，再根据 chunk_id 回表补全内容。
+
+### 为什么 manifest 和 build report 只有 persist=true 才写文件
+
+`ProjectSettings()` 默认用于测试，应该尽量无副作用。
+
+所以：
+
+```text
+ProjectSettings()
+  -> memory vector store
+  -> persist=false
+  -> 不写 index manifest/report 到 data/indexes
+```
+
+真实运行时：
+
+```text
+ProjectSettings.from_toml()
+  -> local_json vector store
+  -> persist=true
+  -> 写 manifest/report
+```
+
+这样测试不会污染项目数据目录，真实命令又能产生完整索引产物。
+
+## 练习 1：实现索引加载入口
+
+当前 `app.main ask` 仍然会先构建索引，再执行问答。
+
+这对学习流程足够，但真实系统不应该每次请求都重新构建索引。
+
+请你设计并实现一个“加载已有索引”的入口，例如：
+
+```python
+build_rag_index_from_storage(project_settings: ProjectSettings) -> RagIndex
+```
+
+建议实现位置：
+
+```text
+app/factory.py
+app/indexing/index_loader.py
+```
+
+目标：
+
+1. 从 `settings.toml` 得到 `VectorStoreConfig`。
+2. 加载 `manifest.json`。
+3. 校验 manifest 与当前 embedding/vector store 配置兼容。
+4. 加载 `LocalJsonVectorStore`。
+5. 构造与索引一致的 `EmbeddingClient`。
+6. 返回 `RagIndex`。
+
+完成后，可以考虑新增 CLI：
+
+```bash
+python -m app.main ask --use-existing-index "RAG 为什么需要引用？"
+```
+
+这个练习的重点是理解：
+
+```text
+离线 build
+在线 load
+```
+
+二者应该分离。
+
+## 练习 2：拆分 VectorStore 与 ChunkRepository
+
+当前 `LocalJsonVectorStore` 为了本地自包含，直接保存完整 `DocumentChunk`。
+
+请你设计一个更真实的结构：
+
+```text
+VectorStore
+  chunk_id
+  vector
+  metadata for filter
+
+ChunkRepository
+  chunk_id
+  full text
+  citation metadata
+```
+
+你可以新增：
+
+```text
+app/storage/chunk_store.py
+```
+
+或扩展：
+
+```text
+app/storage/repositories.py
+```
+
+目标：
+
+1. vector store 搜索返回 `VectorSearchResult`。
+2. retriever 根据 chunk_id 从 repository 补全 `DocumentChunk`。
+3. 最终仍然返回统一的 `RetrievedChunk`。
+
+这个练习的重点是学习真实 RAG 系统的数据分层。
+
+## 练习 3：新增一个专业向量库 adapter
+
+在不改变 `IndexBuilder` 主流程的前提下，新增一个真实向量库实现。
+
+可以选择：
+
+```text
+FAISS
+Chroma
+Qdrant
+pgvector
+```
+
+建议优先尝试 Chroma 或 FAISS。
+
+要求：
+
+1. 新实现必须满足 `VectorStore` 协议。
+2. factory 根据 `settings.toml` 的 `[vector_store].type` 选择实现。
+3. 不要让业务代码直接依赖具体 SDK。
+4. manifest 中记录新的 vector store 类型。
+
+你需要自行添加依赖，不要把依赖安装写进代码。
+
+这个练习的重点不是某个 SDK 的 API，而是 adapter 设计。
+
+## 练习 4：设计更完整的索引版本策略
+
+当前 `IndexManifest` 已经记录了 `config_hash` 和 `document_versions`。
+
+请你进一步设计 index version 方案。
+
+可以考虑：
+
+```text
+index_id
+collection_name
+config_hash
+created_at
+status
+parent_index_id
+document_set_hash
+schema_version
+```
+
+目标：
+
+1. 同一批文档、同一配置可以复用旧索引。
+2. 文档内容变化后可以生成新版本。
+3. chunker 或 embedding 配置变化后必须生成新版本。
+4. 评测结果能引用具体 index version。
+
+这个练习的重点是实验可追溯性。
+
+## 练习 5：把 OpenAI embedding 接入一次真实索引
+
+这个练习需要你自行准备环境和 API key。
+
+步骤建议：
+
+1. 自行添加 `openai` 依赖。
+2. 设置环境变量：
+
+```bash
+OPENAI_API_KEY=你的真实 key
+```
+
+3. 修改 `settings.toml`：
+
+```toml
+[embedding]
+provider = "openai"
+model = "text-embedding-3-small"
+dimension = 1536
+```
+
+4. 执行：
+
+```bash
+python -m app.main index --source data/raw/papers
+```
+
+5. 检查：
+
+```text
+manifest.json
+embedding_cache.json
+vector_store.json
+index_build_report.json
+```
+
+观察：
+
+1. 首次构建 cache miss 数量。
+2. 第二次构建是否跳过已有 chunk。
+3. manifest 中 embedding model 和 dimension 是否正确。
+4. mock embedding 和真实 embedding 的检索结果有什么差异。
+
+这个练习的重点是从工程流程正确走向真实检索质量。
+
+## 子模块 4 验收标准
+
+完成本子模块后，你应该能做到：
+
+1. 用 mock embedding 跑通索引构建，不依赖外部服务。
+2. 通过配置切换 embedding provider。
+3. 通过配置选择 memory 或 local_json vector store。
+4. 索引构建能复用 embedding cache。
+5. 重复构建不会无意义重复写入同一批 chunk。
+6. manifest 能说明索引由哪些配置生成。
+7. build report 能说明一次构建过程发生了什么。
+8. 向量维度不一致时系统会清晰失败。
+9. 后续可以用 adapter 方式替换真实向量库。
+10. 能解释为什么离线索引和在线检索应该分离。
+
