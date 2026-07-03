@@ -10,7 +10,7 @@ from typing import Protocol
 
 from app.core.models import DocumentChunk, RetrievedChunk
 from app.indexing.embeddings import EmbeddingClient
-from app.indexing.vector_store import InMemoryVectorStore
+from app.indexing.vector_store import VectorStore
 
 
 class Retriever(Protocol):
@@ -26,7 +26,7 @@ class Retriever(Protocol):
 class VectorRetriever:
     """基于向量相似度的检索器。"""
 
-    def __init__(self, embedding_client: EmbeddingClient, vector_store: InMemoryVectorStore) -> None:
+    def __init__(self, embedding_client: EmbeddingClient, vector_store: VectorStore) -> None:
         self._embedding_client = embedding_client
         self._vector_store = vector_store
 

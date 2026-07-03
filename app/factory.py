@@ -8,10 +8,13 @@ from __future__ import annotations
 
 from app.core.settings import EnvSettings, ProjectSettings
 from app.generation.answer_generator import MockAnswerGenerator
-from app.indexing.embedding_cache import EmbeddingCache, InMemoryEmbeddingCache
-from app.indexing.embeddings import EmbeddingClient, MockEmbeddingClient
+from app.indexing.configs import EmbeddingConfig, IndexBuilderConfig, VectorStoreConfig
+from app.indexing.embedding_cache import EmbeddingCache, FileEmbeddingCache, InMemoryEmbeddingCache
+from app.indexing.embeddings import EmbeddingClient, MockEmbeddingClient, OpenAIEmbeddingClient
 from app.indexing.index_builder import IndexBuilder, RagIndex
-from app.indexing.vector_store import InMemoryVectorStore
+from app.indexing.manifest import IndexManifestStore
+from app.indexing.report import IndexBuildReportWriter
+from app.indexing.vector_store import InMemoryVectorStore, LocalJsonVectorStore, VectorStore
 from app.ingest.chunking.registry import ChunkerRegistry, build_default_chunker_registry
 from app.ingest.chunking.report import ChunkingReportConfig, ChunkingReportWriter
 from app.ingest.chunking.strategies import Chunker, ChunkerConfig
@@ -75,6 +78,74 @@ def build_chunking_report_config(project_settings: ProjectSettings) -> ChunkingR
     """从结构化 ProjectSettings 转换成 chunking report 配置。"""
 
     return ChunkingReportConfig(output_dir=project_settings.chunking_report.output_dir)
+
+
+def build_embedding_config(project_settings: ProjectSettings) -> EmbeddingConfig:
+    """从结构化 ProjectSettings 转换成 embedding 运行时配置。"""
+
+    return EmbeddingConfig(
+        provider=project_settings.embedding.provider,
+        model=project_settings.embedding.model,
+        dimension=project_settings.embedding.dimension,
+        batch_size=project_settings.embedding.batch_size,
+        timeout_seconds=project_settings.embedding.timeout_seconds,
+        max_retries=project_settings.embedding.max_retries,
+        api_key_env_name=project_settings.embedding.api_key_env_name,
+    )
+
+
+def build_vector_store_config(project_settings: ProjectSettings) -> VectorStoreConfig:
+    """从结构化 ProjectSettings 转换成向量存储运行时配置。"""
+
+    return VectorStoreConfig(
+        store_type=project_settings.vector_store.type,
+        index_dir=project_settings.vector_store.index_dir,
+        collection_name=project_settings.vector_store.collection_name,
+        distance_metric=project_settings.vector_store.distance_metric,
+        persist=project_settings.vector_store.persist,
+    )
+
+
+def build_index_builder_config(project_settings: ProjectSettings) -> IndexBuilderConfig:
+    """从结构化 ProjectSettings 转换成索引构建运行时配置。"""
+
+    return IndexBuilderConfig(
+        manifest_filename=project_settings.indexing.manifest_filename,
+        build_report_filename=project_settings.indexing.build_report_filename,
+        skip_existing=project_settings.indexing.skip_existing,
+        fail_on_empty_chunk=project_settings.indexing.fail_on_empty_chunk,
+    )
+
+
+def build_embedding_client(project_settings: ProjectSettings) -> EmbeddingClient:
+    """根据配置创建 embedding client。"""
+
+    config = build_embedding_config(project_settings)
+    if config.provider == "mock":
+        return MockEmbeddingClient(config)
+    if config.provider == "openai":
+        return OpenAIEmbeddingClient(config)
+    raise ValueError(f"不支持的 embedding provider：{config.provider}")
+
+
+def build_embedding_cache(project_settings: ProjectSettings) -> EmbeddingCache:
+    """根据配置创建 embedding cache。"""
+
+    vector_store_config = build_vector_store_config(project_settings)
+    if vector_store_config.store_type == "local_json" and vector_store_config.persist:
+        return FileEmbeddingCache(vector_store_config.embedding_cache_path)
+    return InMemoryEmbeddingCache()
+
+
+def build_vector_store(project_settings: ProjectSettings) -> VectorStore:
+    """根据配置创建向量存储。"""
+
+    config = build_vector_store_config(project_settings)
+    if config.store_type == "memory":
+        return InMemoryVectorStore()
+    if config.store_type == "local_json":
+        return LocalJsonVectorStore(config.vector_store_path)
+    raise ValueError(f"不支持的 vector store 类型：{config.store_type}")
 
 
 def build_configured_chunker(
@@ -151,7 +222,7 @@ def build_index_builder(
         ingestion_pipeline: IngestionPipeline | None = None,
         embedding_client: EmbeddingClient | None = None,
         embedding_cache: EmbeddingCache | None = None,
-        vector_store: InMemoryVectorStore | None = None,
+        vector_store: VectorStore | None = None,
         repository: InMemoryDocumentRepository | None = None,
         ingestion_report_writer: IngestionReportWriter | None = None,
         chunking_report_writer: ChunkingReportWriter | None = None,
@@ -162,14 +233,22 @@ def build_index_builder(
     这里允许测试或实验显式覆盖某些依赖；生产入口使用默认组装即可。
     """
 
+    _ = env_settings
+    embedding_config = build_embedding_config(project_settings)
+    vector_store_config = build_vector_store_config(project_settings)
+    index_builder_config = build_index_builder_config(project_settings)
     return IndexBuilder(
-        settings=env_settings,
+        config=index_builder_config,
+        embedding_config=embedding_config,
+        vector_store_config=vector_store_config,
         ingestion_pipeline=ingestion_pipeline if ingestion_pipeline is not None else build_ingestion_pipeline(project_settings),
         chunker=build_configured_chunker(project_settings, chunker_registry=chunker_registry),
-        embedding_client=embedding_client if embedding_client is not None else MockEmbeddingClient(env_settings),
-        embedding_cache=embedding_cache if embedding_cache is not None else InMemoryEmbeddingCache(),
-        vector_store=vector_store if vector_store is not None else InMemoryVectorStore(),
+        embedding_client=embedding_client if embedding_client is not None else build_embedding_client(project_settings),
+        embedding_cache=embedding_cache if embedding_cache is not None else build_embedding_cache(project_settings),
+        vector_store=vector_store if vector_store is not None else build_vector_store(project_settings),
         repository=repository if repository is not None else InMemoryDocumentRepository(),
+        manifest_store=IndexManifestStore(vector_store_config.collection_dir, index_builder_config),
+        build_report_writer=IndexBuildReportWriter(),
         ingestion_report_writer=ingestion_report_writer if ingestion_report_writer is not None else IngestionReportWriter(),
         ingestion_report_config=build_ingestion_report_config(project_settings),
         chunking_report_writer=chunking_report_writer if chunking_report_writer is not None else ChunkingReportWriter(),

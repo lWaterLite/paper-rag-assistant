@@ -140,6 +140,74 @@ class ChunkingReportSettings(BaseModel):
     output_dir: Path = Field(default=Path("logs"), description="chunking 报告 JSON 的输出目录")
 
 
+class EmbeddingSettings(BaseModel):
+    """Embedding 模型的结构化配置。
+
+    provider、model、dimension 这类配置会影响索引版本，因此放在 TOML 中统一记录。
+    API key 不放在这里，只记录应读取哪个环境变量。
+    """
+
+    provider: Literal["mock", "openai"] = Field(default="mock", description="embedding 服务提供方")
+    model: str = Field(default="mock-hash-embedding", min_length=1, description="embedding 模型名称")
+    dimension: int = Field(default=16, gt=0, description="embedding 向量维度")
+    batch_size: int = Field(default=32, gt=0, description="embedding 批处理大小")
+    timeout_seconds: float = Field(default=30.0, gt=0, description="embedding 请求超时时间")
+    max_retries: int = Field(default=2, ge=0, description="embedding 最大重试次数")
+    api_key_env_name: str = Field(default="OPENAI_API_KEY", min_length=1, description="真实 provider 的 API key 环境变量名")
+
+    @model_validator(mode="after")
+    def validate_text_fields(self) -> "EmbeddingSettings":
+        """清理并校验字符串字段。"""
+
+        self.model = self.model.strip()
+        self.api_key_env_name = self.api_key_env_name.strip()
+        if not self.model:
+            raise ValueError("model 不能为空")
+        if not self.api_key_env_name:
+            raise ValueError("api_key_env_name 不能为空")
+        return self
+
+
+class VectorStoreSettings(BaseModel):
+    """向量存储的结构化配置。"""
+
+    type: Literal["memory", "local_json"] = Field(default="memory", description="向量存储类型")
+    index_dir: Path = Field(default=Path("data/indexes"), description="索引根目录")
+    collection_name: str = Field(default="papers_baseline", min_length=1, description="向量集合名称")
+    distance_metric: Literal["cosine"] = Field(default="cosine", description="向量相似度算法")
+    persist: bool = Field(default=False, description="是否持久化向量索引")
+
+    @model_validator(mode="after")
+    def validate_collection_name(self) -> "VectorStoreSettings":
+        """清理并校验 collection 名称。"""
+
+        self.collection_name = self.collection_name.strip()
+        if not self.collection_name:
+            raise ValueError("collection_name 不能为空")
+        return self
+
+
+class IndexingSettings(BaseModel):
+    """索引构建流程配置。"""
+
+    manifest_filename: str = Field(default="manifest.json", min_length=1, description="索引 manifest 文件名")
+    build_report_filename: str = Field(default="index_build_report.json", min_length=1, description="索引构建报告文件名")
+    skip_existing: bool = Field(default=True, description="是否跳过已经写入向量库的 chunk")
+    fail_on_empty_chunk: bool = Field(default=True, description="遇到空 chunk 时是否直接失败")
+
+    @model_validator(mode="after")
+    def validate_filenames(self) -> "IndexingSettings":
+        """清理并校验文件名字段。"""
+
+        self.manifest_filename = self.manifest_filename.strip()
+        self.build_report_filename = self.build_report_filename.strip()
+        if not self.manifest_filename:
+            raise ValueError("manifest_filename 不能为空")
+        if not self.build_report_filename:
+            raise ValueError("build_report_filename 不能为空")
+        return self
+
+
 class ProjectSettings(BaseModel):
     """从 settings.toml 读取的结构化工程配置。"""
 
@@ -148,6 +216,9 @@ class ProjectSettings(BaseModel):
     ingestion_report: IngestionReportSettings = Field(default_factory=IngestionReportSettings)
     chunking: ChunkingSettings = Field(default_factory=ChunkingSettings)
     chunking_report: ChunkingReportSettings = Field(default_factory=ChunkingReportSettings)
+    embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings)
+    vector_store: VectorStoreSettings = Field(default_factory=VectorStoreSettings)
+    indexing: IndexingSettings = Field(default_factory=IndexingSettings)
 
     @classmethod
     def from_toml(cls, path: Path | str = Path("settings.toml")) -> "ProjectSettings":

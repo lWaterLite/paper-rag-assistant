@@ -28,3 +28,25 @@ tokenizer = "char_approx"
 
 [chunking_report]
 output_dir = "logs"
+
+[embedding]
+provider = "mock"
+model = "mock-hash-embedding"
+dimension = 16
+batch_size = 32
+timeout_seconds = 30.0
+max_retries = 2
+api_key_env_name = "OPENAI_API_KEY"
+
+[vector_store]
+type = "local_json"
+index_dir = "data/indexes"
+collection_name = "papers_baseline"
+distance_metric = "cosine"
+persist = true
+
+[indexing]
+manifest_filename = "manifest.json"
+build_report_filename = "index_build_report.json"
+skip_existing = true
+fail_on_empty_chunk = true

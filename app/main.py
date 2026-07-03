@@ -15,7 +15,7 @@ from app.factory import build_index_builder, build_rag_pipeline
 
 
 def build_index(source: Path, env_settings: EnvSettings, project_settings: ProjectSettings):
-    """构建练习用内存索引。"""
+    """构建 RAG 离线索引。"""
 
     builder = build_index_builder(env_settings, project_settings)
     return builder.build_from_directory(source)
@@ -33,6 +33,10 @@ def handle_index(args: argparse.Namespace) -> None:
         print(f"- ingestion 报告：{result.ingestion_report_path.as_posix()}")
     if result.chunking_report_path is not None:
         print(f"- chunking 报告：{result.chunking_report_path.as_posix()}")
+    if result.manifest_path is not None:
+        print(f"- index manifest：{result.manifest_path.as_posix()}")
+    if result.build_report_path is not None:
+        print(f"- index 构建报告：{result.build_report_path.as_posix()}")
     print(f"- trace_id：{result.trace.trace_id}")
 
 
@@ -58,10 +62,10 @@ def handle_ask(args: argparse.Namespace) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="paper-rag-assistant 子模块 1 练习入口")
+    parser = argparse.ArgumentParser(description="paper-rag-assistant RAG 工程练习入口")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    index_parser = subparsers.add_parser("index", help="构建练习用内存索引")
+    index_parser = subparsers.add_parser("index", help="构建离线 RAG 索引")
     index_parser.add_argument("--source", default="data/raw/papers", help="文档目录")
     index_parser.set_defaults(handler=handle_index)
 
