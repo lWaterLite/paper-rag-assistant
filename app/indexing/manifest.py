@@ -187,8 +187,17 @@ def validate_manifest_compatible(
         mismatches.append(f"embedding_model: manifest={manifest.embedding_model}, current={embedding_config.model}")
     if manifest.embedding_dimension != embedding_config.dimension:
         mismatches.append(f"embedding_dimension: manifest={manifest.embedding_dimension}, current={embedding_config.dimension}")
+    if manifest.embedding_batch_size != embedding_config.batch_size:
+        mismatches.append(
+            f"embedding_batch_size: manifest={manifest.embedding_batch_size}, current={embedding_config.batch_size}"
+        )
     if manifest.vector_store_type != vector_store_config.store_type:
         mismatches.append(f"vector_store_type: manifest={manifest.vector_store_type}, current={vector_store_config.store_type}")
+    if manifest.vector_collection_name != vector_store_config.collection_name:
+        mismatches.append(
+            f"vector_collection_name: manifest={manifest.vector_collection_name}, "
+            f"current={vector_store_config.collection_name}"
+        )
     if manifest.distance_metric != vector_store_config.distance_metric:
         mismatches.append(f"distance_metric: manifest={manifest.distance_metric}, current={vector_store_config.distance_metric}")
     if mismatches:

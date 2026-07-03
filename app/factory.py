@@ -12,6 +12,7 @@ from app.indexing.configs import EmbeddingConfig, IndexBuilderConfig, VectorStor
 from app.indexing.embedding_cache import EmbeddingCache, FileEmbeddingCache, InMemoryEmbeddingCache
 from app.indexing.embeddings import EmbeddingClient, MockEmbeddingClient, OpenAIEmbeddingClient
 from app.indexing.index_builder import IndexBuilder, RagIndex
+from app.indexing.index_loader import validate_index_from_storage
 from app.indexing.manifest import IndexManifestStore
 from app.indexing.report import IndexBuildReportWriter
 from app.indexing.vector_store import InMemoryVectorStore, LocalJsonVectorStore, VectorStore
@@ -255,6 +256,26 @@ def build_index_builder(
         chunking_report_config=build_chunking_report_config(project_settings),
     )
 
+
+def build_rag_index_from_storage(project_settings: ProjectSettings) -> RagIndex:
+    """从已有持久化索引加载在线 RAG 索引。"""
+
+    vector_store_config = build_vector_store_config(project_settings)
+    embedding_config = build_embedding_config(project_settings)
+    vector_store = build_vector_store(project_settings)
+    manifest = IndexManifestStore(vector_store_config.collection_dir, build_index_builder_config(project_settings)).read()
+    validate_index_from_storage(
+        manifest=manifest,
+        embedding_config=embedding_config,
+        vector_store_config=vector_store_config,
+        vector_store=vector_store,
+    )
+    return RagIndex(
+        vector_store=vector_store,
+        repository=InMemoryDocumentRepository(),
+        embedding_client=build_embedding_client(project_settings),
+        manifest=manifest,
+    )
 
 def build_rag_pipeline(
         env_settings: EnvSettings,

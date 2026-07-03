@@ -11,7 +11,7 @@ import argparse
 from pathlib import Path
 
 from app.core.settings import EnvSettings, ProjectSettings
-from app.factory import build_index_builder, build_rag_pipeline
+from app.factory import build_index_builder, build_rag_index_from_storage, build_rag_pipeline
 
 
 def build_index(source: Path, env_settings: EnvSettings, project_settings: ProjectSettings):
@@ -43,7 +43,11 @@ def handle_index(args: argparse.Namespace) -> None:
 def handle_ask(args: argparse.Namespace) -> None:
     env_settings = EnvSettings.from_env()
     project_settings = ProjectSettings.from_toml()
-    index, build_result = build_index(Path(args.source), env_settings, project_settings)
+    if args.use_existing_index:
+        index = build_rag_index_from_storage(project_settings)
+        build_result = None
+    else:
+        index, build_result = build_index(Path(args.source), env_settings, project_settings)
     pipeline = build_rag_pipeline(env_settings=env_settings, index=index)
     answer = pipeline.ask(args.question)
 
@@ -56,7 +60,10 @@ def handle_ask(args: argparse.Namespace) -> None:
         print(f"  {citation.snippet}")
     print()
     print("Trace：")
-    print(f"- index_trace_id：{build_result.trace.trace_id}")
+    if build_result is not None:
+        print(f"- index_trace_id：{build_result.trace.trace_id}")
+    else:
+        print(f"- loaded_index_id：{index.manifest.index_id}")
     print(f"- ask_trace_id：{answer.trace_id}")
     print(f"- latency_ms：{answer.latency_ms}")
 
@@ -72,6 +79,7 @@ def build_parser() -> argparse.ArgumentParser:
     ask_parser = subparsers.add_parser("ask", help="执行一次 mock RAG 问答")
     ask_parser.add_argument("question", help="用户问题")
     ask_parser.add_argument("--source", default="data/raw/papers", help="文档目录")
+    ask_parser.add_argument("--use-existing-index", action="store_true", help="直接加载已有索引，不重新构建")
     ask_parser.set_defaults(handler=handle_ask)
 
     return parser
