@@ -6,4 +6,6 @@ logs/
 data/raw/papers/pdf
 -data/raw/papers/pdf/.gitkeep
 
+data/indexes
+
 .env
