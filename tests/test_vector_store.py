@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import unittest
+import shutil
+import uuid
+from pathlib import Path
 
 from app.core.errors import AppError, ErrorCode
 from app.core.models import DocumentChunk
-from app.indexing.vector_store import InMemoryVectorStore
+from app.indexing.vector_store import InMemoryVectorStore, LocalJsonVectorStore
 
 
 def build_chunk(chunk_id: str = "chunk_test", text: str = "测试 chunk") -> DocumentChunk:
@@ -96,6 +99,26 @@ class InMemoryVectorStoreTest(unittest.TestCase):
 
         self.assertEqual(first.dimension, 3)
         self.assertEqual(second.dimension, 2)
+
+    def test_local_json_vector_store_persists_and_loads_records(self) -> None:
+        store_dir = Path(".tmp_tests") / f"vector_store_{uuid.uuid4().hex}"
+        store_path = store_dir / "vector_store.json"
+        store_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            store = LocalJsonVectorStore(store_path)
+            store.add(build_chunk("chunk_first", "RAG citation"), [1.0, 0.0])
+            store.add(build_chunk("chunk_second", "BM25 retrieval"), [0.0, 1.0])
+            store.persist()
+
+            loaded_store = LocalJsonVectorStore(store_path)
+            results = loaded_store.search([1.0, 0.0], top_k=1)
+
+            self.assertEqual(loaded_store.count(), 2)
+            self.assertEqual(loaded_store.dimension, 2)
+            self.assertEqual(results[0].chunk_id, "chunk_first")
+            self.assertEqual(results[0].metadata, {})
+        finally:
+            shutil.rmtree(store_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":

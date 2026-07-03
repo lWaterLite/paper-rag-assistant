@@ -18,10 +18,13 @@ from pydantic import ValidationError
 from app.core.settings import (
     ChunkingReportSettings,
     ChunkingSettings,
+    EmbeddingSettings,
     EnvSettings,
+    IndexingSettings,
     IngestionReportSettings,
     PdfCleanerSettings,
     ProjectSettings,
+    VectorStoreSettings,
 )
 from app.core.errors import AppError, ErrorCode
 
@@ -142,6 +145,28 @@ tokenizer = "simple_regex"
 
 [chunking_report]
 output_dir = ".tmp_tests/chunking-reports"
+
+[embedding]
+provider = "mock"
+model = "mock-hash-embedding"
+dimension = 24
+batch_size = 16
+timeout_seconds = 12.5
+max_retries = 1
+api_key_env_name = "TEST_OPENAI_API_KEY"
+
+[vector_store]
+type = "local_json"
+index_dir = ".tmp_tests/indexes"
+collection_name = "test_collection"
+distance_metric = "cosine"
+persist = true
+
+[indexing]
+manifest_filename = "test_manifest.json"
+build_report_filename = "test_index_report.json"
+skip_existing = false
+fail_on_empty_chunk = false
 """.strip(),
                 encoding="utf-8",
             )
@@ -160,6 +185,17 @@ output_dir = ".tmp_tests/chunking-reports"
             self.assertEqual(project_settings.chunking.chunk_overlap, 32)
             self.assertEqual(project_settings.chunking.tokenizer, "simple_regex")
             self.assertEqual(project_settings.chunking_report.output_dir, Path(".tmp_tests/chunking-reports"))
+            self.assertEqual(project_settings.embedding.dimension, 24)
+            self.assertEqual(project_settings.embedding.batch_size, 16)
+            self.assertEqual(project_settings.embedding.api_key_env_name, "TEST_OPENAI_API_KEY")
+            self.assertEqual(project_settings.vector_store.type, "local_json")
+            self.assertEqual(project_settings.vector_store.index_dir, Path(".tmp_tests/indexes"))
+            self.assertEqual(project_settings.vector_store.collection_name, "test_collection")
+            self.assertTrue(project_settings.vector_store.persist)
+            self.assertEqual(project_settings.indexing.manifest_filename, "test_manifest.json")
+            self.assertEqual(project_settings.indexing.build_report_filename, "test_index_report.json")
+            self.assertFalse(project_settings.indexing.skip_existing)
+            self.assertFalse(project_settings.indexing.fail_on_empty_chunk)
         finally:
             if config_path.parent.exists():
                 shutil.rmtree(config_path.parent, ignore_errors=True)
@@ -190,6 +226,29 @@ output_dir = ".tmp_tests/chunking-reports"
         settings = ChunkingReportSettings()
 
         self.assertEqual(settings.output_dir, Path("logs"))
+
+    def test_embedding_settings_rejects_invalid_batch_size(self) -> None:
+        with self.assertRaises(ValidationError) as context:
+            EmbeddingSettings(batch_size=0)
+
+        self.assertIn("batch_size", str(context.exception))
+
+    def test_vector_store_settings_strips_collection_name(self) -> None:
+        settings = VectorStoreSettings(collection_name=" papers ")
+
+        self.assertEqual(settings.collection_name, "papers")
+
+    def test_vector_store_settings_rejects_blank_collection_name(self) -> None:
+        with self.assertRaises(ValidationError) as context:
+            VectorStoreSettings(collection_name=" ")
+
+        self.assertIn("collection_name", str(context.exception))
+
+    def test_indexing_settings_rejects_blank_manifest_filename(self) -> None:
+        with self.assertRaises(ValidationError) as context:
+            IndexingSettings(manifest_filename=" ")
+
+        self.assertIn("manifest_filename", str(context.exception))
 
 
 if __name__ == "__main__":

@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import unittest
+import shutil
+import uuid
+from pathlib import Path
 
-from app.indexing.embedding_cache import InMemoryEmbeddingCache
+from app.indexing.embedding_cache import FileEmbeddingCache, InMemoryEmbeddingCache
 
 
 class FakeEmbeddingClient:
@@ -63,7 +66,23 @@ class EmbeddingCacheTest(unittest.TestCase):
 
         self.assertIsNone(cache.get(second_client, "same text"))
 
+    def test_file_cache_can_be_reloaded(self) -> None:
+        cache_dir = Path(".tmp_tests") / f"embedding_cache_{uuid.uuid4().hex}"
+        cache_path = cache_dir / "embedding_cache.json"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            client = FakeEmbeddingClient(model_name="model-a", dimension=2)
+            cache = FileEmbeddingCache(cache_path)
+            cache.set(client, "same text", [1.0, 0.0])
+            cache.persist()
+
+            loaded_cache = FileEmbeddingCache(cache_path)
+
+            self.assertEqual(loaded_cache.get(client, "same text"), [1.0, 0.0])
+            self.assertEqual(loaded_cache.count(), 1)
+        finally:
+            shutil.rmtree(cache_dir, ignore_errors=True)
+
 
 if __name__ == "__main__":
     unittest.main()
-

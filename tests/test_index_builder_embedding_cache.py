@@ -3,11 +3,19 @@
 from __future__ import annotations
 
 import json
+import shutil
 import unittest
 import uuid
 from pathlib import Path
 
-from app.core.settings import ChunkingReportSettings, EnvSettings, IngestionReportSettings, ProjectSettings
+from app.core.settings import (
+    ChunkingReportSettings,
+    EnvSettings,
+    IndexingSettings,
+    IngestionReportSettings,
+    ProjectSettings,
+    VectorStoreSettings,
+)
 from app.factory import build_index_builder
 from app.indexing.embedding_cache import InMemoryEmbeddingCache
 
@@ -106,6 +114,49 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
         self.assertEqual(chunking_report["chunk_count"], result.chunk_count)
         self.assertEqual(chunking_report["document_count"], result.document_count)
         self.assertEqual(result.trace.stages[1].detail["report_path"], result.chunking_report_path.as_posix())
+
+    def test_index_builder_persists_local_json_index_artifacts(self) -> None:
+        env_settings = EnvSettings(chunk_size=120, chunk_overlap=20)
+        index_dir = Path(".tmp_tests") / f"indexes_{uuid.uuid4().hex}"
+        report_dir = Path(".tmp_tests") / f"ingestion_reports_{uuid.uuid4().hex}"
+        chunking_report_dir = Path(".tmp_tests") / f"chunking_reports_{uuid.uuid4().hex}"
+        project_settings = ProjectSettings(
+            vector_store=VectorStoreSettings(
+                type="local_json",
+                index_dir=index_dir,
+                collection_name="papers_test",
+                persist=True,
+            ),
+            indexing=IndexingSettings(
+                manifest_filename="manifest.json",
+                build_report_filename="index_build_report.json",
+            ),
+            ingestion_report=IngestionReportSettings(output_dir=report_dir),
+            chunking_report=ChunkingReportSettings(output_dir=chunking_report_dir),
+        )
+
+        try:
+            index, result = build_index_builder(env_settings, project_settings).build_from_directory(Path("data/raw/papers"))
+            collection_dir = index_dir / "papers_test"
+
+            self.assertEqual(index.vector_store.count(), result.vector_count)
+            self.assertEqual(result.manifest_path, collection_dir / "manifest.json")
+            self.assertEqual(result.build_report_path, collection_dir / "index_build_report.json")
+            self.assertTrue((collection_dir / "vector_store.json").exists())
+            self.assertTrue((collection_dir / "embedding_cache.json").exists())
+            self.assertTrue(result.manifest_path.exists())
+            self.assertTrue(result.build_report_path.exists())
+
+            manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+            build_report = json.loads(result.build_report_path.read_text(encoding="utf-8"))
+            self.assertEqual(manifest["vector_store_type"], "local_json")
+            self.assertEqual(manifest["vector_collection_name"], "papers_test")
+            self.assertEqual(build_report["index_id"], result.manifest.index_id)
+            self.assertEqual(build_report["vector_count"], result.vector_count)
+        finally:
+            shutil.rmtree(index_dir, ignore_errors=True)
+            shutil.rmtree(report_dir, ignore_errors=True)
+            shutil.rmtree(chunking_report_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":
