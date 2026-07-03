@@ -20,7 +20,7 @@ from app.core.settings import (
     ChunkingSettings,
     EmbeddingSettings,
     EnvSettings,
-    IndexingSettings,
+    IndexBuilderSettings,
     IngestionReportSettings,
     PdfCleanerSettings,
     ProjectSettings,
@@ -162,7 +162,7 @@ collection_name = "test_collection"
 distance_metric = "cosine"
 persist = true
 
-[indexing]
+[index_builder]
 manifest_filename = "test_manifest.json"
 build_report_filename = "test_index_report.json"
 skip_existing = false
@@ -192,10 +192,10 @@ fail_on_empty_chunk = false
             self.assertEqual(project_settings.vector_store.index_dir, Path(".tmp_tests/indexes"))
             self.assertEqual(project_settings.vector_store.collection_name, "test_collection")
             self.assertTrue(project_settings.vector_store.persist)
-            self.assertEqual(project_settings.indexing.manifest_filename, "test_manifest.json")
-            self.assertEqual(project_settings.indexing.build_report_filename, "test_index_report.json")
-            self.assertFalse(project_settings.indexing.skip_existing)
-            self.assertFalse(project_settings.indexing.fail_on_empty_chunk)
+            self.assertEqual(project_settings.index_builder.manifest_filename, "test_manifest.json")
+            self.assertEqual(project_settings.index_builder.build_report_filename, "test_index_report.json")
+            self.assertFalse(project_settings.index_builder.skip_existing)
+            self.assertFalse(project_settings.index_builder.fail_on_empty_chunk)
         finally:
             if config_path.parent.exists():
                 shutil.rmtree(config_path.parent, ignore_errors=True)
@@ -246,7 +246,7 @@ fail_on_empty_chunk = false
 
     def test_indexing_settings_rejects_blank_manifest_filename(self) -> None:
         with self.assertRaises(ValidationError) as context:
-            IndexingSettings(manifest_filename=" ")
+            IndexBuilderSettings(manifest_filename=" ")
 
         self.assertIn("manifest_filename", str(context.exception))
 

@@ -45,7 +45,7 @@ collection_name = "papers_baseline"
 distance_metric = "cosine"
 persist = true
 
-[indexing]
+[index_builder]
 manifest_filename = "manifest.json"
 build_report_filename = "index_build_report.json"
 skip_existing = true

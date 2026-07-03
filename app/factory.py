@@ -110,10 +110,10 @@ def build_index_builder_config(project_settings: ProjectSettings) -> IndexBuilde
     """从结构化 ProjectSettings 转换成索引构建运行时配置。"""
 
     return IndexBuilderConfig(
-        manifest_filename=project_settings.indexing.manifest_filename,
-        build_report_filename=project_settings.indexing.build_report_filename,
-        skip_existing=project_settings.indexing.skip_existing,
-        fail_on_empty_chunk=project_settings.indexing.fail_on_empty_chunk,
+        manifest_filename=project_settings.index_builder.manifest_filename,
+        build_report_filename=project_settings.index_builder.build_report_filename,
+        skip_existing=project_settings.index_builder.skip_existing,
+        fail_on_empty_chunk=project_settings.index_builder.fail_on_empty_chunk,
     )
 
 

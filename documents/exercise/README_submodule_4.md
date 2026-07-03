@@ -49,9 +49,9 @@
    - 把 `ProjectSettings` 转换成各功能类接收的 `Config`。
    - 根据配置选择 mock/openai、memory/local_json 等实现。
 9. `app/core/settings.py`
-   - 增加 `EmbeddingSettings`、`VectorStoreSettings`、`IndexingSettings`。
+   - 增加 `EmbeddingSettings`、`VectorStoreSettings`、`IndexBuilderSettings`。
 10. `settings.toml`
-   - 增加 `[embedding]`、`[vector_store]`、`[indexing]` 配置段。
+   - 增加 `[embedding]`、`[vector_store]`、`[index_builder]` 配置段。
 11. `tests/test_embedding_clients.py`
    - 测试 mock embedding、维度校验和 OpenAI provider 缺 key 的错误。
 12. `tests/test_embedding_cache.py`
@@ -117,7 +117,7 @@ collection_name = "papers_baseline"
 distance_metric = "cosine"
 persist = true
 
-[indexing]
+[index_builder]
 manifest_filename = "manifest.json"
 build_report_filename = "index_build_report.json"
 skip_existing = true
@@ -1009,4 +1009,3 @@ index_build_report.json
 8. 向量维度不一致时系统会清晰失败。
 9. 后续可以用 adapter 方式替换真实向量库。
 10. 能解释为什么离线索引和在线检索应该分离。
-

@@ -11,7 +11,7 @@ from pathlib import Path
 from app.core.settings import (
     ChunkingReportSettings,
     EnvSettings,
-    IndexingSettings,
+    IndexBuilderSettings,
     IngestionReportSettings,
     ProjectSettings,
     VectorStoreSettings,
@@ -127,7 +127,7 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
                 collection_name="papers_test",
                 persist=True,
             ),
-            indexing=IndexingSettings(
+            index_builder=IndexBuilderSettings(
                 manifest_filename="manifest.json",
                 build_report_filename="index_build_report.json",
             ),

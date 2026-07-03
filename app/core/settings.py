@@ -187,7 +187,7 @@ class VectorStoreSettings(BaseModel):
         return self
 
 
-class IndexingSettings(BaseModel):
+class IndexBuilderSettings(BaseModel):
     """索引构建流程配置。"""
 
     manifest_filename: str = Field(default="manifest.json", min_length=1, description="索引 manifest 文件名")
@@ -196,7 +196,7 @@ class IndexingSettings(BaseModel):
     fail_on_empty_chunk: bool = Field(default=True, description="遇到空 chunk 时是否直接失败")
 
     @model_validator(mode="after")
-    def validate_filenames(self) -> "IndexingSettings":
+    def validate_filenames(self) -> "IndexBuilderSettings":
         """清理并校验文件名字段。"""
 
         self.manifest_filename = self.manifest_filename.strip()
@@ -218,7 +218,7 @@ class ProjectSettings(BaseModel):
     chunking_report: ChunkingReportSettings = Field(default_factory=ChunkingReportSettings)
     embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings)
     vector_store: VectorStoreSettings = Field(default_factory=VectorStoreSettings)
-    indexing: IndexingSettings = Field(default_factory=IndexingSettings)
+    index_builder: IndexBuilderSettings = Field(default_factory=IndexBuilderSettings)
 
     @classmethod
     def from_toml(cls, path: Path | str = Path("settings.toml")) -> "ProjectSettings":
