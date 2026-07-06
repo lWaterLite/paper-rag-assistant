@@ -14,7 +14,7 @@ from app.core.settings import (
     IndexBuilderSettings,
     IngestionReportSettings,
     ProjectSettings,
-    VectorStoreSettings,
+    VectorRepositorySettings,
 )
 from app.factory import build_index_builder
 from app.indexing.embedding_cache import InMemoryEmbeddingCache
@@ -68,7 +68,7 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
         self.assertEqual(second_result.embedding_cache_misses, 0)
         self.assertEqual(client.embedded_text_count, first_result.chunk_count)
 
-    def test_same_builder_skips_chunks_already_in_vector_store(self) -> None:
+    def test_same_builder_skips_chunks_already_in_vector_collection(self) -> None:
         env_settings = EnvSettings(chunk_size=120, chunk_overlap=20)
         client = CountingEmbeddingClient()
         builder = build_index_builder(env_settings, ProjectSettings(), embedding_client=client)
@@ -79,7 +79,7 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
         self.assertEqual(second_result.skipped_existing_chunks, first_result.chunk_count)
         self.assertEqual(second_result.embedding_cache_hits, 0)
         self.assertEqual(second_result.embedding_cache_misses, 0)
-        self.assertEqual(index.vector_store.count(), first_result.chunk_count)
+        self.assertEqual(index.vector_collection.count(), first_result.chunk_count)
         self.assertEqual(client.embedded_text_count, first_result.chunk_count)
 
     def test_index_builder_writes_ingestion_report_from_project_settings(self) -> None:
@@ -121,7 +121,7 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
         report_dir = Path(".tmp_tests") / f"ingestion_reports_{uuid.uuid4().hex}"
         chunking_report_dir = Path(".tmp_tests") / f"chunking_reports_{uuid.uuid4().hex}"
         project_settings = ProjectSettings(
-            vector_store=VectorStoreSettings(
+            vector_repository=VectorRepositorySettings(
                 type="local_json",
                 index_dir=index_dir,
                 collection_name="papers_test",
@@ -139,17 +139,19 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
             index, result = build_index_builder(env_settings, project_settings).build_from_directory(Path("data/raw/papers"))
             collection_dir = index_dir / "papers_test"
 
-            self.assertEqual(index.vector_store.count(), result.vector_count)
+            self.assertEqual(index.vector_collection.count(), result.vector_count)
             self.assertEqual(result.manifest_path, collection_dir / "manifest.json")
             self.assertEqual(result.build_report_path, collection_dir / "index_build_report.json")
-            self.assertTrue((collection_dir / "vector_store.json").exists())
+            self.assertTrue((collection_dir / "vector_collection.json").exists())
+            self.assertTrue((collection_dir / "chunk_collection.json").exists())
+            self.assertTrue((collection_dir / "document_collection.json").exists())
             self.assertTrue((collection_dir / "embedding_cache.json").exists())
             self.assertTrue(result.manifest_path.exists())
             self.assertTrue(result.build_report_path.exists())
 
             manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
             build_report = json.loads(result.build_report_path.read_text(encoding="utf-8"))
-            self.assertEqual(manifest["vector_store_type"], "local_json")
+            self.assertEqual(manifest["vector_repository_type"], "local_json")
             self.assertEqual(manifest["vector_collection_name"], "papers_test")
             self.assertEqual(build_report["index_id"], result.manifest.index_id)
             self.assertEqual(build_report["vector_count"], result.vector_count)

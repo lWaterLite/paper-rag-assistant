@@ -24,7 +24,7 @@ from app.core.settings import (
     IngestionReportSettings,
     PdfCleanerSettings,
     ProjectSettings,
-    VectorStoreSettings,
+    VectorRepositorySettings,
 )
 from app.core.errors import AppError, ErrorCode
 
@@ -155,7 +155,7 @@ timeout_seconds = 12.5
 max_retries = 1
 api_key_env_name = "TEST_OPENAI_API_KEY"
 
-[vector_store]
+[vector_repository]
 type = "local_json"
 index_dir = ".tmp_tests/indexes"
 collection_name = "test_collection"
@@ -188,10 +188,10 @@ fail_on_empty_chunk = false
             self.assertEqual(project_settings.embedding.dimension, 24)
             self.assertEqual(project_settings.embedding.batch_size, 16)
             self.assertEqual(project_settings.embedding.api_key_env_name, "TEST_OPENAI_API_KEY")
-            self.assertEqual(project_settings.vector_store.type, "local_json")
-            self.assertEqual(project_settings.vector_store.index_dir, Path(".tmp_tests/indexes"))
-            self.assertEqual(project_settings.vector_store.collection_name, "test_collection")
-            self.assertTrue(project_settings.vector_store.persist)
+            self.assertEqual(project_settings.vector_repository.type, "local_json")
+            self.assertEqual(project_settings.vector_repository.index_dir, Path(".tmp_tests/indexes"))
+            self.assertEqual(project_settings.vector_repository.collection_name, "test_collection")
+            self.assertTrue(project_settings.vector_repository.persist)
             self.assertEqual(project_settings.index_builder.manifest_filename, "test_manifest.json")
             self.assertEqual(project_settings.index_builder.build_report_filename, "test_index_report.json")
             self.assertFalse(project_settings.index_builder.skip_existing)
@@ -233,14 +233,14 @@ fail_on_empty_chunk = false
 
         self.assertIn("batch_size", str(context.exception))
 
-    def test_vector_store_settings_strips_collection_name(self) -> None:
-        settings = VectorStoreSettings(collection_name=" papers ")
+    def test_vector_repository_settings_strips_collection_name(self) -> None:
+        settings = VectorRepositorySettings(collection_name=" papers ")
 
         self.assertEqual(settings.collection_name, "papers")
 
-    def test_vector_store_settings_rejects_blank_collection_name(self) -> None:
+    def test_vector_repository_settings_rejects_blank_collection_name(self) -> None:
         with self.assertRaises(ValidationError) as context:
-            VectorStoreSettings(collection_name=" ")
+            VectorRepositorySettings(collection_name=" ")
 
         self.assertIn("collection_name", str(context.exception))
 

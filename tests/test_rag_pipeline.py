@@ -26,7 +26,7 @@ class RagPipelineTest(unittest.TestCase):
         self.assertGreater(result.document_count, 0)
         self.assertGreater(result.chunk_count, 0)
         self.assertEqual(result.chunk_count, result.vector_count)
-        self.assertEqual(result.vector_count, index.vector_store.count())
+        self.assertEqual(result.vector_count, index.vector_collection.count())
         self.assertEqual(result.manifest.document_count, result.document_count)
         self.assertEqual(result.manifest.chunk_count, result.chunk_count)
         self.assertEqual(result.manifest.vector_count, result.vector_count)

@@ -7,7 +7,7 @@ import shutil
 import uuid
 from pathlib import Path
 
-from app.indexing.configs import EmbeddingConfig, IndexBuilderConfig, VectorStoreConfig
+from app.indexing.configs import EmbeddingConfig, IndexBuilderConfig, VectorRepositoryConfig
 from app.indexing.manifest import IndexManifest, IndexManifestStore, validate_manifest_compatible
 
 
@@ -24,7 +24,7 @@ class IndexManifestTest(unittest.TestCase):
             embedding_model="mock-hash-embedding",
             embedding_dimension=16,
             embedding_batch_size=8,
-            vector_store_type="local_json",
+            vector_repository_type="local_json",
             vector_collection_name="papers",
             distance_metric="cosine",
             document_count=2,
@@ -40,7 +40,7 @@ class IndexManifestTest(unittest.TestCase):
         self.assertEqual(manifest.embedding_model, "mock-hash-embedding")
         self.assertEqual(manifest.embedding_dimension, 16)
         self.assertEqual(manifest.embedding_batch_size, 8)
-        self.assertEqual(manifest.vector_store_type, "local_json")
+        self.assertEqual(manifest.vector_repository_type, "local_json")
         self.assertEqual(manifest.vector_collection_name, "papers")
         self.assertEqual(manifest.distance_metric, "cosine")
         self.assertTrue(manifest.config_hash)
@@ -103,7 +103,7 @@ class IndexManifestTest(unittest.TestCase):
             embedding_provider="mock",
             embedding_model="mock-hash-embedding",
             embedding_dimension=16,
-            vector_store_type="local_json",
+            vector_repository_type="local_json",
             distance_metric="cosine",
             document_count=2,
             chunk_count=10,
@@ -115,7 +115,7 @@ class IndexManifestTest(unittest.TestCase):
             validate_manifest_compatible(
                 manifest=manifest,
                 embedding_config=EmbeddingConfig(provider="mock", model="mock-hash-embedding", dimension=32),
-                vector_store_config=VectorStoreConfig(store_type="local_json", distance_metric="cosine"),
+                vector_repository_config=VectorRepositoryConfig(repository_type="local_json", distance_metric="cosine"),
             )
 
         self.assertIn("embedding_dimension", str(context.exception))

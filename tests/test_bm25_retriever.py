@@ -5,8 +5,8 @@ from __future__ import annotations
 import unittest
 
 from app.core.models import DocumentChunk
+from app.ingest.chunking.collection import InMemoryChunkCollection
 from app.retrieval.retrievers import BM25Retriever
-from app.storage.repositories import InMemoryDocumentRepository
 
 
 def build_chunk(chunk_id: str, text: str, section: str | None = None) -> DocumentChunk:
@@ -74,10 +74,10 @@ class BM25RetrieverTest(unittest.TestCase):
         self.assertEqual(BM25Retriever(chunks).retrieve("RAG", top_k=0), [])
 
     def test_repository_exposes_iterable_chunks_for_retriever(self) -> None:
-        repository = InMemoryDocumentRepository()
-        repository.save_chunks([build_chunk("a", "RAG evaluation faithfulness.")])
+        collection = InMemoryChunkCollection()
+        collection.add_many([build_chunk("a", "RAG evaluation faithfulness.")])
 
-        results = BM25Retriever(repository.iter_chunks()).retrieve("faithfulness", top_k=1)
+        results = BM25Retriever(collection.iter_chunks()).retrieve("faithfulness", top_k=1)
 
         self.assertEqual(results[0].chunk_id, "a")
 

@@ -9,8 +9,9 @@ import uuid
 from pathlib import Path
 
 from app.core.errors import AppError, ErrorCode
-from app.core.settings import EnvSettings, ProjectSettings, VectorStoreSettings
+from app.core.settings import EnvSettings, ProjectSettings, VectorRepositorySettings
 from app.factory import build_index_builder, build_rag_index_from_storage
+from app.retrieval.retrievers import VectorRetriever
 
 
 class IndexLoaderTest(unittest.TestCase):
@@ -19,7 +20,7 @@ class IndexLoaderTest(unittest.TestCase):
     def test_build_rag_index_from_storage_loads_local_json_index(self) -> None:
         index_dir = Path(".tmp_tests") / f"load_index_{uuid.uuid4().hex}"
         project_settings = ProjectSettings(
-            vector_store=VectorStoreSettings(
+            vector_repository=VectorRepositorySettings(
                 type="local_json",
                 index_dir=index_dir,
                 collection_name="papers_test",
@@ -33,13 +34,15 @@ class IndexLoaderTest(unittest.TestCase):
             ).build_from_directory(Path("data/raw/papers"))
 
             loaded_index = build_rag_index_from_storage(project_settings)
-            results = loaded_index.vector_store.search(
-                loaded_index.embedding_client.embed_text("RAG citation"),
-                top_k=2,
+            retriever = VectorRetriever(
+                loaded_index.embedding_client,
+                loaded_index.vector_collection,
+                loaded_index.chunk_collection,
             )
+            results = retriever.retrieve("RAG citation", top_k=2)
 
             self.assertEqual(loaded_index.manifest.index_id, build_result.manifest.index_id)
-            self.assertEqual(loaded_index.vector_store.count(), build_result.vector_count)
+            self.assertEqual(loaded_index.vector_collection.count(), build_result.vector_count)
             self.assertLessEqual(len(results), 2)
             self.assertGreater(len(results), 0)
         finally:
@@ -48,7 +51,7 @@ class IndexLoaderTest(unittest.TestCase):
     def test_build_rag_index_from_storage_rejects_manifest_vector_count_mismatch(self) -> None:
         index_dir = Path(".tmp_tests") / f"broken_index_{uuid.uuid4().hex}"
         project_settings = ProjectSettings(
-            vector_store=VectorStoreSettings(
+            vector_repository=VectorRepositorySettings(
                 type="local_json",
                 index_dir=index_dir,
                 collection_name="papers_test",
