@@ -15,21 +15,21 @@ class PlainTextParserTest(unittest.TestCase):
     def test_clean_text_normalizes_markdown_headings_and_blank_lines(self) -> None:
         raw_text = "#   RAG 入门   \n\n\n正文第一段。   \n\n\n##    Evaluation   \n正文第二段。"
 
-        cleaned_text, metadata = PlainTextParser._clean_text(raw_text)
+        cleaned = BasicTextCleaner().clean(raw_text)
 
         self.assertEqual(
-            cleaned_text,
+            cleaned.text,
             "# RAG 入门\n\n正文第一段。\n\n## Evaluation\n正文第二段。",
         )
-        self.assertEqual(metadata["raw_text_length"], len(raw_text))
-        self.assertEqual(metadata["cleaned_text_length"], len(cleaned_text))
+        self.assertEqual(cleaned.metadata["raw_text_length"], len(raw_text))
+        self.assertEqual(cleaned.metadata["cleaned_text_length"], len(cleaned.text))
 
     def test_clean_text_preserves_non_heading_indentation(self) -> None:
         raw_text = "普通段落\n    code line   "
 
-        cleaned_text, _ = PlainTextParser._clean_text(raw_text)
+        cleaned = BasicTextCleaner().clean(raw_text)
 
-        self.assertEqual(cleaned_text, "普通段落\n    code line")
+        self.assertEqual(cleaned.text, "普通段落\n    code line")
 
     def test_parse_merges_cleaning_metadata(self) -> None:
         raw_text = "#   RAG 入门   \n\n\n正文。"

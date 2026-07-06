@@ -24,7 +24,6 @@ from app.ingest.loaders import (
     DocumentIdentityBuilder,
     LocalDocumentLoader,
     LocalDocumentLoaderConfig,
-    LocalTextLoader,
 )
 from app.ingest.document_collection import DocumentCollection, InMemoryDocumentCollection
 from app.ingest.parsers import HtmlDocumentParser, MarkdownParser, ParserRegistry, PdfDocumentParser, PlainTextParser
@@ -208,15 +207,6 @@ def build_local_document_loader(project_settings: ProjectSettings) -> LocalDocum
     """创建完整 ingestion 使用的本地文档 loader。"""
 
     return LocalDocumentLoader(
-        config=build_loader_config(project_settings),
-        identity_builder=build_document_identity_builder(),
-    )
-
-
-def build_local_text_loader(project_settings: ProjectSettings) -> LocalTextLoader:
-    """创建兼容旧文本流程的 loader。"""
-
-    return LocalTextLoader(
         config=build_loader_config(project_settings),
         identity_builder=build_document_identity_builder(),
     )

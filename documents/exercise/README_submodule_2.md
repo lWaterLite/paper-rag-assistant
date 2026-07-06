@@ -1,6 +1,6 @@
 # 子模块 2 练习：文档加载、解析与清洗
 
-本练习目标：把子模块 1 中偏 demo 的 `LocalTextLoader + PlainTextParser`，升级为更接近真实工程的 ingestion 子系统。
+本练习目标：把子模块 1 中偏 demo 的文本加载与解析流程，升级为更接近真实工程的 ingestion 子系统。
 
 当前代码已经实现了完整基础框架和主要功能，你需要在此基础上完成留下的代码题，并使用真实论文、Markdown、HTML 文件验证解析质量。
 
@@ -91,12 +91,9 @@ app/ingest/loaders.py
 - `DocumentLoader`
 - `DocumentIdentityBuilder`
 - `LocalDocumentLoader`
-- `LocalTextLoader`
 
 说明：
 
-- 新代码优先使用 `LocalDocumentLoader`。
-- `LocalTextLoader` 只是为了兼容子模块 1 的旧测试和旧代码。
 - `LocalDocumentLoader` 会读取真实文件字节，并根据后缀判断 `file_type`。
 - `LocalDocumentLoader` 必须显式接收 `LocalDocumentLoaderConfig`，不要在类内部私自创建配置。
 

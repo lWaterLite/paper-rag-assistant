@@ -94,13 +94,6 @@ class PlainTextParser:
         return fallback
 
     @staticmethod
-    def _clean_text(text: str) -> tuple[str, dict[str, int | str | bool]]:
-        """兼容子模块 1 测试的清洗入口。"""
-
-        cleaned = BasicTextCleaner().clean(text)
-        return cleaned.text, cleaned.metadata
-
-    @staticmethod
     def _build_paragraph_blocks(document: RawDocument, text: str) -> list[ParsedBlock]:
         """按空行切成段落块。"""
 

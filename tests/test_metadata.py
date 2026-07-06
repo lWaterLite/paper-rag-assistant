@@ -30,7 +30,7 @@ class MetadataTest(unittest.TestCase):
         metadata = ChunkMetadataBuilder().build(
             document_metadata={
                 "filename": "paper.pdf",
-                "chunker": "legacy",
+                "chunker": "document_metadata_value",
                 "token_start": 99,
             },
             chunk_metadata=ChunkMetadata(

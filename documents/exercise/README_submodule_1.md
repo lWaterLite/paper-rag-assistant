@@ -16,7 +16,7 @@ app/
   indexing/           # mock embedding、内存向量库、索引构建
   retrieval/          # 向量检索、上下文组织
   generation/         # mock 回答生成
-  storage/            # 内存仓储
+  repositories/       # 持久化 Repository
   pipeline.py         # 在线 RAG 问答流程
   main.py             # CLI 入口
 data/raw/papers/      # 练习用 mock 文档
@@ -28,8 +28,8 @@ tests/                # unittest 自检
 1. 离线索引流程：
 
 ```text
-LocalTextLoader
-  -> PlainTextParser
+LocalDocumentLoader
+  -> MarkdownParser / PlainTextParser
   -> CharacterChunker
   -> MockEmbeddingClient
   -> InMemoryVectorCollection

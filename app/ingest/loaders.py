@@ -252,30 +252,3 @@ class LocalDocumentLoader:
             return "pdf"
         return suffix.lower().lstrip(".")
 
-
-class LocalTextLoader(LocalDocumentLoader):
-    """兼容子模块 1 的旧类名。
-
-    新代码请优先使用 LocalDocumentLoader。保留这个类是为了让旧测试和旧入口继续工作。
-    """
-
-    supported_suffixes = {".md", ".markdown", ".txt"}
-    text_suffixes = {".md", ".markdown", ".txt"}
-
-    @staticmethod
-    def _build_doc_id(path: Path) -> str:
-        """兼容旧测试中的私有方法调用。"""
-
-        return DocumentIdentityBuilder.build_doc_id(path)
-
-    @staticmethod
-    def _build_content_hash(text: str) -> str:
-        """兼容旧测试中的私有方法调用。"""
-
-        return hashlib.sha256(text.encode("utf-8")).hexdigest()
-
-    @staticmethod
-    def _build_version_id(doc_id: str, content_hash: str) -> str:
-        """兼容旧测试中的私有方法调用。"""
-
-        return DocumentIdentityBuilder.build_version_id(doc_id, content_hash)
