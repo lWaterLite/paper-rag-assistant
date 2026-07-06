@@ -32,7 +32,7 @@ LocalTextLoader
   -> PlainTextParser
   -> CharacterChunker
   -> MockEmbeddingClient
-  -> InMemoryVectorStore
+  -> InMemoryVectorCollection
 ```
 
 2. 在线问答流程：
@@ -260,7 +260,7 @@ python -m unittest discover -s tests
 
 ### 练习 6：向量维度校验
 
-位置：`app/indexing/vector_store.py`
+位置：`app/indexing/vector_collection.py`
 
 任务：
 
@@ -274,7 +274,7 @@ python -m unittest discover -s tests
 
 ### 练习 7：索引 manifest
 
-位置：`app/storage/repositories.py`
+位置：`app/indexing/manifest.py`
 
 任务：
 

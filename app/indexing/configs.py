@@ -12,7 +12,7 @@ from typing import Literal
 
 
 EmbeddingProvider = Literal["mock", "openai"]
-VectorStoreType = Literal["memory", "local_json"]
+VectorRepositoryType = Literal["memory", "local_json"]
 DistanceMetric = Literal["cosine"]
 
 
@@ -44,10 +44,10 @@ class EmbeddingConfig:
 
 
 @dataclass(frozen=True)
-class VectorStoreConfig:
-    """向量存储运行时配置。"""
+class VectorRepositoryConfig:
+    """向量持久化运行时配置。"""
 
-    store_type: VectorStoreType = "memory"
+    repository_type: VectorRepositoryType = "memory"
     index_dir: Path = Path("data/indexes")
     collection_name: str = "papers_baseline"
     distance_metric: DistanceMetric = "cosine"
@@ -55,7 +55,7 @@ class VectorStoreConfig:
 
     def __post_init__(self) -> None:
         if not self.collection_name.strip():
-            raise ValueError("vector store collection_name 不能为空")
+            raise ValueError("vector repository collection_name 不能为空")
 
     @property
     def collection_dir(self) -> Path:
@@ -64,10 +64,22 @@ class VectorStoreConfig:
         return self.index_dir / self.collection_name
 
     @property
-    def vector_store_path(self) -> Path:
-        """本地 JSON 向量库文件路径。"""
+    def vector_collection_path(self) -> Path:
+        """本地 JSON 向量集合文件路径。"""
 
-        return self.collection_dir / "vector_store.json"
+        return self.collection_dir / "vector_collection.json"
+
+    @property
+    def chunk_collection_path(self) -> Path:
+        """本地 JSON chunk 集合文件路径。"""
+
+        return self.collection_dir / "chunk_collection.json"
+
+    @property
+    def document_collection_path(self) -> Path:
+        """本地 JSON 文档集合文件路径。"""
+
+        return self.collection_dir / "document_collection.json"
 
     @property
     def embedding_cache_path(self) -> Path:

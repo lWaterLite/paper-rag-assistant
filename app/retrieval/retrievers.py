@@ -8,9 +8,11 @@ from collections import Counter
 from collections.abc import Iterable
 from typing import Protocol
 
+from app.core.errors import AppError, ErrorCode
 from app.core.models import DocumentChunk, RetrievedChunk
 from app.indexing.embeddings import EmbeddingClient
-from app.indexing.vector_store import VectorStore
+from app.indexing.vector_collection import VectorCollection
+from app.ingest.chunking.collection import ChunkCollection
 
 
 class Retriever(Protocol):
@@ -26,15 +28,55 @@ class Retriever(Protocol):
 class VectorRetriever:
     """基于向量相似度的检索器。"""
 
-    def __init__(self, embedding_client: EmbeddingClient, vector_store: VectorStore) -> None:
+    def __init__(
+        self,
+        embedding_client: EmbeddingClient,
+        vector_collection: VectorCollection,
+        chunk_collection: ChunkCollection,
+    ) -> None:
         self._embedding_client = embedding_client
-        self._vector_store = vector_store
+        self._vector_collection = vector_collection
+        self._chunk_collection = chunk_collection
 
     def retrieve(self, query: str, top_k: int) -> list[RetrievedChunk]:
         """检索与 query 最相似的 chunk。"""
 
         query_vector = self._embedding_client.embed_text(query)
-        return self._vector_store.search(query_vector, top_k=top_k)
+        vector_results = self._vector_collection.search(query_vector, top_k=top_k)
+        retrieved_chunks: list[RetrievedChunk] = []
+
+        for result in vector_results:
+            chunk = self._chunk_collection.get_by_id(result.chunk_id)
+            if chunk is None:
+                raise AppError(
+                    ErrorCode.RETRIEVAL_FAILED,
+                    f"向量命中了 chunk_id={result.chunk_id}，但 chunk 集合中找不到对应内容",
+                )
+            retrieved_chunks.append(_build_retrieved_chunk(chunk, score=result.score, rank=result.rank))
+
+        return retrieved_chunks
+
+
+def _build_retrieved_chunk(chunk: DocumentChunk, *, score: float, rank: int) -> RetrievedChunk:
+    """把 DocumentChunk 和向量检索分数组装成 RetrievedChunk。"""
+
+    return RetrievedChunk(
+        chunk_id=chunk.chunk_id,
+        doc_id=chunk.doc_id,
+        content_hash=chunk.content_hash,
+        version_id=chunk.version_id,
+        text=chunk.text,
+        score=score,
+        rank=rank,
+        retriever="vector",
+        source_path=chunk.source_path,
+        chunk_index=chunk.chunk_index,
+        title=chunk.title,
+        section=chunk.section,
+        page_start=chunk.page_start,
+        page_end=chunk.page_end,
+        metadata=chunk.metadata,
+    )
 
 
 class BM25Retriever:

@@ -8,11 +8,11 @@
 
 完成本子模块后，你应该能理解：
 
-1. 为什么 RAG 系统需要把 chunk 转成 embedding，再写入 vector store。
-2. 为什么 embedding client、vector store、embedding cache、manifest 都应该有独立接口。
+1. 为什么 RAG 系统需要把 chunk 转成 embedding，再写入向量运行时集合。
+2. 为什么 embedding client、vector collection、repository、embedding cache、manifest 都应该有独立接口。
 3. 为什么离线索引构建必须支持配置化、幂等、缓存、持久化和构建报告。
 4. 为什么 mock embedding 只能验证工程流程，不能验证真实检索质量。
-5. 如何设计一个后续可以替换为 FAISS、Chroma、Qdrant、pgvector 的向量存储层。
+5. 如何设计一个后续可以替换为 FAISS、Chroma、Qdrant、pgvector 的向量检索与持久化适配层。
 6. 如何用 manifest 记录索引版本和关键配置，避免实验结果不可追溯。
 
 ## 本次生成的代码结构
@@ -21,7 +21,7 @@
 
 1. `app/indexing/configs.py`
    - 定义 indexing 子系统的运行时 `Config`。
-   - 包括 `EmbeddingConfig`、`VectorStoreConfig`、`IndexBuilderConfig`。
+   - 包括 `EmbeddingConfig`、`VectorRepositoryConfig`、`IndexBuilderConfig`。
 2. `app/indexing/embeddings.py`
    - 定义 `EmbeddingClient` 协议。
    - 实现 `MockEmbeddingClient`。
@@ -30,10 +30,10 @@
 3. `app/indexing/embedding_cache.py`
    - 定义 `EmbeddingCache` 协议。
    - 实现 `InMemoryEmbeddingCache` 和 `FileEmbeddingCache`。
-4. `app/indexing/vector_store.py`
-   - 定义 `VectorStore` 协议。
-   - 实现 `InMemoryVectorStore`。
-   - 实现 `LocalJsonVectorStore`，作为无第三方依赖的本地持久化 baseline。
+4. `app/indexing/vector_collection.py`
+   - 定义 `VectorCollection` 协议。
+   - 实现 `InMemoryVectorCollection`。
+   - 只负责内存向量管理和余弦相似度搜索，不负责文件读写。
 5. `app/indexing/manifest.py`
    - 定义 `IndexManifest`。
    - 定义 `IndexManifestStore`，负责 manifest 读写。
@@ -43,21 +43,21 @@
    - 把一次索引构建结果写成稳定 JSON 报告。
 7. `app/indexing/index_builder.py`
    - 离线索引构建主流程。
-   - 串联 ingestion、chunking、embedding cache、vector store、manifest 和 build report。
+   - 串联 ingestion、chunking、embedding cache、vector collection、repository、manifest 和 build report。
 8. `app/factory.py`
    - 项目的 composition root。
    - 把 `ProjectSettings` 转换成各功能类接收的 `Config`。
    - 根据配置选择 mock/openai、memory/local_json 等实现。
 9. `app/core/settings.py`
-   - 增加 `EmbeddingSettings`、`VectorStoreSettings`、`IndexBuilderSettings`。
+   - 增加 `EmbeddingSettings`、`VectorRepositorySettings`、`IndexBuilderSettings`。
 10. `settings.toml`
-   - 增加 `[embedding]`、`[vector_store]`、`[index_builder]` 配置段。
+   - 增加 `[embedding]`、`[vector_repository]`、`[index_builder]` 配置段。
 11. `tests/test_embedding_clients.py`
    - 测试 mock embedding、维度校验和 OpenAI provider 缺 key 的错误。
 12. `tests/test_embedding_cache.py`
    - 测试内存 cache 和文件 cache。
-13. `tests/test_vector_store.py`
-   - 测试内存向量库和本地 JSON 向量库。
+13. `tests/test_vector_collection.py`
+   - 测试内存向量集合和本地 JSON 向量 Repository。
 14. `tests/test_index_manifest.py`
    - 测试 manifest 构建、读写和兼容性校验。
 15. `tests/test_index_builder_embedding_cache.py`
@@ -75,7 +75,8 @@ RawDocument
   -> DocumentChunk
   -> EmbeddingClient
   -> EmbeddingCache
-  -> VectorStore
+  -> VectorCollection
+  -> VectorRepository
   -> IndexManifest
   -> IndexBuildReport
 ```
@@ -85,7 +86,8 @@ RawDocument
 ```text
 User Query
   -> EmbeddingClient.embed_text
-  -> VectorStore.search
+  -> VectorCollection.search
+  -> ChunkCollection.get_by_id
   -> RetrievedChunk
 ```
 
@@ -110,7 +112,7 @@ timeout_seconds = 30.0
 max_retries = 2
 api_key_env_name = "OPENAI_API_KEY"
 
-[vector_store]
+[vector_repository]
 type = "local_json"
 index_dir = "data/indexes"
 collection_name = "papers_baseline"
@@ -139,9 +141,9 @@ fail_on_empty_chunk = true
 
 这两个对象分开，是为了避免功能模块直接依赖外部配置系统。
 
-### `VectorStoreSettings` 与 `VectorStoreConfig`
+### `VectorRepositorySettings` 与 `VectorRepositoryConfig`
 
-`VectorStoreSettings` 负责从 TOML 读取：
+`VectorRepositorySettings` 负责从 TOML 读取：
 
 ```text
 type
@@ -151,11 +153,13 @@ distance_metric
 persist
 ```
 
-`VectorStoreConfig` 则提供运行时需要的路径推导：
+`VectorRepositoryConfig` 则提供运行时需要的路径推导：
 
 ```text
 collection_dir
-vector_store_path
+vector_collection_path
+chunk_collection_path
+document_collection_path
 embedding_cache_path
 ```
 
@@ -163,7 +167,9 @@ embedding_cache_path
 
 ```text
 data/indexes/papers_baseline/
-  vector_store.json
+  vector_collection.json
+  chunk_collection.json
+  document_collection.json
   embedding_cache.json
   manifest.json
   index_build_report.json
@@ -216,12 +222,12 @@ api_key_env_name
 
 这里的 `api_key_env_name` 不是 API key 本身，而是环境变量名。这样 manifest 或配置文件可以记录“应该从哪个环境变量读 key”，但不会泄露真实 key。
 
-### `VectorStoreConfig`
+### `VectorRepositoryConfig`
 
 字段包括：
 
 ```text
-store_type
+repository_type
 index_dir
 collection_name
 distance_metric
@@ -232,7 +238,9 @@ persist
 
 ```python
 collection_dir
-vector_store_path
+vector_collection_path
+chunk_collection_path
+document_collection_path
 embedding_cache_path
 ```
 
@@ -253,7 +261,7 @@ skip_existing
 fail_on_empty_chunk
 ```
 
-`skip_existing` 控制重复构建时是否跳过已经写入 vector store 的 chunk。
+`skip_existing` 控制重复构建时是否跳过已经写入 `VectorCollection` 的 chunk。
 
 `fail_on_empty_chunk` 控制发现空 chunk 时是否直接失败。当前默认严格失败，因为空 chunk 往往说明前面的 parser、cleaner 或 chunker 有问题。
 
@@ -301,7 +309,7 @@ mock embedding 用文本 hash 生成稳定向量：
 
 1. pipeline 是否跑通。
 2. cache 是否命中。
-3. vector store 是否能写入和搜索。
+3. vector collection 是否能写入和搜索。
 4. manifest 是否记录正确。
 
 它不能验证：
@@ -405,70 +413,87 @@ data/indexes/papers_baseline/embedding_cache.json
 
 这是延续你之前提到的职责边界：writer/cache/store 只负责写文件，目录准备属于流程编排。
 
-## `app/indexing/vector_store.py` 代码讲解
+## `app/indexing/vector_collection.py` 代码讲解
 
-### `VectorStore`
+### `VectorCollection`
 
 协议定义：
 
 ```python
-add(chunk, vector)
+add(record)
 search(query_vector, top_k)
 count()
 contains_chunk(chunk_id)
+iter_records()
 dimension
-persist()
-load()
 ```
 
-这样后续替换向量库时，检索器和 IndexBuilder 不需要大改。
+`VectorCollection` 是运行时对象，只管理已经进入内存的向量记录。它不读写 JSON，也不知道数据来自本地文件、SQLite、Qdrant 还是 pgvector。
 
-### `BaseExactVectorStore`
+### `VectorRecord`
 
-这是当前两个实现共享的精确搜索基类。
+`VectorRecord` 是向量集合中的轻量记录：
 
-它负责：
+```text
+chunk_id
+vector
+metadata
+```
+
+这里不再保存完整 `DocumentChunk`。完整文本、页码、章节等引用信息由 `ChunkCollection` 管理，向量集合只保存检索所需的最小数据。
+
+### `InMemoryVectorCollection`
+
+当前实现是精确余弦相似度检索，负责：
 
 1. 保存 `chunk_id -> VectorRecord`。
 2. 首次写入时确定向量维度。
-3. 后续写入时校验维度一致。
+3. 后续写入和查询时校验维度一致。
 4. 检索时使用 cosine similarity 排序。
-5. 把命中结果转换成 `RetrievedChunk`。
+5. 返回 `VectorSearchResult`，而不是直接返回完整 chunk。
 
 它不是生产级向量库，但它是一个完整、可运行、可测试、无第三方依赖的 baseline。
 
-### `InMemoryVectorStore`
+## `app/repositories/vector_repository.py` 代码讲解
 
-内存向量库用于测试和快速实验。
+### `VectorRepository`
 
-它不会落盘。
+协议定义：
 
-### `LocalJsonVectorStore`
+```python
+load() -> VectorCollection
+save(collection: VectorCollection) -> None
+```
 
-本地 JSON 向量库用于小规模持久化 baseline。
+Repository 只处理持久化边界，不做相似度搜索。
+
+### `LocalJsonVectorRepository`
+
+本地 JSON Repository 用于小规模持久化 baseline。
 
 它保存：
 
 ```text
 dimension
 records:
-  chunk
+  chunk_id
   vector
+  metadata
 ```
 
-这样重新启动后可以加载已有向量，并继续搜索。
+这样重新启动后可以加载已有向量集合，并继续搜索。
 
 它的限制也很明确：
 
-1. 搜索是精确全量扫描，数据大了会慢。
-2. JSON 不适合非常大的向量集合。
-3. 并发写入没有事务保护。
+1. JSON 不适合非常大的向量集合。
+2. 并发写入没有事务保护。
+3. 搜索仍然发生在 `InMemoryVectorCollection` 中，数据量大时需要换成专业向量库。
 
 但它的好处是：
 
 1. 无需安装第三方库。
 2. 结构透明，方便学习。
-3. 接口和真实 vector store 一致，后续可替换。
+3. 运行时集合与持久化边界已经拆开，后续更容易替换实现。
 
 ## `app/indexing/manifest.py` 代码讲解
 
@@ -487,7 +512,7 @@ embedding_provider
 embedding_model
 embedding_dimension
 embedding_batch_size
-vector_store_type
+vector_repository_type
 vector_collection_name
 distance_metric
 document_count
@@ -502,7 +527,7 @@ document_versions
 1. 用了哪个 embedding model。
 2. 用了什么 chunking 配置。
 3. 写入了多少文档和 chunk。
-4. 用了什么 vector store。
+4. 用了什么 vector repository。
 5. 文档版本是否变化。
 
 ### `config_hash`
@@ -532,7 +557,7 @@ document_versions
 1. embedding provider。
 2. embedding model。
 3. embedding dimension。
-4. vector store type。
+4. vector repository type。
 5. distance metric。
 
 如果不兼容，应拒绝加载旧索引，避免把不同语义空间的向量混在一起。
@@ -576,13 +601,17 @@ manifest 偏“索引说明书”，build report 偏“构建日志摘要”。
 ```text
 IndexBuilderConfig
 EmbeddingConfig
-VectorStoreConfig
+VectorRepositoryConfig
 IngestionPipeline
 Chunker
 EmbeddingClient
 EmbeddingCache
-VectorStore
-InMemoryDocumentRepository
+VectorCollection
+DocumentCollection
+ChunkCollection
+VectorRepository
+DocumentRepository
+ChunkRepository
 IndexManifestStore
 IndexBuildReportWriter
 IngestionReportWriter
@@ -594,7 +623,7 @@ ChunkingReportWriter
 原因是：
 
 1. IndexBuilder 不应该自己偷偷 new 一个默认 embedding client。
-2. IndexBuilder 不应该自己偷偷选择 vector store。
+2. IndexBuilder 不应该自己偷偷选择 vector collection 或 repository。
 3. IndexBuilder 不应该读取 TOML。
 4. IndexBuilder 只负责流程编排，依赖由 factory 统一注入。
 
@@ -615,8 +644,8 @@ ChunkingReportWriter
 8. 过滤空 chunk
 9. 根据 skip_existing 判断要写入哪些 chunk
 10. 使用 embedding cache 生成向量
-11. 写入 vector store
-12. 持久化 cache 和 vector store
+11. 写入 vector collection
+12. 持久化 cache、vector collection、document collection 和 chunk collection
 13. 构建并写入 manifest
 14. 写入 index build report
 15. 返回 RagIndex 和 IndexBuildResult
@@ -627,7 +656,7 @@ ChunkingReportWriter
 如果 `skip_existing = true`，重复构建时：
 
 ```text
-已经在 vector store 中的 chunk 不再重新 embedding
+已经在 vector collection 中的 chunk 不再重新 embedding
 ```
 
 这就是幂等构建的一部分。
@@ -649,8 +678,9 @@ ChunkingReportWriter
 `RagIndex` 是构建完成后的在线检索入口对象：
 
 ```text
-vector_store
-repository
+vector_collection
+document_collection
+chunk_collection
 embedding_client
 manifest
 ```
@@ -658,7 +688,7 @@ manifest
 后续子模块 5 的 `VectorRetriever` 会使用：
 
 ```text
-embedding_client + vector_store
+embedding_client + vector_collection + chunk_collection
 ```
 
 ## `app/factory.py` 代码讲解
@@ -667,11 +697,16 @@ factory 新增了几组构建函数：
 
 ```python
 build_embedding_config
-build_vector_store_config
+build_vector_repository_config
 build_index_builder_config
 build_embedding_client
 build_embedding_cache
-build_vector_store
+build_vector_collection
+build_vector_repository
+build_document_collection
+build_chunk_collection
+build_document_repository
+build_chunk_repository
 ```
 
 这使配置流向非常清晰：
@@ -687,17 +722,18 @@ settings.toml
 例如：
 
 ```text
-[vector_store].type = "local_json"
-  -> VectorStoreSettings
-  -> VectorStoreConfig
-  -> LocalJsonVectorStore
+[vector_repository].type = "local_json"
+  -> VectorRepositorySettings
+  -> VectorRepositoryConfig
+  -> InMemoryVectorCollection
+  -> LocalJsonVectorRepository
 ```
 
 如果以后换 Chroma，可以增加：
 
 ```python
-if config.store_type == "chroma":
-    return ChromaVectorStore(...)
+if config.repository_type == "qdrant":
+    return QdrantVectorRepository(...)
 ```
 
 而 `IndexBuilder` 和 `VectorRetriever` 不需要知道 Chroma 的存在。
@@ -716,7 +752,9 @@ python -m app.main index --source data/raw/papers
 
 ```text
 data/indexes/papers_baseline/
-  vector_store.json
+  vector_collection.json
+  chunk_collection.json
+  document_collection.json
   embedding_cache.json
   manifest.json
   index_build_report.json
@@ -741,7 +779,7 @@ python -m unittest discover -s tests
 ```bash
 python -m unittest tests.test_embedding_clients
 python -m unittest tests.test_embedding_cache
-python -m unittest tests.test_vector_store
+python -m unittest tests.test_vector_collection
 python -m unittest tests.test_index_manifest
 python -m unittest tests.test_index_builder_embedding_cache
 ```
@@ -755,40 +793,38 @@ python -m unittest tests.test_index_builder_embedding_cache
 所以本次实现采用：
 
 ```text
-LocalJsonVectorStore + exact cosine search
+InMemoryVectorCollection + LocalJsonVectorRepository + exact cosine search
 ```
 
 它不是最终生产方案，但它比单纯 in-memory demo 更进一步：
 
 1. 可以持久化。
 2. 可以重新加载。
-3. 可以保留 chunk 和 metadata。
+3. 可以把向量、chunk、document 分别持久化。
 4. 可以跑通真实论文目录。
 5. 可以被统一接口替换。
 
-后续接 FAISS 或 Chroma 时，重点不是重写 IndexBuilder，而是新增一个 `VectorStore` adapter。
+后续接 FAISS、Chroma、Qdrant 或 pgvector 时，重点不是重写 `IndexBuilder`，而是新增符合当前分层的 collection/repository adapter。
 
-### 为什么 vector store 中保存了完整 chunk
+### 为什么要把向量和 chunk 拆开
 
 概念文档中提到，真实系统通常会拆成：
 
 ```text
-VectorStore
+VectorCollection
   vector + chunk_id + filter metadata
 
-DocumentStore / MetadataStore
+ChunkCollection / DocumentCollection
   full text + citation metadata
 ```
 
-当前 `LocalJsonVectorStore` 为了让本地 baseline 自包含，保存了完整 `DocumentChunk`。
+当前代码已经完成这个拆分：
 
-这是学习阶段的合理取舍。
-
-后续更真实的改造方向是：
-
-1. vector store 只保存 `chunk_id`、vector 和轻量 metadata。
-2. `ChunkRepository` 保存完整 chunk。
-3. 检索时先查 vector store，再根据 chunk_id 回表补全内容。
+1. `VectorCollection` 只保存 `chunk_id`、vector 和轻量 metadata。
+2. `ChunkCollection` 保存完整 `DocumentChunk`。
+3. `DocumentCollection` 保存 raw document 和 parsed document。
+4. `LocalJsonVectorRepository`、`LocalJsonChunkRepository`、`LocalJsonDocumentRepository` 分别负责持久化。
+5. 检索时先查 vector collection，再根据 `chunk_id` 从 chunk collection 补全内容。
 
 ### 为什么 manifest 和 build report 只有 persist=true 才写文件
 
@@ -798,7 +834,7 @@ DocumentStore / MetadataStore
 
 ```text
 ProjectSettings()
-  -> memory vector store
+  -> memory vector collection
   -> persist=false
   -> 不写 index manifest/report 到 data/indexes
 ```
@@ -807,7 +843,7 @@ ProjectSettings()
 
 ```text
 ProjectSettings.from_toml()
-  -> local_json vector store
+  -> local_json vector repository
   -> persist=true
   -> 写 manifest/report
 ```
@@ -835,12 +871,14 @@ app/indexing/index_loader.py
 
 目标：
 
-1. 从 `settings.toml` 得到 `VectorStoreConfig`。
+1. 从 `settings.toml` 得到 `VectorRepositoryConfig`。
 2. 加载 `manifest.json`。
-3. 校验 manifest 与当前 embedding/vector store 配置兼容。
-4. 加载 `LocalJsonVectorStore`。
-5. 构造与索引一致的 `EmbeddingClient`。
-6. 返回 `RagIndex`。
+3. 校验 manifest 与当前 embedding/vector repository 配置兼容。
+4. 通过 `LocalJsonVectorRepository` 加载 `VectorCollection`。
+5. 通过 `LocalJsonChunkRepository` 加载 `ChunkCollection`。
+6. 通过 `LocalJsonDocumentRepository` 加载 `DocumentCollection`。
+7. 构造与索引一致的 `EmbeddingClient`。
+8. 返回 `RagIndex`。
 
 完成后，可以考虑新增 CLI：
 
@@ -857,40 +895,58 @@ python -m app.main ask --use-existing-index "RAG 为什么需要引用？"
 
 二者应该分离。
 
-## 练习 2：拆分 VectorStore 与 ChunkRepository
+## 练习 2：拆分 VectorCollection 与 Repository
 
-当前 `LocalJsonVectorStore` 为了本地自包含，直接保存完整 `DocumentChunk`。
+当前练习已经完成：旧的“向量存储直接保存完整 chunk”的做法已经拆成运行时集合和持久化 Repository。
 
-请你设计一个更真实的结构：
+当前结构是：
 
 ```text
-VectorStore
+VectorCollection
   chunk_id
   vector
   metadata for filter
 
+ChunkCollection
+  full DocumentChunk
+
+DocumentCollection
+  RawDocument
+  ParsedDocument
+
+VectorRepository
+  load/save VectorCollection
+
 ChunkRepository
-  chunk_id
-  full text
-  citation metadata
+  load/save ChunkCollection
+
+DocumentRepository
+  load/save DocumentCollection
 ```
 
-你可以新增：
+对应代码位置：
 
 ```text
-app/storage/chunk_store.py
+app/indexing/vector_collection.py
+app/ingest/chunking/collection.py
+app/ingest/document_collection.py
+app/repositories/vector_repository.py
+app/repositories/chunk_repository.py
+app/repositories/document_repository.py
 ```
 
-或扩展：
+构建阶段会生成：
 
 ```text
-app/storage/repositories.py
+vector_collection.json
+chunk_collection.json
+document_collection.json
 ```
 
-目标：
+在线检索阶段：
 
-1. vector store 搜索返回 `VectorSearchResult`。
-2. retriever 根据 chunk_id 从 repository 补全 `DocumentChunk`。
+1. `VectorRetriever` 调用 `VectorCollection.search()` 得到 `VectorSearchResult`。
+2. `VectorRetriever` 根据 `chunk_id` 从 `ChunkCollection` 补全 `DocumentChunk`。
 3. 最终仍然返回统一的 `RetrievedChunk`。
 
 这个练习的重点是学习真实 RAG 系统的数据分层。
@@ -912,10 +968,10 @@ pgvector
 
 要求：
 
-1. 新实现必须满足 `VectorStore` 协议。
-2. factory 根据 `settings.toml` 的 `[vector_store].type` 选择实现。
+1. 新实现必须满足当前 collection/repository 分层。
+2. factory 根据 `settings.toml` 的 `[vector_repository].type` 选择实现。
 3. 不要让业务代码直接依赖具体 SDK。
-4. manifest 中记录新的 vector store 类型。
+4. manifest 中记录新的 vector repository 类型。
 
 你需要自行添加依赖，不要把依赖安装写进代码。
 
@@ -982,7 +1038,9 @@ python -m app.main index --source data/raw/papers
 ```text
 manifest.json
 embedding_cache.json
-vector_store.json
+vector_collection.json
+chunk_collection.json
+document_collection.json
 index_build_report.json
 ```
 
@@ -1001,7 +1059,7 @@ index_build_report.json
 
 1. 用 mock embedding 跑通索引构建，不依赖外部服务。
 2. 通过配置切换 embedding provider。
-3. 通过配置选择 memory 或 local_json vector store。
+3. 通过配置选择 memory 或 local_json vector repository。
 4. 索引构建能复用 embedding cache。
 5. 重复构建不会无意义重复写入同一批 chunk。
 6. manifest 能说明索引由哪些配置生成。

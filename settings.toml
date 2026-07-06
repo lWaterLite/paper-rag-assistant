@@ -38,7 +38,7 @@ timeout_seconds = 30.0
 max_retries = 2
 api_key_env_name = "OPENAI_API_KEY"
 
-[vector_store]
+[vector_repository]
 type = "local_json"
 index_dir = "data/indexes"
 collection_name = "papers_baseline"

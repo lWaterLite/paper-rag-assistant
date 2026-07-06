@@ -8,14 +8,15 @@ from __future__ import annotations
 
 from app.core.settings import EnvSettings, ProjectSettings
 from app.generation.answer_generator import MockAnswerGenerator
-from app.indexing.configs import EmbeddingConfig, IndexBuilderConfig, VectorStoreConfig
+from app.indexing.configs import EmbeddingConfig, IndexBuilderConfig, VectorRepositoryConfig
 from app.indexing.embedding_cache import EmbeddingCache, FileEmbeddingCache, InMemoryEmbeddingCache
 from app.indexing.embeddings import EmbeddingClient, MockEmbeddingClient, OpenAIEmbeddingClient
 from app.indexing.index_builder import IndexBuilder, RagIndex
 from app.indexing.index_loader import validate_index_from_storage
 from app.indexing.manifest import IndexManifestStore
 from app.indexing.report import IndexBuildReportWriter
-from app.indexing.vector_store import InMemoryVectorStore, LocalJsonVectorStore, VectorStore
+from app.indexing.vector_collection import InMemoryVectorCollection, VectorCollection
+from app.ingest.chunking.collection import ChunkCollection, InMemoryChunkCollection
 from app.ingest.chunking.registry import ChunkerRegistry, build_default_chunker_registry
 from app.ingest.chunking.report import ChunkingReportConfig, ChunkingReportWriter
 from app.ingest.chunking.strategies import Chunker, ChunkerConfig
@@ -26,12 +27,15 @@ from app.ingest.loaders import (
     LocalDocumentLoaderConfig,
     LocalTextLoader,
 )
+from app.ingest.document_collection import DocumentCollection, InMemoryDocumentCollection
 from app.ingest.parsers import HtmlDocumentParser, MarkdownParser, ParserRegistry, PdfDocumentParser, PlainTextParser
 from app.ingest.pipeline import IngestionPipeline, IngestionReportConfig, IngestionReportWriter
 from app.pipeline import RagPipeline
+from app.repositories.chunk_repository import ChunkRepository, LocalJsonChunkRepository
+from app.repositories.document_repository import DocumentRepository, LocalJsonDocumentRepository
+from app.repositories.vector_repository import LocalJsonVectorRepository, VectorRepository
 from app.retrieval.context_packer import SimpleContextPacker
 from app.retrieval.retrievers import Retriever, VectorRetriever
-from app.storage.repositories import InMemoryDocumentRepository
 
 
 def build_loader_config(project_settings: ProjectSettings) -> LocalDocumentLoaderConfig:
@@ -95,15 +99,15 @@ def build_embedding_config(project_settings: ProjectSettings) -> EmbeddingConfig
     )
 
 
-def build_vector_store_config(project_settings: ProjectSettings) -> VectorStoreConfig:
-    """从结构化 ProjectSettings 转换成向量存储运行时配置。"""
+def build_vector_repository_config(project_settings: ProjectSettings) -> VectorRepositoryConfig:
+    """从结构化 ProjectSettings 转换成向量持久化运行时配置。"""
 
-    return VectorStoreConfig(
-        store_type=project_settings.vector_store.type,
-        index_dir=project_settings.vector_store.index_dir,
-        collection_name=project_settings.vector_store.collection_name,
-        distance_metric=project_settings.vector_store.distance_metric,
-        persist=project_settings.vector_store.persist,
+    return VectorRepositoryConfig(
+        repository_type=project_settings.vector_repository.type,
+        index_dir=project_settings.vector_repository.index_dir,
+        collection_name=project_settings.vector_repository.collection_name,
+        distance_metric=project_settings.vector_repository.distance_metric,
+        persist=project_settings.vector_repository.persist,
     )
 
 
@@ -132,21 +136,52 @@ def build_embedding_client(project_settings: ProjectSettings) -> EmbeddingClient
 def build_embedding_cache(project_settings: ProjectSettings) -> EmbeddingCache:
     """根据配置创建 embedding cache。"""
 
-    vector_store_config = build_vector_store_config(project_settings)
-    if vector_store_config.store_type == "local_json" and vector_store_config.persist:
-        return FileEmbeddingCache(vector_store_config.embedding_cache_path)
+    vector_repository_config = build_vector_repository_config(project_settings)
+    if vector_repository_config.repository_type == "local_json" and vector_repository_config.persist:
+        return FileEmbeddingCache(vector_repository_config.embedding_cache_path)
     return InMemoryEmbeddingCache()
 
 
-def build_vector_store(project_settings: ProjectSettings) -> VectorStore:
-    """根据配置创建向量存储。"""
+def build_vector_collection(project_settings: ProjectSettings) -> VectorCollection:
+    """创建空的向量运行时集合。"""
 
-    config = build_vector_store_config(project_settings)
-    if config.store_type == "memory":
-        return InMemoryVectorStore()
-    if config.store_type == "local_json":
-        return LocalJsonVectorStore(config.vector_store_path)
-    raise ValueError(f"不支持的 vector store 类型：{config.store_type}")
+    _ = project_settings
+    return InMemoryVectorCollection()
+
+
+def build_vector_repository(project_settings: ProjectSettings) -> VectorRepository:
+    """根据配置创建向量集合持久化 Repository。"""
+
+    config = build_vector_repository_config(project_settings)
+    if config.repository_type in {"memory", "local_json"}:
+        return LocalJsonVectorRepository(config.vector_collection_path)
+    raise ValueError(f"不支持的 vector repository 类型：{config.repository_type}")
+
+
+def build_document_collection() -> DocumentCollection:
+    """创建文档运行时集合。"""
+
+    return InMemoryDocumentCollection()
+
+
+def build_chunk_collection() -> ChunkCollection:
+    """创建 chunk 运行时集合。"""
+
+    return InMemoryChunkCollection()
+
+
+def build_document_repository(project_settings: ProjectSettings) -> DocumentRepository:
+    """根据配置创建文档集合持久化 Repository。"""
+
+    config = build_vector_repository_config(project_settings)
+    return LocalJsonDocumentRepository(config.document_collection_path)
+
+
+def build_chunk_repository(project_settings: ProjectSettings) -> ChunkRepository:
+    """根据配置创建 chunk 集合持久化 Repository。"""
+
+    config = build_vector_repository_config(project_settings)
+    return LocalJsonChunkRepository(config.chunk_collection_path)
 
 
 def build_configured_chunker(
@@ -223,8 +258,12 @@ def build_index_builder(
         ingestion_pipeline: IngestionPipeline | None = None,
         embedding_client: EmbeddingClient | None = None,
         embedding_cache: EmbeddingCache | None = None,
-        vector_store: VectorStore | None = None,
-        repository: InMemoryDocumentRepository | None = None,
+        vector_collection: VectorCollection | None = None,
+        document_collection: DocumentCollection | None = None,
+        chunk_collection: ChunkCollection | None = None,
+        vector_repository: VectorRepository | None = None,
+        document_repository: DocumentRepository | None = None,
+        chunk_repository: ChunkRepository | None = None,
         ingestion_report_writer: IngestionReportWriter | None = None,
         chunking_report_writer: ChunkingReportWriter | None = None,
         chunker_registry: ChunkerRegistry | None = None,
@@ -236,19 +275,23 @@ def build_index_builder(
 
     _ = env_settings
     embedding_config = build_embedding_config(project_settings)
-    vector_store_config = build_vector_store_config(project_settings)
+    vector_repository_config = build_vector_repository_config(project_settings)
     index_builder_config = build_index_builder_config(project_settings)
     return IndexBuilder(
         config=index_builder_config,
         embedding_config=embedding_config,
-        vector_store_config=vector_store_config,
+        vector_repository_config=vector_repository_config,
         ingestion_pipeline=ingestion_pipeline if ingestion_pipeline is not None else build_ingestion_pipeline(project_settings),
         chunker=build_configured_chunker(project_settings, chunker_registry=chunker_registry),
         embedding_client=embedding_client if embedding_client is not None else build_embedding_client(project_settings),
         embedding_cache=embedding_cache if embedding_cache is not None else build_embedding_cache(project_settings),
-        vector_store=vector_store if vector_store is not None else build_vector_store(project_settings),
-        repository=repository if repository is not None else InMemoryDocumentRepository(),
-        manifest_store=IndexManifestStore(vector_store_config.collection_dir, index_builder_config),
+        vector_collection=vector_collection if vector_collection is not None else build_vector_collection(project_settings),
+        document_collection=document_collection if document_collection is not None else build_document_collection(),
+        chunk_collection=chunk_collection if chunk_collection is not None else build_chunk_collection(),
+        vector_repository=vector_repository if vector_repository is not None else build_vector_repository(project_settings),
+        document_repository=document_repository if document_repository is not None else build_document_repository(project_settings),
+        chunk_repository=chunk_repository if chunk_repository is not None else build_chunk_repository(project_settings),
+        manifest_store=IndexManifestStore(vector_repository_config.collection_dir, index_builder_config),
         build_report_writer=IndexBuildReportWriter(),
         ingestion_report_writer=ingestion_report_writer if ingestion_report_writer is not None else IngestionReportWriter(),
         ingestion_report_config=build_ingestion_report_config(project_settings),
@@ -260,19 +303,23 @@ def build_index_builder(
 def build_rag_index_from_storage(project_settings: ProjectSettings) -> RagIndex:
     """从已有持久化索引加载在线 RAG 索引。"""
 
-    vector_store_config = build_vector_store_config(project_settings)
+    vector_repository_config = build_vector_repository_config(project_settings)
     embedding_config = build_embedding_config(project_settings)
-    vector_store = build_vector_store(project_settings)
-    manifest = IndexManifestStore(vector_store_config.collection_dir, build_index_builder_config(project_settings)).read()
+    vector_repository = build_vector_repository(project_settings)
+    document_repository = build_document_repository(project_settings)
+    chunk_repository = build_chunk_repository(project_settings)
+    vector_collection = vector_repository.load()
+    manifest = IndexManifestStore(vector_repository_config.collection_dir, build_index_builder_config(project_settings)).read()
     validate_index_from_storage(
         manifest=manifest,
         embedding_config=embedding_config,
-        vector_store_config=vector_store_config,
-        vector_store=vector_store,
+        vector_repository_config=vector_repository_config,
+        vector_collection=vector_collection,
     )
     return RagIndex(
-        vector_store=vector_store,
-        repository=InMemoryDocumentRepository(),
+        vector_collection=vector_collection,
+        document_collection=document_repository.load(),
+        chunk_collection=chunk_repository.load(),
         embedding_client=build_embedding_client(project_settings),
         manifest=manifest,
     )
@@ -289,7 +336,11 @@ def build_rag_pipeline(
 
     return RagPipeline(
         settings=env_settings,
-        retriever=retriever if retriever is not None else VectorRetriever(index.embedding_client, index.vector_store),
+        retriever=retriever if retriever is not None else VectorRetriever(
+            index.embedding_client,
+            index.vector_collection,
+            index.chunk_collection,
+        ),
         context_packer=context_packer if context_packer is not None else SimpleContextPacker(
             env_settings.max_context_chars),
         answer_generator=answer_generator if answer_generator is not None else MockAnswerGenerator(),

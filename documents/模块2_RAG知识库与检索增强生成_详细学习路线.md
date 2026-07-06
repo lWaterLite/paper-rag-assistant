@@ -68,9 +68,13 @@ paper-rag-assistant/
       metadata.py
     indexing/
       embeddings.py
-      vector_store.py
+      vector_collection.py
       bm25_store.py
       index_builder.py
+    repositories/
+      vector_repository.py
+      chunk_repository.py
+      document_repository.py
     retrieval/
       retrievers.py
       hybrid.py
@@ -1044,4 +1048,3 @@ MVP 不应该包含：
 8. README 能让其他人复现项目运行。
 9. 测试覆盖核心 pipeline。
 10. 你能独立讲清一次 RAG 请求从用户问题到最终回答的完整路径。
-

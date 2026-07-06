@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from app.indexing.configs import EmbeddingConfig, IndexBuilderConfig, VectorStoreConfig
+from app.indexing.configs import EmbeddingConfig, IndexBuilderConfig, VectorRepositoryConfig
 
 
 @dataclass(frozen=True)
@@ -30,7 +30,7 @@ class IndexManifest:
     embedding_model: str
     embedding_dimension: int
     embedding_batch_size: int
-    vector_store_type: str
+    vector_repository_type: str
     vector_collection_name: str
     distance_metric: str
     document_count: int
@@ -55,7 +55,7 @@ class IndexManifest:
             vector_count: int,
             document_versions: dict[str, str],
             embedding_batch_size: int = 1,
-            vector_store_type: str = "memory",
+            vector_repository_type: str = "memory",
             vector_collection_name: str = "default",
             distance_metric: str = "cosine",
     ) -> "IndexManifest":
@@ -70,7 +70,7 @@ class IndexManifest:
             "embedding_model": embedding_model,
             "embedding_dimension": embedding_dimension,
             "embedding_batch_size": embedding_batch_size,
-            "vector_store_type": vector_store_type,
+            "vector_repository_type": vector_repository_type,
             "vector_collection_name": vector_collection_name,
             "distance_metric": distance_metric,
             "document_versions": dict(sorted(document_versions.items())),
@@ -97,7 +97,7 @@ class IndexManifest:
             embedding_model=embedding_model,
             embedding_dimension=embedding_dimension,
             embedding_batch_size=embedding_batch_size,
-            vector_store_type=vector_store_type,
+            vector_repository_type=vector_repository_type,
             vector_collection_name=vector_collection_name,
             distance_metric=distance_metric,
             document_count=document_count,
@@ -127,7 +127,7 @@ class IndexManifest:
             embedding_model=str(data["embedding_model"]),
             embedding_dimension=int(data["embedding_dimension"]),
             embedding_batch_size=int(data.get("embedding_batch_size", 1)),
-            vector_store_type=str(data.get("vector_store_type", "memory")),
+            vector_repository_type=str(data["vector_repository_type"]),
             vector_collection_name=str(data.get("vector_collection_name", "default")),
             distance_metric=str(data.get("distance_metric", "cosine")),
             document_count=int(data["document_count"]),
@@ -176,7 +176,7 @@ def validate_manifest_compatible(
     *,
     manifest: IndexManifest,
     embedding_config: EmbeddingConfig,
-    vector_store_config: VectorStoreConfig,
+    vector_repository_config: VectorRepositoryConfig,
 ) -> None:
     """校验已有索引 manifest 是否与当前核心配置兼容。"""
 
@@ -191,15 +191,18 @@ def validate_manifest_compatible(
         mismatches.append(
             f"embedding_batch_size: manifest={manifest.embedding_batch_size}, current={embedding_config.batch_size}"
         )
-    if manifest.vector_store_type != vector_store_config.store_type:
-        mismatches.append(f"vector_store_type: manifest={manifest.vector_store_type}, current={vector_store_config.store_type}")
-    if manifest.vector_collection_name != vector_store_config.collection_name:
+    if manifest.vector_repository_type != vector_repository_config.repository_type:
+        mismatches.append(
+            f"vector_repository_type: manifest={manifest.vector_repository_type}, "
+            f"current={vector_repository_config.repository_type}"
+        )
+    if manifest.vector_collection_name != vector_repository_config.collection_name:
         mismatches.append(
             f"vector_collection_name: manifest={manifest.vector_collection_name}, "
-            f"current={vector_store_config.collection_name}"
+            f"current={vector_repository_config.collection_name}"
         )
-    if manifest.distance_metric != vector_store_config.distance_metric:
-        mismatches.append(f"distance_metric: manifest={manifest.distance_metric}, current={vector_store_config.distance_metric}")
+    if manifest.distance_metric != vector_repository_config.distance_metric:
+        mismatches.append(f"distance_metric: manifest={manifest.distance_metric}, current={vector_repository_config.distance_metric}")
     if mismatches:
         raise ValueError("索引 manifest 与当前配置不兼容：" + "；".join(mismatches))
 

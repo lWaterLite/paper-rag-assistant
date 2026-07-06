@@ -8,16 +8,20 @@ from pathlib import Path
 
 from app.core.errors import AppError, ErrorCode
 from app.core.models import DocumentChunk, RagTrace
-from app.indexing.configs import EmbeddingConfig, IndexBuilderConfig, VectorStoreConfig
+from app.indexing.configs import EmbeddingConfig, IndexBuilderConfig, VectorRepositoryConfig
 from app.indexing.embedding_cache import EmbeddingCache
 from app.indexing.embeddings import EmbeddingClient, validate_embedding_vectors
 from app.indexing.manifest import IndexManifest, IndexManifestStore
 from app.indexing.report import IndexBuildReportWriter
-from app.indexing.vector_store import VectorStore
+from app.indexing.vector_collection import VectorCollection, VectorRecord
+from app.ingest.chunking.collection import ChunkCollection
 from app.ingest.chunking.report import ChunkingReportConfig, ChunkingReportWriter
 from app.ingest.chunking.strategies import Chunker
+from app.ingest.document_collection import DocumentCollection
 from app.ingest.pipeline import IngestionFailure, IngestionPipeline, IngestionReportConfig, IngestionReportWriter
-from app.storage.repositories import InMemoryDocumentRepository
+from app.repositories.chunk_repository import ChunkRepository
+from app.repositories.document_repository import DocumentRepository
+from app.repositories.vector_repository import VectorRepository
 
 
 @dataclass(frozen=True)
@@ -44,8 +48,9 @@ class IndexBuildResult:
 class RagIndex:
     """构建完成后的索引对象。"""
 
-    vector_store: VectorStore
-    repository: InMemoryDocumentRepository
+    vector_collection: VectorCollection
+    document_collection: DocumentCollection
+    chunk_collection: ChunkCollection
     embedding_client: EmbeddingClient
     manifest: IndexManifest
 
@@ -58,13 +63,17 @@ class IndexBuilder:
         *,
         config: IndexBuilderConfig,
         embedding_config: EmbeddingConfig,
-        vector_store_config: VectorStoreConfig,
+        vector_repository_config: VectorRepositoryConfig,
         ingestion_pipeline: IngestionPipeline,
         chunker: Chunker,
         embedding_client: EmbeddingClient,
         embedding_cache: EmbeddingCache,
-        vector_store: VectorStore,
-        repository: InMemoryDocumentRepository,
+        vector_collection: VectorCollection,
+        document_collection: DocumentCollection,
+        chunk_collection: ChunkCollection,
+        vector_repository: VectorRepository,
+        document_repository: DocumentRepository,
+        chunk_repository: ChunkRepository,
         manifest_store: IndexManifestStore,
         build_report_writer: IndexBuildReportWriter,
         ingestion_report_writer: IngestionReportWriter,
@@ -74,13 +83,17 @@ class IndexBuilder:
     ) -> None:
         self._config = config
         self._embedding_config = embedding_config
-        self._vector_store_config = vector_store_config
+        self._vector_repository_config = vector_repository_config
         self._ingestion_pipeline = ingestion_pipeline
         self._chunker = chunker
         self._embedding_client = embedding_client
         self._embedding_cache = embedding_cache
-        self._vector_store = vector_store
-        self._repository = repository
+        self._vector_collection = vector_collection
+        self._document_collection = document_collection
+        self._chunk_collection = chunk_collection
+        self._vector_repository = vector_repository
+        self._document_repository = document_repository
+        self._chunk_repository = chunk_repository
         self._manifest_store = manifest_store
         self._build_report_writer = build_report_writer
         self._ingestion_report_writer = ingestion_report_writer
@@ -99,9 +112,9 @@ class IndexBuilder:
         raw_documents = ingestion_result.raw_documents
         parsed_documents = ingestion_result.parsed_documents
         for document in raw_documents:
-            self._repository.save_raw(document)
+            self._document_collection.save_raw(document)
         for document in parsed_documents:
-            self._repository.save_parsed(document)
+            self._document_collection.save_parsed(document)
         ingestion_report_output_path = self._prepare_ingestion_report_output()
         ingestion_report_path = self._ingestion_report_writer.write(
             ingestion_result,
@@ -132,7 +145,7 @@ class IndexBuilder:
                 trace=trace,
             )
         indexable_chunks = [chunk for chunk in all_chunks if chunk.text.strip()]
-        self._repository.save_chunks(all_chunks)
+        self._chunk_collection.add_many(all_chunks)
         chunking_report_output_path = self._prepare_chunking_report_output()
         chunking_report_path = self._chunking_report_writer.write(
             documents=parsed_documents,
@@ -155,23 +168,25 @@ class IndexBuilder:
         if self._config.skip_existing:
             chunks_to_index = [
                 chunk for chunk in indexable_chunks
-                if not self._vector_store.contains_chunk(chunk.chunk_id)
+                if not self._vector_collection.contains_chunk(chunk.chunk_id)
             ]
         else:
             chunks_to_index = indexable_chunks
         skipped_existing_chunks = len(indexable_chunks) - len(chunks_to_index)
         vectors, cache_hits, cache_misses = self._embed_chunks_with_cache(chunks_to_index)
         for chunk, vector in zip(chunks_to_index, vectors, strict=True):
-            self._vector_store.add(chunk, vector)
-        if self._vector_store_config.persist:
+            self._vector_collection.add(_build_vector_record(chunk, vector))
+        if self._vector_repository_config.persist:
             self._embedding_cache.persist()
-            self._vector_store.persist()
+            self._vector_repository.save(self._vector_collection)
+            self._document_repository.save(self._document_collection)
+            self._chunk_repository.save(self._chunk_collection)
         trace.record_stage(
             "indexing",
             "success",
             started,
             {
-                "vector_count": self._vector_store.count(),
+                "vector_count": self._vector_collection.count(),
                 "embedding_cache_hits": cache_hits,
                 "embedding_cache_misses": cache_misses,
                 "skipped_existing_chunks": skipped_existing_chunks,
@@ -189,15 +204,15 @@ class IndexBuilder:
             embedding_model=self._embedding_client.model_name,
             embedding_dimension=self._embedding_client.dimension,
             embedding_batch_size=self._embedding_config.batch_size,
-            vector_store_type=self._vector_store_config.store_type,
-            vector_collection_name=self._vector_store_config.collection_name,
-            distance_metric=self._vector_store_config.distance_metric,
+            vector_repository_type=self._vector_repository_config.repository_type,
+            vector_collection_name=self._vector_repository_config.collection_name,
+            distance_metric=self._vector_repository_config.distance_metric,
             document_count=len(raw_documents),
             chunk_count=len(all_chunks),
-            vector_count=self._vector_store.count(),
+            vector_count=self._vector_collection.count(),
             document_versions={document.doc_id: document.version_id for document in raw_documents},
         )
-        manifest_path = self._manifest_store.write(manifest) if self._vector_store_config.persist else None
+        manifest_path = self._manifest_store.write(manifest) if self._vector_repository_config.persist else None
         trace.record_stage(
             "manifest",
             "success",
@@ -211,15 +226,16 @@ class IndexBuilder:
         trace.mark_success()
 
         index = RagIndex(
-            vector_store=self._vector_store,
-            repository=self._repository,
+            vector_collection=self._vector_collection,
+            document_collection=self._document_collection,
+            chunk_collection=self._chunk_collection,
             embedding_client=self._embedding_client,
             manifest=manifest,
         )
         result = IndexBuildResult(
             document_count=len(raw_documents),
             chunk_count=len(all_chunks),
-            vector_count=self._vector_store.count(),
+            vector_count=self._vector_collection.count(),
             manifest=manifest,
             trace=trace,
             embedding_cache_hits=cache_hits,
@@ -231,15 +247,15 @@ class IndexBuilder:
             chunking_report_path=chunking_report_path,
             manifest_path=manifest_path,
         )
-        build_report_path = self._write_build_report(result) if self._vector_store_config.persist else None
+        build_report_path = self._write_build_report(result) if self._vector_repository_config.persist else None
         result = replace(result, build_report_path=build_report_path)
         return index, result
 
     def _prepare_output_directories(self) -> None:
         """准备索引构建会写入的目录。"""
 
-        if self._vector_store_config.persist:
-            self._vector_store_config.collection_dir.mkdir(parents=True, exist_ok=True)
+        if self._vector_repository_config.persist:
+            self._vector_repository_config.collection_dir.mkdir(parents=True, exist_ok=True)
         self._ingestion_report_config.output_path.parent.mkdir(parents=True, exist_ok=True)
         self._chunking_report_config.output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -263,7 +279,7 @@ class IndexBuilder:
     def _write_build_report(self, result: IndexBuildResult) -> Path:
         """写入索引构建报告。"""
 
-        output_path = self._vector_store_config.collection_dir / self._config.build_report_filename
+        output_path = self._vector_repository_config.collection_dir / self._config.build_report_filename
         return self._build_report_writer.write(result, output_path)
 
     def _embed_chunks_with_cache(self, chunks: list[DocumentChunk]) -> tuple[list[list[float]], int, int]:
@@ -308,3 +324,23 @@ class IndexBuilder:
             context="索引构建 embedding 结果",
         )
         return resolved_vectors, cache_hits, len(missing_indices)
+
+
+def _build_vector_record(chunk: DocumentChunk, vector: list[float]) -> VectorRecord:
+    """从 DocumentChunk 和 embedding 向量构造轻量向量记录。"""
+
+    return VectorRecord(
+        chunk_id=chunk.chunk_id,
+        vector=vector,
+        metadata={
+            "doc_id": chunk.doc_id,
+            "content_hash": chunk.content_hash,
+            "version_id": chunk.version_id,
+            "source_path": chunk.source_path,
+            "chunk_index": chunk.chunk_index,
+            "title": chunk.title,
+            "section": chunk.section,
+            "page_start": chunk.page_start,
+            "page_end": chunk.page_end,
+        },
+    )

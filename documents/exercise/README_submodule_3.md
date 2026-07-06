@@ -58,11 +58,11 @@ RawDocument
   -> Chunker
   -> DocumentChunk
   -> EmbeddingClient
-  -> VectorStore
+  -> VectorCollection
   -> Retriever / Citation / Answer
 ```
 
-chunking 位于 parsing/cleaning 之后、embedding 之前。它不应该负责读取文件、不应该负责调用 embedding、不应该负责写 vector store。它只负责把 `ParsedDocument` 转成 `DocumentChunk`，并尽量保留对检索和引用有价值的 metadata。
+chunking 位于 parsing/cleaning 之后、embedding 之前。它不应该负责读取文件、不应该负责调用 embedding、不应该负责写 vector collection 或 repository。它只负责把 `ParsedDocument` 转成 `DocumentChunk`，并尽量保留对检索和引用有价值的 metadata。
 
 ## 配置结构讲解
 

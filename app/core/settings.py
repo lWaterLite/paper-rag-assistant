@@ -168,8 +168,8 @@ class EmbeddingSettings(BaseModel):
         return self
 
 
-class VectorStoreSettings(BaseModel):
-    """向量存储的结构化配置。"""
+class VectorRepositorySettings(BaseModel):
+    """向量持久化的结构化配置。"""
 
     type: Literal["memory", "local_json"] = Field(default="memory", description="向量存储类型")
     index_dir: Path = Field(default=Path("data/indexes"), description="索引根目录")
@@ -178,7 +178,7 @@ class VectorStoreSettings(BaseModel):
     persist: bool = Field(default=False, description="是否持久化向量索引")
 
     @model_validator(mode="after")
-    def validate_collection_name(self) -> "VectorStoreSettings":
+    def validate_collection_name(self) -> "VectorRepositorySettings":
         """清理并校验 collection 名称。"""
 
         self.collection_name = self.collection_name.strip()
@@ -217,7 +217,7 @@ class ProjectSettings(BaseModel):
     chunking: ChunkingSettings = Field(default_factory=ChunkingSettings)
     chunking_report: ChunkingReportSettings = Field(default_factory=ChunkingReportSettings)
     embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings)
-    vector_store: VectorStoreSettings = Field(default_factory=VectorStoreSettings)
+    vector_repository: VectorRepositorySettings = Field(default_factory=VectorRepositorySettings)
     index_builder: IndexBuilderSettings = Field(default_factory=IndexBuilderSettings)
 
     @classmethod
