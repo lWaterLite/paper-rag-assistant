@@ -11,7 +11,7 @@ from app.core.models import DocumentChunk, RagTrace
 from app.indexing.configs import EmbeddingConfig, IndexBuilderConfig, VectorRepositoryConfig
 from app.indexing.embedding_cache import EmbeddingCache
 from app.indexing.embeddings import EmbeddingClient, validate_embedding_vectors
-from app.indexing.manifest import IndexManifest, IndexManifestStore
+from app.indexing.manifest import IndexManifest
 from app.indexing.report import IndexBuildReportWriter
 from app.indexing.vector_collection import VectorCollection, VectorRecord
 from app.ingest.chunking.collection import ChunkCollection
@@ -21,6 +21,7 @@ from app.ingest.document_collection import DocumentCollection
 from app.ingest.pipeline import IngestionFailure, IngestionPipeline, IngestionReportConfig, IngestionReportWriter
 from app.repositories.chunk_repository import ChunkRepository
 from app.repositories.document_repository import DocumentRepository
+from app.repositories.index_manifest_repository import IndexManifestRepository
 from app.repositories.vector_repository import VectorRepository
 
 
@@ -74,7 +75,7 @@ class IndexBuilder:
         vector_repository: VectorRepository,
         document_repository: DocumentRepository,
         chunk_repository: ChunkRepository,
-        manifest_store: IndexManifestStore,
+        manifest_repository: IndexManifestRepository,
         build_report_writer: IndexBuildReportWriter,
         ingestion_report_writer: IngestionReportWriter,
         ingestion_report_config: IngestionReportConfig,
@@ -94,7 +95,7 @@ class IndexBuilder:
         self._vector_repository = vector_repository
         self._document_repository = document_repository
         self._chunk_repository = chunk_repository
-        self._manifest_store = manifest_store
+        self._manifest_repository = manifest_repository
         self._build_report_writer = build_report_writer
         self._ingestion_report_writer = ingestion_report_writer
         self._ingestion_report_config = ingestion_report_config
@@ -212,7 +213,7 @@ class IndexBuilder:
             vector_count=self._vector_collection.count(),
             document_versions={document.doc_id: document.version_id for document in raw_documents},
         )
-        manifest_path = self._manifest_store.write(manifest) if self._vector_repository_config.persist else None
+        manifest_path = self._manifest_repository.write(manifest) if self._vector_repository_config.persist else None
         trace.record_stage(
             "manifest",
             "success",

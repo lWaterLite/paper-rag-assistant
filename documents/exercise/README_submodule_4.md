@@ -36,31 +36,32 @@
    - 只负责内存向量管理和余弦相似度搜索，不负责文件读写。
 5. `app/indexing/manifest.py`
    - 定义 `IndexManifest`。
-   - 定义 `IndexManifestStore`，负责 manifest 读写。
    - 提供 manifest 与当前配置的兼容性校验。
-6. `app/indexing/report.py`
+6. `app/repositories/index_manifest_repository.py`
+   - 定义 `IndexManifestRepository`，负责 manifest JSON 文件读写。
+7. `app/indexing/report.py`
    - 定义 `IndexBuildReportWriter`。
    - 把一次索引构建结果写成稳定 JSON 报告。
-7. `app/indexing/index_builder.py`
+8. `app/indexing/index_builder.py`
    - 离线索引构建主流程。
    - 串联 ingestion、chunking、embedding cache、vector collection、repository、manifest 和 build report。
-8. `app/factory.py`
+9. `app/factory.py`
    - 项目的 composition root。
    - 把 `ProjectSettings` 转换成各功能类接收的 `Config`。
    - 根据配置选择 mock/openai、memory/local_json 等实现。
-9. `app/core/settings.py`
+10. `app/core/settings.py`
    - 增加 `EmbeddingSettings`、`VectorRepositorySettings`、`IndexBuilderSettings`。
-10. `settings.toml`
+11. `settings.toml`
    - 增加 `[embedding]`、`[vector_repository]`、`[index_builder]` 配置段。
-11. `tests/test_embedding_clients.py`
+12. `tests/test_embedding_clients.py`
    - 测试 mock embedding、维度校验和 OpenAI provider 缺 key 的错误。
-12. `tests/test_embedding_cache.py`
+13. `tests/test_embedding_cache.py`
    - 测试内存 cache 和文件 cache。
-13. `tests/test_vector_collection.py`
+14. `tests/test_vector_collection.py`
    - 测试内存向量集合和本地 JSON 向量 Repository。
-14. `tests/test_index_manifest.py`
+15. `tests/test_index_manifest.py`
    - 测试 manifest 构建、读写和兼容性校验。
-15. `tests/test_index_builder_embedding_cache.py`
+16. `tests/test_index_builder_embedding_cache.py`
    - 测试 IndexBuilder 的 cache 复用、跳过已有 chunk、报告写入和本地索引持久化。
 
 ## 整体数据流
@@ -542,9 +543,9 @@ document_versions
 
 后续做实验比较时，manifest 是非常重要的证据。
 
-### `IndexManifestStore`
+### `IndexManifestRepository`
 
-负责 manifest 的读写。
+负责 manifest 与本地 JSON 文件之间的读写。
 
 它只写文件，不创建目录。目录由 `IndexBuilder` 准备。
 
@@ -612,7 +613,7 @@ ChunkCollection
 VectorRepository
 DocumentRepository
 ChunkRepository
-IndexManifestStore
+IndexManifestRepository
 IndexBuildReportWriter
 IngestionReportWriter
 ChunkingReportWriter

@@ -4,7 +4,7 @@ from app.indexing.configs import EmbeddingConfig, IndexBuilderConfig, VectorRepo
 from app.indexing.embedding_cache import EmbeddingCache, FileEmbeddingCache, InMemoryEmbeddingCache
 from app.indexing.embeddings import EmbeddingClient, MockEmbeddingClient, OpenAIEmbeddingClient
 from app.indexing.index_builder import IndexBuilder, IndexBuildResult, RagIndex
-from app.indexing.manifest import IndexManifest, IndexManifestStore
+from app.indexing.manifest import IndexManifest
 from app.indexing.report import IndexBuildReportWriter
 from app.indexing.vector_collection import (
     InMemoryVectorCollection,
@@ -25,7 +25,6 @@ __all__ = [
     "IndexBuilder",
     "IndexBuilderConfig",
     "IndexManifest",
-    "IndexManifestStore",
     "MockEmbeddingClient",
     "OpenAIEmbeddingClient",
     "RagIndex",

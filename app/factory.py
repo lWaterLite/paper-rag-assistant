@@ -13,7 +13,6 @@ from app.indexing.embedding_cache import EmbeddingCache, FileEmbeddingCache, InM
 from app.indexing.embeddings import EmbeddingClient, MockEmbeddingClient, OpenAIEmbeddingClient
 from app.indexing.index_builder import IndexBuilder, RagIndex
 from app.indexing.index_loader import validate_index_from_storage
-from app.indexing.manifest import IndexManifestStore
 from app.indexing.report import IndexBuildReportWriter
 from app.indexing.vector_collection import InMemoryVectorCollection, VectorCollection
 from app.ingest.chunking.collection import ChunkCollection, InMemoryChunkCollection
@@ -33,6 +32,7 @@ from app.ingest.pipeline import IngestionPipeline, IngestionReportConfig, Ingest
 from app.pipeline import RagPipeline
 from app.repositories.chunk_repository import ChunkRepository, LocalJsonChunkRepository
 from app.repositories.document_repository import DocumentRepository, LocalJsonDocumentRepository
+from app.repositories.index_manifest_repository import IndexManifestRepository
 from app.repositories.vector_repository import LocalJsonVectorRepository, VectorRepository
 from app.retrieval.context_packer import SimpleContextPacker
 from app.retrieval.retrievers import Retriever, VectorRetriever
@@ -291,7 +291,7 @@ def build_index_builder(
         vector_repository=vector_repository if vector_repository is not None else build_vector_repository(project_settings),
         document_repository=document_repository if document_repository is not None else build_document_repository(project_settings),
         chunk_repository=chunk_repository if chunk_repository is not None else build_chunk_repository(project_settings),
-        manifest_store=IndexManifestStore(vector_repository_config.collection_dir, index_builder_config),
+        manifest_repository=IndexManifestRepository(vector_repository_config.collection_dir, index_builder_config),
         build_report_writer=IndexBuildReportWriter(),
         ingestion_report_writer=ingestion_report_writer if ingestion_report_writer is not None else IngestionReportWriter(),
         ingestion_report_config=build_ingestion_report_config(project_settings),
@@ -309,7 +309,10 @@ def build_rag_index_from_storage(project_settings: ProjectSettings) -> RagIndex:
     document_repository = build_document_repository(project_settings)
     chunk_repository = build_chunk_repository(project_settings)
     vector_collection = vector_repository.load()
-    manifest = IndexManifestStore(vector_repository_config.collection_dir, build_index_builder_config(project_settings)).read()
+    manifest = IndexManifestRepository(
+        vector_repository_config.collection_dir,
+        build_index_builder_config(project_settings),
+    ).read()
     validate_index_from_storage(
         manifest=manifest,
         embedding_config=embedding_config,

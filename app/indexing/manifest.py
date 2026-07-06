@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from app.indexing.configs import EmbeddingConfig, IndexBuilderConfig, VectorRepositoryConfig
+from app.indexing.configs import EmbeddingConfig, VectorRepositoryConfig
 
 
 @dataclass(frozen=True)
@@ -136,40 +136,6 @@ class IndexManifest:
             config_hash=str(data.get("config_hash", "")),
             document_versions={str(key): str(value) for key, value in data.get("document_versions", {}).items()},
         )
-
-
-class IndexManifestStore:
-    """索引 manifest 读写器。"""
-
-    def __init__(self, index_dir: Path, config: IndexBuilderConfig) -> None:
-        self._index_dir = index_dir
-        self._config = config
-
-    @property
-    def manifest_path(self) -> Path:
-        """manifest 文件路径。"""
-
-        return self._index_dir / self._config.manifest_filename
-
-    def write(self, manifest: IndexManifest) -> Path:
-        """写入 manifest 并返回文件路径。"""
-
-        self.manifest_path.write_text(
-            json.dumps(manifest.to_dict(), ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-        return self.manifest_path
-
-    def read(self) -> IndexManifest:
-        """读取 manifest。"""
-
-        data = json.loads(self.manifest_path.read_text(encoding="utf-8"))
-        return IndexManifest.from_dict(data)
-
-    def exists(self) -> bool:
-        """判断 manifest 是否存在。"""
-
-        return self.manifest_path.exists()
 
 
 def validate_manifest_compatible(
