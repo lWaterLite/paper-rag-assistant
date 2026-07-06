@@ -8,7 +8,8 @@ import uuid
 from pathlib import Path
 
 from app.indexing.configs import EmbeddingConfig, IndexBuilderConfig, VectorRepositoryConfig
-from app.indexing.manifest import IndexManifest, IndexManifestStore, validate_manifest_compatible
+from app.indexing.manifest import IndexManifest, validate_manifest_compatible
+from app.repositories.index_manifest_repository import IndexManifestRepository
 
 
 class IndexManifestTest(unittest.TestCase):
@@ -66,11 +67,11 @@ class IndexManifestTest(unittest.TestCase):
         self.assertEqual(data["index_id"], manifest.index_id)
         self.assertEqual(data["document_versions"], {"doc_1": "v_1"})
 
-    def test_manifest_store_writes_and_reads_manifest(self) -> None:
+    def test_manifest_repository_writes_and_reads_manifest(self) -> None:
         index_dir = Path(".tmp_tests") / f"manifest_{uuid.uuid4().hex}"
         index_dir.mkdir(parents=True, exist_ok=True)
         try:
-            store = IndexManifestStore(index_dir, IndexBuilderConfig(manifest_filename="manifest.json"))
+            repository = IndexManifestRepository(index_dir, IndexBuilderConfig(manifest_filename="manifest.json"))
             manifest = IndexManifest.build(
                 source_dir=Path("data/raw/papers"),
                 chunker="CharacterChunker",
@@ -85,8 +86,8 @@ class IndexManifestTest(unittest.TestCase):
                 document_versions={"doc_1": "v_1"},
             )
 
-            path = store.write(manifest)
-            loaded = store.read()
+            path = repository.write(manifest)
+            loaded = repository.read()
 
             self.assertEqual(path, index_dir / "manifest.json")
             self.assertEqual(loaded.index_id, manifest.index_id)
