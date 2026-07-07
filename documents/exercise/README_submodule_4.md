@@ -431,6 +431,10 @@ dimension
 
 `VectorCollection` 是运行时对象，只管理已经进入内存的向量记录。它不读写 JSON，也不知道数据来自本地文件、SQLite、Qdrant 还是 pgvector。
 
+`iter_records()` 返回的是 `Iterable[VectorRecord]`，而不是 `list[VectorRecord]`。
+这表示调用方只应该依赖“可以遍历记录”，不应该假设 collection 会一次性复制全部数据。
+后续替换真实向量库或处理更大规模集合时，这个接口更容易改成分页、游标或流式遍历。
+
 ### `VectorRecord`
 
 `VectorRecord` 是向量集合中的轻量记录：

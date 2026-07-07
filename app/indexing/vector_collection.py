@@ -7,6 +7,7 @@ Collection 只管理已经加载到内存中的向量记录，负责相似度搜
 from __future__ import annotations
 
 import math
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -47,8 +48,8 @@ class VectorCollection(Protocol):
     def contains_chunk(self, chunk_id: str) -> bool:
         """判断集合中是否存在某个 chunk 的向量。"""
 
-    def iter_records(self) -> list[VectorRecord]:
-        """返回所有向量记录。"""
+    def iter_records(self) -> Iterable[VectorRecord]:
+        """遍历所有向量记录。"""
 
     @property
     def dimension(self) -> int | None:
@@ -109,10 +110,10 @@ class InMemoryVectorCollection:
 
         return chunk_id in self._records_by_chunk_id
 
-    def iter_records(self) -> list[VectorRecord]:
-        """返回所有向量记录。"""
+    def iter_records(self) -> Iterable[VectorRecord]:
+        """遍历所有向量记录。"""
 
-        return list(self._records_by_chunk_id.values())
+        return self._records_by_chunk_id.values()
 
     @property
     def dimension(self) -> int | None:
