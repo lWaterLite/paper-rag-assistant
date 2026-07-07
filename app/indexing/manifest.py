@@ -16,7 +16,7 @@ from typing import Any, Literal, cast, get_args
 from app.indexing.configs import EmbeddingConfig, VectorRepositoryConfig
 
 
-CURRENT_INDEX_SCHEMA_VERSION = 2
+CURRENT_INDEX_SCHEMA_VERSION = 3
 IndexVersionStatus = Literal["building", "ready", "failed", "deprecated"]
 READY_INDEX_STATUS: IndexVersionStatus = "ready"
 VALID_INDEX_VERSION_STATUSES = frozenset(get_args(IndexVersionStatus))
@@ -74,9 +74,10 @@ class IndexManifest:
         """根据索引构建参数创建 manifest。"""
 
         normalized_status = _validate_status(status)
+        normalized_source_dir = _normalize_source_dir(source_dir)
         normalized_document_versions = dict(sorted(document_versions.items()))
         config_payload = {
-            "source_dir": source_dir.as_posix(),
+            "source_dir": normalized_source_dir,
             "chunker": chunker,
             "chunk_size": chunk_size,
             "chunk_overlap": chunk_overlap,
@@ -99,7 +100,7 @@ class IndexManifest:
             schema_version=CURRENT_INDEX_SCHEMA_VERSION,
             status=normalized_status,
             parent_index_id=parent_index_id,
-            source_dir=source_dir.as_posix(),
+            source_dir=normalized_source_dir,
             created_at=datetime.now(UTC).isoformat(),
             chunker=chunker,
             chunk_size=chunk_size,
@@ -225,6 +226,16 @@ def _build_document_set_hash(document_versions: dict[str, str]) -> str:
     """对输入文档集合生成稳定 hash。"""
 
     return _hash_payload({"document_versions": dict(sorted(document_versions.items()))})
+
+
+def _normalize_source_dir(source_dir: Path) -> str:
+    """把文档目录路径规范化为稳定的 POSIX 字符串。
+
+    manifest 的 source_dir 会参与 config_hash。
+    如果不先规范化，`data/raw/papers` 和它对应的绝对路径会生成不同索引版本。
+    """
+
+    return source_dir.expanduser().resolve(strict=False).as_posix()
 
 
 def _hash_payload(payload: dict[str, Any]) -> str:

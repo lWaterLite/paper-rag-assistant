@@ -539,6 +539,8 @@ document_versions
 
 `config_hash` 只由索引构建配置生成，不包含 `document_versions`。
 
+其中 `source_dir` 会先规范化为绝对 POSIX 路径，再进入 `config_hash`。这样 `data/raw/papers` 和它对应的绝对路径不会被误判成两个不同索引配置。
+
 它解决的问题是：
 
 ```text
@@ -1022,7 +1024,7 @@ document_versions
 
 1. `schema_version`
    - 表示 manifest 和索引产物的内部结构版本。
-   - 当前值为 `2`。
+   - 当前值为 `3`。
    - 如果后续 JSON 结构、字段含义或持久化布局发生破坏性变化，就应该提升它。
    - 加载已有索引时，如果 schema version 不匹配，系统会拒绝加载。
 
@@ -1040,6 +1042,7 @@ document_versions
 4. `config_hash`
    - 只由构建配置生成。
    - 包括 source directory、chunker、chunk size、chunk overlap、embedding provider、embedding model、embedding dimension、embedding batch size、vector repository type、collection name、distance metric。
+   - source directory 会先规范化为绝对 POSIX 路径，再参与 hash。
    - 它不包含文档版本。
    - 所以当文档内容变化但构建配置不变时，`config_hash` 不变。
 
