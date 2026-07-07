@@ -39,7 +39,7 @@ class IndexManifestTest(unittest.TestCase):
         self.assertEqual(manifest.schema_version, CURRENT_INDEX_SCHEMA_VERSION)
         self.assertEqual(manifest.status, "ready")
         self.assertIsNone(manifest.parent_index_id)
-        self.assertEqual(manifest.source_dir, "data/raw/papers")
+        self.assertEqual(manifest.source_dir, Path("data/raw/papers").resolve(strict=False).as_posix())
         self.assertEqual(manifest.chunker, "CharacterChunker")
         self.assertEqual(manifest.embedding_provider, "mock")
         self.assertEqual(manifest.embedding_model, "mock-hash-embedding")
@@ -75,6 +75,38 @@ class IndexManifestTest(unittest.TestCase):
         self.assertIsNone(data["parent_index_id"])
         self.assertEqual(data["document_set_hash"], manifest.document_set_hash)
         self.assertEqual(data["document_versions"], {"doc_1": "v_1"})
+
+    def test_relative_and_absolute_source_dir_share_same_index_version(self) -> None:
+        relative_manifest = IndexManifest.build(
+            source_dir=Path("data/raw/papers"),
+            chunker="CharacterChunker",
+            chunk_size=500,
+            chunk_overlap=80,
+            embedding_provider="mock",
+            embedding_model="mock-hash-embedding",
+            embedding_dimension=16,
+            document_count=1,
+            chunk_count=5,
+            vector_count=5,
+            document_versions={"doc_1": "v_1"},
+        )
+        absolute_manifest = IndexManifest.build(
+            source_dir=Path("data/raw/papers").resolve(strict=False),
+            chunker="CharacterChunker",
+            chunk_size=500,
+            chunk_overlap=80,
+            embedding_provider="mock",
+            embedding_model="mock-hash-embedding",
+            embedding_dimension=16,
+            document_count=1,
+            chunk_count=5,
+            vector_count=5,
+            document_versions={"doc_1": "v_1"},
+        )
+
+        self.assertEqual(absolute_manifest.source_dir, relative_manifest.source_dir)
+        self.assertEqual(absolute_manifest.config_hash, relative_manifest.config_hash)
+        self.assertEqual(absolute_manifest.index_id, relative_manifest.index_id)
 
     def test_document_change_creates_new_index_version_without_changing_config_hash(self) -> None:
         base_manifest = IndexManifest.build(
