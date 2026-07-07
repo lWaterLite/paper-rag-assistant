@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 import unittest
 import uuid
@@ -112,6 +113,38 @@ class InMemoryVectorCollectionTest(unittest.TestCase):
             self.assertEqual(loaded_collection.dimension, 2)
             self.assertEqual(results[0].chunk_id, "chunk_first")
             self.assertEqual(results[0].metadata, {"doc_id": "doc_test"})
+        finally:
+            shutil.rmtree(collection_dir, ignore_errors=True)
+
+    def test_local_json_vector_repository_rejects_declared_dimension_mismatch(self) -> None:
+        collection_dir = Path(".tmp_tests") / f"broken_vector_collection_{uuid.uuid4().hex}"
+        collection_path = collection_dir / "vector_collection.json"
+        collection_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            collection_path.write_text(
+                json.dumps(
+                    {
+                        "dimension": 3,
+                        "records": [
+                            {
+                                "chunk_id": "chunk_first",
+                                "vector": [1.0, 0.0],
+                                "metadata": {"doc_id": "doc_test"},
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaises(AppError) as context:
+                LocalJsonVectorRepository(collection_path).load()
+
+            self.assertEqual(context.exception.code, ErrorCode.INDEX_FAILED)
+            self.assertIn("维度不一致", context.exception.message)
+            self.assertIn("dimension=3", context.exception.message)
         finally:
             shutil.rmtree(collection_dir, ignore_errors=True)
 
