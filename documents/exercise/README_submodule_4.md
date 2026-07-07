@@ -504,6 +504,9 @@ manifest 记录索引如何生成：
 
 ```text
 index_id
+schema_version
+status
+parent_index_id
 source_dir
 created_at
 chunker
@@ -520,6 +523,7 @@ document_count
 chunk_count
 vector_count
 config_hash
+document_set_hash
 document_versions
 ```
 
@@ -533,13 +537,27 @@ document_versions
 
 ### `config_hash`
 
-`config_hash` 由关键配置和 `document_versions` 生成。
+`config_hash` 只由索引构建配置生成，不包含 `document_versions`。
 
 它解决的问题是：
 
 ```text
-同一个 collection 名称下，配置或文档版本是否发生变化？
+同一个 collection 名称下，构建配置是否发生变化？
 ```
+
+如果文档内容变化但 chunker、embedding、vector repository 等配置不变，`config_hash` 仍然应该保持不变。
+
+### `document_set_hash`
+
+`document_set_hash` 由 `document_versions` 生成。
+
+它解决的问题是：
+
+```text
+同一个 collection 名称下，输入文档集合是否发生变化？
+```
+
+把它和 `config_hash` 拆开后，我们可以判断索引变化到底来自配置变化，还是来自语料变化。
 
 后续做实验比较时，manifest 是非常重要的证据。
 
@@ -980,31 +998,106 @@ pgvector
 
 ## 练习 4：设计更完整的索引版本策略
 
-当前 `IndexManifest` 已经记录了 `config_hash` 和 `document_versions`。
+当前代码已经把 index version 落到了 `IndexManifest` 中。
 
-请你进一步设计 index version 方案。
+这次实现的核心思想是：
 
-可以考虑：
+```text
+index version = schema_version + config_hash + document_set_hash + status
+```
+
+其中：
 
 ```text
 index_id
-collection_name
-config_hash
-created_at
+schema_version
 status
 parent_index_id
+config_hash
 document_set_hash
-schema_version
+document_versions
 ```
 
-目标：
+### 字段含义
 
-1. 同一批文档、同一配置可以复用旧索引。
-2. 文档内容变化后可以生成新版本。
-3. chunker 或 embedding 配置变化后必须生成新版本。
-4. 评测结果能引用具体 index version。
+1. `schema_version`
+   - 表示 manifest 和索引产物的内部结构版本。
+   - 当前值为 `2`。
+   - 如果后续 JSON 结构、字段含义或持久化布局发生破坏性变化，就应该提升它。
+   - 加载已有索引时，如果 schema version 不匹配，系统会拒绝加载。
 
-这个练习的重点是实验可追溯性。
+2. `status`
+   - 表示当前索引版本状态。
+   - 当前支持：`building`、`ready`、`failed`、`deprecated`。
+   - 在线加载只接受 `ready` 状态。
+   - 这为后续“构建中索引不对外服务”“失败索引保留诊断信息”“旧索引下线”预留了工程入口。
+
+3. `parent_index_id`
+   - 表示当前索引版本来源于哪个旧索引版本。
+   - 当前构建流程默认是 `None`。
+   - 后续做增量索引、实验分支、回滚链路时，可以用它建立版本关系。
+
+4. `config_hash`
+   - 只由构建配置生成。
+   - 包括 source directory、chunker、chunk size、chunk overlap、embedding provider、embedding model、embedding dimension、embedding batch size、vector repository type、collection name、distance metric。
+   - 它不包含文档版本。
+   - 所以当文档内容变化但构建配置不变时，`config_hash` 不变。
+
+5. `document_set_hash`
+   - 只由 `document_versions` 生成。
+   - 它表示输入文档集合的版本指纹。
+   - 所以当文档内容、路径或解析出的版本 ID 变化时，`document_set_hash` 会变化。
+
+6. `index_id`
+   - 是最终索引版本 ID。
+   - 由 `schema_version`、`config_hash`、`document_set_hash` 一起生成。
+   - 只要索引结构、构建配置或输入文档集合任意一项发生变化，就会得到新的 `index_id`。
+
+### 为什么要拆成两个 hash
+
+旧设计中 `config_hash` 同时包含构建配置和 `document_versions`。这能判断“索引是否变化”，但无法解释“为什么变化”。
+
+现在拆成：
+
+```text
+config_hash
+document_set_hash
+```
+
+好处是：
+
+1. 同一批文档、同一配置会生成同一个稳定 `index_id`。
+2. 文档内容变化后，只有 `document_set_hash` 和 `index_id` 变化。
+3. chunker 或 embedding 配置变化后，只有 `config_hash` 和 `index_id` 变化。
+4. 评测结果可以引用具体 `index_id`，同时解释实验差异来自配置还是语料。
+5. 后续做增量索引时，可以先比较 `config_hash`，再比较 `document_set_hash`，判断是全量重建还是只处理文档变化。
+
+### 当前代码位置
+
+相关实现位于：
+
+```text
+app/indexing/manifest.py
+tests/test_index_manifest.py
+```
+
+构建流程会在 manifest 阶段记录：
+
+```text
+index_id
+schema_version
+config_hash
+document_set_hash
+```
+
+加载已有索引时，`validate_manifest_compatible` 会拒绝：
+
+1. schema version 不匹配的索引。
+2. status 不是 `ready` 的索引。
+3. embedding provider/model/dimension/batch size 不匹配的索引。
+4. vector repository type、collection name、distance metric 不匹配的索引。
+
+这个练习的重点是实验可追溯性和生产环境的索引安全加载。
 
 ## 练习 5：把 OpenAI embedding 接入一次真实索引
 
