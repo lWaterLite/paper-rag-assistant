@@ -221,7 +221,9 @@ class IndexBuilder:
             {
                 "manifest_path": manifest_path.as_posix() if manifest_path is not None else None,
                 "index_id": manifest.index_id,
+                "schema_version": manifest.schema_version,
                 "config_hash": manifest.config_hash,
+                "document_set_hash": manifest.document_set_hash,
             },
         )
         trace.mark_success()
