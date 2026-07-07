@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+from app.core.errors import AppError, ErrorCode
 from app.core.settings import EnvSettings, ProjectSettings
 from app.generation.answer_generator import MockAnswerGenerator
 from app.indexing.configs import EmbeddingConfig, IndexBuilderConfig, VectorRepositoryConfig
@@ -294,6 +295,13 @@ def build_rag_index_from_storage(project_settings: ProjectSettings) -> RagIndex:
     """从已有持久化索引加载在线 RAG 索引。"""
 
     vector_repository_config = build_vector_repository_config(project_settings)
+    if vector_repository_config.repository_type != "local_json" or not vector_repository_config.persist:
+        raise AppError(
+            ErrorCode.INVALID_CONFIG,
+            "加载已有索引要求 vector_repository.type='local_json' 且 persist=true；"
+            "memory 或未持久化配置没有可恢复的索引产物",
+        )
+
     embedding_config = build_embedding_config(project_settings)
     vector_repository = build_vector_repository(project_settings)
     document_repository = build_document_repository(project_settings)
