@@ -95,6 +95,19 @@ class InMemoryVectorCollectionTest(unittest.TestCase):
         self.assertEqual(first.dimension, 3)
         self.assertEqual(second.dimension, 2)
 
+    def test_iter_records_returns_iterable_view(self) -> None:
+        collection = InMemoryVectorCollection()
+        collection.add(build_record("chunk_first", [1.0, 0.0]))
+        collection.add(build_record("chunk_second", [0.0, 1.0]))
+
+        records = collection.iter_records()
+
+        self.assertNotIsInstance(records, list)
+        self.assertEqual(
+            [record.chunk_id for record in records],
+            ["chunk_first", "chunk_second"],
+        )
+
     def test_local_json_vector_repository_persists_and_loads_collection(self) -> None:
         collection_dir = Path(".tmp_tests") / f"vector_collection_{uuid.uuid4().hex}"
         collection_path = collection_dir / "vector_collection.json"
