@@ -18,7 +18,9 @@ from app.indexing.configs import EmbeddingConfig, VectorRepositoryConfig
 
 CURRENT_INDEX_SCHEMA_VERSION = 3
 IndexVersionStatus = Literal["building", "ready", "failed", "deprecated"]
+BUILDING_INDEX_STATUS: IndexVersionStatus = "building"
 READY_INDEX_STATUS: IndexVersionStatus = "ready"
+FAILED_INDEX_STATUS: IndexVersionStatus = "failed"
 VALID_INDEX_VERSION_STATUSES = frozenset(get_args(IndexVersionStatus))
 
 

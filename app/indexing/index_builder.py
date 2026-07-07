@@ -7,11 +7,17 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from app.core.errors import AppError, ErrorCode
-from app.core.models import DocumentChunk, RagTrace
+from app.core.models import DocumentChunk, RagTrace, RawDocument
 from app.indexing.configs import EmbeddingConfig, IndexBuilderConfig, VectorRepositoryConfig
 from app.indexing.embedding_cache import EmbeddingCache
 from app.indexing.embeddings import EmbeddingClient, validate_embedding_vectors
-from app.indexing.manifest import IndexManifest
+from app.indexing.manifest import (
+    BUILDING_INDEX_STATUS,
+    FAILED_INDEX_STATUS,
+    IndexManifest,
+    IndexVersionStatus,
+    READY_INDEX_STATUS,
+)
 from app.indexing.report import IndexBuildReportWriter
 from app.indexing.vector_collection import VectorCollection, VectorRecord
 from app.ingest.chunking.collection import ChunkCollection
@@ -107,152 +113,168 @@ class IndexBuilder:
 
         self._prepare_output_directories()
         trace = RagTrace()
+        building_manifest: IndexManifest | None = None
+        latest_chunk_count = 0
+        latest_vector_count = 0
 
-        started = time.perf_counter()
-        ingestion_result = self._ingestion_pipeline.ingest_directory(source_dir)
-        raw_documents = ingestion_result.raw_documents
-        parsed_documents = ingestion_result.parsed_documents
-        for document in raw_documents:
-            self._document_collection.save_raw(document)
-        for document in parsed_documents:
-            self._document_collection.save_parsed(document)
-        ingestion_report_output_path = self._prepare_ingestion_report_output()
-        ingestion_report_path = self._ingestion_report_writer.write(
-            ingestion_result,
-            ingestion_report_output_path,
-        )
-        trace.record_stage(
-            "ingestion",
-            "success",
-            started,
-            {
-                "document_count": len(parsed_documents),
-                "failed_files": len(ingestion_result.failures),
-                "report_path": ingestion_report_path.as_posix(),
-            },
-        )
-
-        started = time.perf_counter()
-        all_chunks = []
-        for document in parsed_documents:
-            chunks = self._chunker.split(document)
-            all_chunks.extend(chunks)
-        empty_chunks = [chunk for chunk in all_chunks if not chunk.text.strip()]
-        if empty_chunks and self._config.fail_on_empty_chunk:
-            raise AppError(
-                ErrorCode.INDEX_FAILED,
-                f"索引构建发现空 chunk：{len(empty_chunks)} 个，请先检查 chunking 或清洗流程",
-                trace_id=trace.trace_id,
-                trace=trace,
+        try:
+            started = time.perf_counter()
+            ingestion_result = self._ingestion_pipeline.ingest_directory(source_dir)
+            raw_documents = ingestion_result.raw_documents
+            parsed_documents = ingestion_result.parsed_documents
+            for document in raw_documents:
+                self._document_collection.save_raw(document)
+            for document in parsed_documents:
+                self._document_collection.save_parsed(document)
+            ingestion_report_output_path = self._prepare_ingestion_report_output()
+            ingestion_report_path = self._ingestion_report_writer.write(
+                ingestion_result,
+                ingestion_report_output_path,
             )
-        indexable_chunks = [chunk for chunk in all_chunks if chunk.text.strip()]
-        self._chunk_collection.add_many(all_chunks)
-        chunking_report_output_path = self._prepare_chunking_report_output()
-        chunking_report_path = self._chunking_report_writer.write(
-            documents=parsed_documents,
-            chunks=all_chunks,
-            config=self._chunker.config,
-            output_path=chunking_report_output_path,
-        )
-        trace.record_stage(
-            "chunking",
-            "success",
-            started,
-            {
-                "chunk_count": len(all_chunks),
-                "empty_chunk_count": len(empty_chunks),
-                "report_path": chunking_report_path.as_posix(),
-            },
-        )
+            trace.record_stage(
+                "ingestion",
+                "success",
+                started,
+                {
+                    "document_count": len(parsed_documents),
+                    "failed_files": len(ingestion_result.failures),
+                    "report_path": ingestion_report_path.as_posix(),
+                },
+            )
 
-        started = time.perf_counter()
-        if self._config.skip_existing:
-            chunks_to_index = [
-                chunk for chunk in indexable_chunks
-                if not self._vector_collection.contains_chunk(chunk.chunk_id)
-            ]
-        else:
-            chunks_to_index = indexable_chunks
-        skipped_existing_chunks = len(indexable_chunks) - len(chunks_to_index)
-        vectors, cache_hits, cache_misses = self._embed_chunks_with_cache(chunks_to_index)
-        for chunk, vector in zip(chunks_to_index, vectors, strict=True):
-            self._vector_collection.add(_build_vector_record(chunk, vector))
-        if self._vector_repository_config.persist:
-            self._embedding_cache.persist()
-            self._vector_repository.save(self._vector_collection)
-            self._document_repository.save(self._document_collection)
-            self._chunk_repository.save(self._chunk_collection)
-        trace.record_stage(
-            "indexing",
-            "success",
-            started,
-            {
-                "vector_count": self._vector_collection.count(),
-                "embedding_cache_hits": cache_hits,
-                "embedding_cache_misses": cache_misses,
-                "skipped_existing_chunks": skipped_existing_chunks,
-                "embedding_cache_count": self._embedding_cache.count(),
-            },
-        )
+            started = time.perf_counter()
+            building_manifest = self._build_manifest(
+                source_dir=source_dir,
+                raw_documents=raw_documents,
+                chunk_count=0,
+                vector_count=0,
+                status=BUILDING_INDEX_STATUS,
+            )
+            building_manifest_path = self._write_manifest_if_persistent(building_manifest)
+            self._record_manifest_stage(
+                trace=trace,
+                stage="manifest_building",
+                started=started,
+                manifest=building_manifest,
+                manifest_path=building_manifest_path,
+            )
 
-        started = time.perf_counter()
-        manifest = IndexManifest.build(
-            source_dir=source_dir,
-            chunker=type(self._chunker).__name__,
-            chunk_size=self._chunker.config.chunk_size,
-            chunk_overlap=self._chunker.config.chunk_overlap,
-            embedding_provider=self._embedding_client.provider,
-            embedding_model=self._embedding_client.model_name,
-            embedding_dimension=self._embedding_client.dimension,
-            embedding_batch_size=self._embedding_config.batch_size,
-            vector_repository_type=self._vector_repository_config.repository_type,
-            vector_collection_name=self._vector_repository_config.collection_name,
-            distance_metric=self._vector_repository_config.distance_metric,
-            document_count=len(raw_documents),
-            chunk_count=len(all_chunks),
-            vector_count=self._vector_collection.count(),
-            document_versions={document.doc_id: document.version_id for document in raw_documents},
-        )
-        manifest_path = self._manifest_repository.write(manifest) if self._vector_repository_config.persist else None
-        trace.record_stage(
-            "manifest",
-            "success",
-            started,
-            {
-                "manifest_path": manifest_path.as_posix() if manifest_path is not None else None,
-                "index_id": manifest.index_id,
-                "schema_version": manifest.schema_version,
-                "config_hash": manifest.config_hash,
-                "document_set_hash": manifest.document_set_hash,
-            },
-        )
-        trace.mark_success()
+            started = time.perf_counter()
+            all_chunks = []
+            for document in parsed_documents:
+                chunks = self._chunker.split(document)
+                all_chunks.extend(chunks)
+            latest_chunk_count = len(all_chunks)
+            empty_chunks = [chunk for chunk in all_chunks if not chunk.text.strip()]
+            if empty_chunks and self._config.fail_on_empty_chunk:
+                raise AppError(
+                    ErrorCode.INDEX_FAILED,
+                    f"索引构建发现空 chunk：{len(empty_chunks)} 个，请先检查 chunking 或清洗流程",
+                    trace_id=trace.trace_id,
+                    trace=trace,
+                )
+            indexable_chunks = [chunk for chunk in all_chunks if chunk.text.strip()]
+            self._chunk_collection.add_many(all_chunks)
+            chunking_report_output_path = self._prepare_chunking_report_output()
+            chunking_report_path = self._chunking_report_writer.write(
+                documents=parsed_documents,
+                chunks=all_chunks,
+                config=self._chunker.config,
+                output_path=chunking_report_output_path,
+            )
+            trace.record_stage(
+                "chunking",
+                "success",
+                started,
+                {
+                    "chunk_count": len(all_chunks),
+                    "empty_chunk_count": len(empty_chunks),
+                    "report_path": chunking_report_path.as_posix(),
+                },
+            )
 
-        index = RagIndex(
-            vector_collection=self._vector_collection,
-            document_collection=self._document_collection,
-            chunk_collection=self._chunk_collection,
-            embedding_client=self._embedding_client,
-            manifest=manifest,
-        )
-        result = IndexBuildResult(
-            document_count=len(raw_documents),
-            chunk_count=len(all_chunks),
-            vector_count=self._vector_collection.count(),
-            manifest=manifest,
-            trace=trace,
-            embedding_cache_hits=cache_hits,
-            embedding_cache_misses=cache_misses,
-            skipped_existing_chunks=skipped_existing_chunks,
-            empty_chunk_count=len(empty_chunks),
-            ingestion_failures=ingestion_result.failures,
-            ingestion_report_path=ingestion_report_path,
-            chunking_report_path=chunking_report_path,
-            manifest_path=manifest_path,
-        )
-        build_report_path = self._write_build_report(result) if self._vector_repository_config.persist else None
-        result = replace(result, build_report_path=build_report_path)
-        return index, result
+            started = time.perf_counter()
+            if self._config.skip_existing:
+                chunks_to_index = [
+                    chunk for chunk in indexable_chunks
+                    if not self._vector_collection.contains_chunk(chunk.chunk_id)
+                ]
+            else:
+                chunks_to_index = indexable_chunks
+            skipped_existing_chunks = len(indexable_chunks) - len(chunks_to_index)
+            vectors, cache_hits, cache_misses = self._embed_chunks_with_cache(chunks_to_index)
+            for chunk, vector in zip(chunks_to_index, vectors, strict=True):
+                self._vector_collection.add(_build_vector_record(chunk, vector))
+            latest_vector_count = self._vector_collection.count()
+            if self._vector_repository_config.persist:
+                self._embedding_cache.persist()
+                self._vector_repository.save(self._vector_collection)
+                self._document_repository.save(self._document_collection)
+                self._chunk_repository.save(self._chunk_collection)
+            trace.record_stage(
+                "indexing",
+                "success",
+                started,
+                {
+                    "vector_count": self._vector_collection.count(),
+                    "embedding_cache_hits": cache_hits,
+                    "embedding_cache_misses": cache_misses,
+                    "skipped_existing_chunks": skipped_existing_chunks,
+                    "embedding_cache_count": self._embedding_cache.count(),
+                },
+            )
+
+            started = time.perf_counter()
+            manifest = replace(
+                building_manifest,
+                status=READY_INDEX_STATUS,
+                chunk_count=latest_chunk_count,
+                vector_count=latest_vector_count,
+            )
+            manifest_path = self._write_manifest_if_persistent(manifest)
+            self._record_manifest_stage(
+                trace=trace,
+                stage="manifest_ready",
+                started=started,
+                manifest=manifest,
+                manifest_path=manifest_path,
+            )
+            trace.mark_success()
+
+            index = RagIndex(
+                vector_collection=self._vector_collection,
+                document_collection=self._document_collection,
+                chunk_collection=self._chunk_collection,
+                embedding_client=self._embedding_client,
+                manifest=manifest,
+            )
+            result = IndexBuildResult(
+                document_count=len(raw_documents),
+                chunk_count=len(all_chunks),
+                vector_count=self._vector_collection.count(),
+                manifest=manifest,
+                trace=trace,
+                embedding_cache_hits=cache_hits,
+                embedding_cache_misses=cache_misses,
+                skipped_existing_chunks=skipped_existing_chunks,
+                empty_chunk_count=len(empty_chunks),
+                ingestion_failures=ingestion_result.failures,
+                ingestion_report_path=ingestion_report_path,
+                chunking_report_path=chunking_report_path,
+                manifest_path=manifest_path,
+            )
+            build_report_path = self._write_build_report(result) if self._vector_repository_config.persist else None
+            result = replace(result, build_report_path=build_report_path)
+            return index, result
+        except Exception as exc:
+            if trace.final_status == "running":
+                trace.mark_failed(type(exc).__name__, str(exc))
+            self._write_failed_manifest_if_possible(
+                building_manifest=building_manifest,
+                chunk_count=latest_chunk_count,
+                vector_count=latest_vector_count,
+            )
+            raise
 
     def _prepare_output_directories(self) -> None:
         """准备索引构建会写入的目录。"""
@@ -284,6 +306,93 @@ class IndexBuilder:
 
         output_path = self._vector_repository_config.collection_dir / self._config.build_report_filename
         return self._build_report_writer.write(result, output_path)
+
+    def _build_manifest(
+            self,
+            *,
+            source_dir: Path,
+            raw_documents: list[RawDocument],
+            chunk_count: int,
+            vector_count: int,
+            status: IndexVersionStatus,
+    ) -> IndexManifest:
+        """根据当前构建上下文生成 manifest。"""
+
+        return IndexManifest.build(
+            source_dir=source_dir,
+            chunker=type(self._chunker).__name__,
+            chunk_size=self._chunker.config.chunk_size,
+            chunk_overlap=self._chunker.config.chunk_overlap,
+            embedding_provider=self._embedding_client.provider,
+            embedding_model=self._embedding_client.model_name,
+            embedding_dimension=self._embedding_client.dimension,
+            embedding_batch_size=self._embedding_config.batch_size,
+            vector_repository_type=self._vector_repository_config.repository_type,
+            vector_collection_name=self._vector_repository_config.collection_name,
+            distance_metric=self._vector_repository_config.distance_metric,
+            document_count=len(raw_documents),
+            chunk_count=chunk_count,
+            vector_count=vector_count,
+            document_versions={document.doc_id: document.version_id for document in raw_documents},
+            status=status,
+        )
+
+    def _write_manifest_if_persistent(self, manifest: IndexManifest) -> Path | None:
+        """在启用持久化时写入 manifest。"""
+
+        if not self._vector_repository_config.persist:
+            return None
+        return self._manifest_repository.write(manifest)
+
+    def _record_manifest_stage(
+            self,
+            *,
+            trace: RagTrace,
+            stage: str,
+            started: float,
+            manifest: IndexManifest,
+            manifest_path: Path | None,
+    ) -> None:
+        """记录 manifest 状态写入阶段。"""
+
+        trace.record_stage(
+            stage,
+            "success",
+            started,
+            {
+                "manifest_path": manifest_path.as_posix() if manifest_path is not None else None,
+                "index_id": manifest.index_id,
+                "schema_version": manifest.schema_version,
+                "status": manifest.status,
+                "config_hash": manifest.config_hash,
+                "document_set_hash": manifest.document_set_hash,
+            },
+        )
+
+    def _write_failed_manifest_if_possible(
+            self,
+            *,
+            building_manifest: IndexManifest | None,
+            chunk_count: int,
+            vector_count: int,
+    ) -> None:
+        """构建失败时尽量把 manifest 状态覆盖为 failed。
+
+        失败状态写入不能掩盖原始异常，所以这里会吞掉写 failed manifest 时的异常。
+        """
+
+        if building_manifest is None or not self._vector_repository_config.persist:
+            return
+        failed_manifest = replace(
+            building_manifest,
+            status=FAILED_INDEX_STATUS,
+            chunk_count=chunk_count,
+            vector_count=vector_count,
+        )
+        try:
+            self._manifest_repository.write(failed_manifest)
+        except Exception:
+            return
 
     def _embed_chunks_with_cache(self, chunks: list[DocumentChunk]) -> tuple[list[list[float]], int, int]:
         """使用缓存批量生成 chunk embedding。

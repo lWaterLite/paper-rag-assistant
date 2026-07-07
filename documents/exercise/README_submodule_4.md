@@ -1033,6 +1033,9 @@ document_versions
    - 当前支持：`building`、`ready`、`failed`、`deprecated`。
    - 在线加载只接受 `ready` 状态。
    - 这为后续“构建中索引不对外服务”“失败索引保留诊断信息”“旧索引下线”预留了工程入口。
+   - 当前构建流程会在 ingestion 成功、已经拿到 `document_versions` 后先写入 `building`。
+   - 如果后续 chunking、embedding 或持久化全部成功，会覆盖为 `ready`。
+   - 如果后续阶段失败，会尽量覆盖为 `failed`，并继续抛出原始异常。
 
 3. `parent_index_id`
    - 表示当前索引版本来源于哪个旧索引版本。
@@ -1082,13 +1085,15 @@ document_set_hash
 ```text
 app/indexing/manifest.py
 tests/test_index_manifest.py
+tests/test_index_builder_embedding_cache.py
 ```
 
-构建流程会在 manifest 阶段记录：
+构建流程会在 `manifest_building` 和 `manifest_ready` 阶段记录：
 
 ```text
 index_id
 schema_version
+status
 config_hash
 document_set_hash
 ```
