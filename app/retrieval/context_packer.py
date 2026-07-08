@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Protocol
 
 from app.core.models import Citation, RetrievedChunk
 
@@ -35,6 +36,13 @@ class PackedContext:
     citations: list[Citation]
     used_chunks: list[RetrievedChunk]
     dropped_chunks: list[DroppedChunk]
+
+
+class ContextPacker(Protocol):
+    """上下文组织器协议。"""
+
+    def pack(self, chunks: list[RetrievedChunk]) -> PackedContext:
+        """把检索结果组织成生成器可使用的上下文。"""
 
 
 class SimpleContextPacker:

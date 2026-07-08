@@ -5,9 +5,24 @@
 
 from __future__ import annotations
 
+from typing import Protocol
+
 from app.core.models import RagAnswer, RagTrace, RetrievedChunk
 from app.generation.prompts import RagAnswerPrompt, build_rag_answer_prompt
 from app.retrieval.context_packer import PackedContext
+
+
+class AnswerGenerator(Protocol):
+    """回答生成器协议。"""
+
+    def generate(
+        self,
+        question: str,
+        packed_context: PackedContext,
+        retrieved_chunks: list[RetrievedChunk],
+        trace: RagTrace,
+    ) -> RagAnswer:
+        """基于上下文生成最终回答。"""
 
 
 class MockAnswerGenerator:
