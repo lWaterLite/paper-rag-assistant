@@ -50,7 +50,13 @@ app/retrieval/retrievers/bm25.py
 app/retrieval/retrievers/result_builder.py
 app/api/handlers.py
 app/core/settings.py
-app/factory.py
+app/factory/__init__.py
+app/factory/application.py
+app/factory/configs.py
+app/factory/ingestion.py
+app/factory/indexing.py
+app/factory/retrieval.py
+app/factory/pipelines.py
 app/main.py
 settings.toml
 tests/test_retrieval_pipeline.py
@@ -90,8 +96,8 @@ retrieval/retrievers/result_builder.py
 api/handlers.py
   SearchRequest -> SearchService -> SearchResponse
 
-factory.py
-  统一组装 retriever 和 search service
+factory/
+  使用 ApplicationFactory 统一管理 settings 和依赖组装
 
 main.py
   CLI search 命令
@@ -235,7 +241,7 @@ Config：功能类真正接收的运行时配置
 
 ```text
 ProjectSettings.retrieval
-  -> factory
+  -> ApplicationFactory.configs
   -> RetrievalConfig
   -> SearchService / BM25Retriever
 ```
@@ -555,16 +561,57 @@ API 层不应该直接知道 BM25 公式，也不应该直接访问 vector colle
 
 ---
 
-## 13. `factory.py`：统一组装检索依赖
+## 13. `factory/`：统一组装检索依赖
 
-本次新增：
+`factory` 现在是一个软件包，而不是一个巨大的无状态函数文件。
+
+核心入口是：
 
 ```python
-build_retrieval_config
-build_vector_retriever
-build_bm25_retriever
-build_retriever
-build_search_service
+factory = ApplicationFactory(env_settings=env_settings, project_settings=project_settings)
+```
+
+这个对象持有同一组：
+
+```text
+EnvSettings
+ProjectSettings
+ChunkerRegistry
+```
+
+并把对象组装拆到几个更小的工厂中：
+
+```text
+ConfigFactory
+  Settings -> Config
+
+IngestionFactory
+  loader / parser / cleaner / chunker
+
+IndexingFactory
+  embedding / repository / collection / index builder
+
+RetrievalFactory
+  vector retriever / BM25 retriever / search service
+
+PipelineFactory
+  RAG pipeline
+```
+
+这样做的重点不是“多写几个类”，而是避免整个项目到处传递 settings。
+
+主入口现在可以只创建一次组合根：
+
+```python
+factory = ApplicationFactory(env_settings=env_settings, project_settings=project_settings)
+```
+
+然后继续创建不同对象：
+
+```python
+index_builder = factory.build_index_builder()
+search_service = factory.build_search_service(index)
+rag_pipeline = factory.build_rag_pipeline(index)
 ```
 
 现在默认问答 pipeline 不再固定使用向量检索，而是根据：

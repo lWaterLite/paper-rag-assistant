@@ -10,7 +10,7 @@ from pathlib import Path
 from app.core.settings import LoaderSettings, ProjectSettings
 from app.core.errors import AppError, ErrorCode
 from app.core.models import RawDocument
-from app.factory import build_local_document_loader
+from app.factory import ApplicationFactory
 from app.ingest.cleaners import BasicTextCleaner, HtmlTextCleaner, PdfTextCleaner, PdfTextCleanerConfig
 from app.ingest.loaders import DocumentIdentityBuilder, LocalDocumentLoader, LocalDocumentLoaderConfig
 from app.ingest.parsers import HtmlDocumentParser, MarkdownParser, PdfDocumentParser, ParserRegistry
@@ -21,7 +21,7 @@ class IngestionPipelineTest(unittest.TestCase):
     """验证真实文档加载、解析和失败隔离。"""
 
     def test_loader_reads_markdown_html_and_keeps_raw_bytes(self) -> None:
-        documents = build_local_document_loader(ProjectSettings()).load_directory(Path("data/raw/papers"))
+        documents = create_local_document_loader(ProjectSettings()).load_directory(Path("data/raw/papers"))
 
         self.assertIn("markdown", {document.file_type for document in documents})
         self.assertIn("html", {document.file_type for document in documents})
@@ -112,7 +112,7 @@ class IngestionPipelineTest(unittest.TestCase):
 
     def test_factory_applies_non_recursive_loader_config(self) -> None:
         project_settings = ProjectSettings(loader=LoaderSettings(recursive=False))
-        loader = build_local_document_loader(project_settings)
+        loader = create_local_document_loader(project_settings)
 
         paths = list(loader.iter_supported_files(Path("data/raw/papers")))
 
@@ -214,6 +214,12 @@ class FakeMixedLoader:
             raw_bytes=b"# Good Paper\n\nRAG uses retrieval.",
             metadata={"filename": "good.md"},
         )
+
+
+def create_local_document_loader(project_settings: ProjectSettings):
+    """通过应用组合根创建测试用 loader。"""
+
+    return ApplicationFactory(project_settings=project_settings).ingestion.build_local_document_loader()
 
 
 if __name__ == "__main__":

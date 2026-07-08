@@ -11,7 +11,7 @@ from typing import cast
 
 from app.core.models import ParsedDocument
 from app.core.settings import ChunkingSettings, ProjectSettings
-from app.factory import build_configured_chunker
+from app.factory import ApplicationFactory
 from app.ingest.chunking.registry import ChunkerRegistry, build_default_chunker_registry
 from app.ingest.chunking.strategies import (
     CharacterChunker,
@@ -74,7 +74,10 @@ class ChunkingTest(unittest.TestCase):
         registry.register("custom_section", CustomSectionAwareChunker)
         project_settings = ProjectSettings(chunking=ChunkingSettings(strategy="custom_section"))
 
-        chunker = build_configured_chunker(project_settings, chunker_registry=registry)
+        chunker = ApplicationFactory(
+            project_settings=project_settings,
+            chunker_registry=registry,
+        ).ingestion.build_configured_chunker()
 
         self.assertIsInstance(chunker, CustomSectionAwareChunker)
 

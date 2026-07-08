@@ -45,7 +45,7 @@
 8. `app/indexing/index_builder.py`
    - 离线索引构建主流程。
    - 串联 ingestion、chunking、embedding cache、vector collection、repository、manifest 和 build report。
-9. `app/factory.py`
+9. `app/factory/`
    - 项目的 composition root。
    - 把 `ProjectSettings` 转换成各功能类接收的 `Config`。
    - 根据配置选择 mock/openai、memory/local_json 等实现。
@@ -719,22 +719,22 @@ manifest
 embedding_client + vector_collection + chunk_collection
 ```
 
-## `app/factory.py` 代码讲解
+## `app/factory/` 代码讲解
 
-factory 新增了几组构建函数：
+factory 软件包新增了几组工厂方法：
 
 ```python
-build_embedding_config
-build_vector_repository_config
-build_index_builder_config
-build_embedding_client
-build_embedding_cache
-build_vector_collection
-build_vector_repository
-build_document_collection
-build_chunk_collection
-build_document_repository
-build_chunk_repository
+ConfigFactory.build_embedding_config
+ConfigFactory.build_vector_repository_config
+ConfigFactory.build_index_builder_config
+IndexingFactory.build_embedding_client
+IndexingFactory.build_embedding_cache
+IndexingFactory.build_vector_collection
+IndexingFactory.build_vector_repository
+IndexingFactory.build_document_collection
+IndexingFactory.build_chunk_collection
+IndexingFactory.build_document_repository
+IndexingFactory.build_chunk_repository
 ```
 
 这使配置流向非常清晰：
@@ -887,13 +887,13 @@ ProjectSettings.from_toml()
 请你设计并实现一个“加载已有索引”的入口，例如：
 
 ```python
-build_rag_index_from_storage(project_settings: ProjectSettings) -> RagIndex
+ApplicationFactory(project_settings=project_settings).build_rag_index_from_storage() -> RagIndex
 ```
 
 建议实现位置：
 
 ```text
-app/factory.py
+app/factory/indexing.py
 app/indexing/index_loader.py
 ```
 

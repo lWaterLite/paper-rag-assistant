@@ -38,7 +38,7 @@
    - 定义从 `settings.toml` 读取的结构化 Settings。
 9. `settings.toml`
    - 保存非敏感、结构化、工程运行相关配置。
-10. `app/factory.py`
+10. `app/factory/`
    - 作为 composition root，把 Settings 转换成各功能模块真正接收的 Config，并统一组装对象。
 11. `app/indexing/index_builder.py`
    - 离线索引构建主流程，负责串联 ingestion、chunking、embedding、vector store、manifest 和 report。
@@ -293,13 +293,14 @@ registry = build_default_chunker_registry()
 chunker = registry.create(config)
 ```
 
-在 `factory.py` 中，registry 不是固定写死在流程里，而是可以通过参数注入：
+在 `ApplicationFactory` / `IngestionFactory` 中，registry 不是固定写死在流程里，而是可以通过构造组合根时注入：
 
 ```python
-chunker = build_configured_chunker(
-    project_settings,
+factory = ApplicationFactory(
+    project_settings=project_settings,
     chunker_registry=custom_registry,
 )
+chunker = factory.ingestion.build_configured_chunker()
 ```
 
 如果不传 `chunker_registry`，系统会使用 `build_default_chunker_registry()` 创建内置 registry。如果外部模块已经注册了自定义 chunker，可以把那份 registry 传进来。
@@ -532,20 +533,20 @@ result = ChunkingQualityChecker().check(
 
 这些属于更高一层的 pipeline policy。当前阶段先把 checker 做成独立模块，更方便你学习它和 report writer 的职责区别。
 
-## `app/factory.py` 代码讲解
+## `app/factory/` 代码讲解
 
-`factory.py` 是项目的 composition root。它的职责不是做业务逻辑，而是统一组装对象。
+`app/factory/` 是项目的 composition root。它的职责不是做业务逻辑，而是统一组装对象。
 
-本子模块新增了几个函数：
+本子模块相关的组装能力现在分布在几个工厂类中：
 
-1. `build_chunker_config(project_settings)`
+1. `ConfigFactory.build_chunker_config()`
    - 把 `ProjectSettings.chunking` 转成 `ChunkerConfig`。
-2. `build_chunking_report_config(project_settings)`
+2. `ConfigFactory.build_chunking_report_config()`
    - 把 `ProjectSettings.chunking_report` 转成 `ChunkingReportConfig`。
-3. `build_configured_chunker(project_settings)`
+3. `IngestionFactory.build_configured_chunker()`
    - 根据配置创建具体 chunker。
 
-`build_index_builder(...)` 中也接入了：
+`ApplicationFactory.build_index_builder(...)` 中也接入了：
 
 1. chunker。
 2. chunking report writer。
@@ -553,12 +554,13 @@ result = ChunkingQualityChecker().check(
 
 这样做的好处是所有依赖都在上层统一组装，底层类不会偷偷创建自己的默认依赖。
 
-这里还有一个重要扩展点：`build_configured_chunker(project_settings, chunker_registry=None)` 支持注入已经注册过的 registry。
+这里还有一个重要扩展点：`ApplicationFactory(..., chunker_registry=registry)` 支持注入已经注册过的 registry。
 
 默认路径：
 
 ```python
-chunker = build_configured_chunker(project_settings)
+factory = ApplicationFactory(project_settings=project_settings)
+chunker = factory.ingestion.build_configured_chunker()
 ```
 
 使用内置 registry。
@@ -634,7 +636,7 @@ chunking report 接在 chunking 阶段之后，而不是放在 chunker 内部。
 
 ### Composition Root
 
-`factory.py` 统一组装对象，避免底层类私自读取配置或创建依赖。
+`app/factory/` 统一组装对象，避免底层类私自读取配置或创建依赖。
 
 这是避免大型项目配置混乱的关键。
 
@@ -672,7 +674,7 @@ ingestion report 和 chunking report 都是 pipeline artifact。
 
 1. `app/ingest/chunking/registry.py` 中的 `ChunkerRegistry`。
 2. `app/ingest/chunking/registry.py` 中的 `build_default_chunker_registry()`。
-3. `app/factory.py` 中的 `build_configured_chunker(...)`。
+3. `app/factory/ingestion.py` 中的 `IngestionFactory.build_configured_chunker(...)`。
 4. `tests/test_chunking.py` 中的 registry 测试。
 
 当前实现的核心结构是：
@@ -697,9 +699,9 @@ registry.register("section_aware", SectionAwareChunker)
 3. factory 负责把配置转换成真实 chunker 对象。
 4. `IndexBuilder` 只依赖 `Chunker` 抽象，不知道具体实现类。
 
-本次练习中还处理了一个关键问题：如果 `build_configured_chunker()` 内部永远直接调用 `build_default_chunker_registry()`，那么外部注册的 chunker 没有机会进入系统。
+本次练习中还处理了一个关键问题：如果 `IngestionFactory.build_configured_chunker()` 内部永远直接调用 `build_default_chunker_registry()`，那么外部注册的 chunker 没有机会进入系统。
 
-当前采用的方案是让 `build_configured_chunker()` 和 `build_index_builder()` 都支持接收 `chunker_registry` 参数。这样外部模块可以先完成注册，再把 registry 传入 factory。
+当前采用的方案是让 `ApplicationFactory` 持有可选 `chunker_registry`，并允许 `build_index_builder()` 在测试或实验场景中显式覆盖 registry。这样外部模块可以先完成注册，再把 registry 传入组合根。
 
 当前测试注入链路时，可以使用一份 fresh registry 替换默认策略映射：
 
@@ -707,10 +709,11 @@ registry.register("section_aware", SectionAwareChunker)
 registry = ChunkerRegistry()
 registry.register("section_aware", CustomSectionAwareChunker)
 
-chunker = build_configured_chunker(
-    project_settings,
+factory = ApplicationFactory(
+    project_settings=project_settings,
     chunker_registry=registry,
 )
+chunker = factory.ingestion.build_configured_chunker()
 ```
 
 注意：上面的示例用于说明“registry 注入链路”，不是推荐在真实业务中覆盖内置策略。真实扩展新策略时，应注册新的策略名。
@@ -734,10 +737,10 @@ chunker = build_configured_chunker(
 
 验收标准：
 
-1. `build_configured_chunker(project_settings)` 通过 registry 创建 chunker。
+1. `IngestionFactory.build_configured_chunker()` 通过 registry 创建 chunker。
 2. 新增策略时不需要修改 `IndexBuilder`。
 3. 旧的 `build_chunker` 入口不再存在。
-4. `build_configured_chunker(project_settings, chunker_registry=registry)` 能使用外部传入的 registry。
+4. `ApplicationFactory(project_settings=project_settings, chunker_registry=registry)` 能使用外部传入的 registry。
 5. 测试仍然通过。
 
 ### 练习 2：新增 chunking 质量检查模块

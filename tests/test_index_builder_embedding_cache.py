@@ -17,7 +17,7 @@ from app.core.settings import (
     ProjectSettings,
     VectorRepositorySettings,
 )
-from app.factory import build_index_builder
+from app.factory import ApplicationFactory
 from app.indexing.embedding_cache import InMemoryEmbeddingCache
 
 
@@ -80,10 +80,20 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
         cache = InMemoryEmbeddingCache()
         client = CountingEmbeddingClient()
 
-        first_builder = build_index_builder(env_settings, ProjectSettings(), embedding_client=client, embedding_cache=cache)
+        first_builder = create_index_builder(
+            env_settings,
+            ProjectSettings(),
+            embedding_client=client,
+            embedding_cache=cache,
+        )
         _, first_result = first_builder.build_from_directory(Path("data/raw/papers"))
 
-        second_builder = build_index_builder(env_settings, ProjectSettings(), embedding_client=client, embedding_cache=cache)
+        second_builder = create_index_builder(
+            env_settings,
+            ProjectSettings(),
+            embedding_client=client,
+            embedding_cache=cache,
+        )
         _, second_result = second_builder.build_from_directory(Path("data/raw/papers"))
 
         self.assertEqual(first_result.embedding_cache_hits, 0)
@@ -95,7 +105,7 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
     def test_same_builder_skips_chunks_already_in_vector_collection(self) -> None:
         env_settings = EnvSettings(chunk_size=120, chunk_overlap=20)
         client = CountingEmbeddingClient()
-        builder = build_index_builder(env_settings, ProjectSettings(), embedding_client=client)
+        builder = create_index_builder(env_settings, ProjectSettings(), embedding_client=client)
 
         _, first_result = builder.build_from_directory(Path("data/raw/papers"))
         index, second_result = builder.build_from_directory(Path("data/raw/papers"))
@@ -118,7 +128,7 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
         self.assertFalse(report_dir.exists())
         self.assertFalse(chunking_report_dir.exists())
 
-        _, result = build_index_builder(env_settings, project_settings).build_from_directory(Path("data/raw/papers"))
+        _, result = create_index_builder(env_settings, project_settings).build_from_directory(Path("data/raw/papers"))
 
         self.assertTrue(report_dir.exists())
         self.assertEqual(result.ingestion_report_path, report_dir / "ingestion_report.json")
@@ -162,7 +172,7 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
         )
 
         try:
-            index, result = build_index_builder(env_settings, project_settings).build_from_directory(Path("data/raw/papers"))
+            index, result = create_index_builder(env_settings, project_settings).build_from_directory(Path("data/raw/papers"))
             collection_dir = index_dir / "papers_test"
 
             self.assertEqual(index.vector_collection.count(), result.vector_count)
@@ -209,7 +219,7 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
         )
 
         try:
-            builder = build_index_builder(
+            builder = create_index_builder(
                 EnvSettings(chunk_size=120, chunk_overlap=20),
                 project_settings,
                 embedding_client=WrongDimensionEmbeddingClient(),
@@ -237,6 +247,15 @@ def _find_trace_stage(result, stage_name: str):
         if stage.stage == stage_name:
             return stage
     raise AssertionError(f"没有找到 trace 阶段：{stage_name}")
+
+
+def create_index_builder(env_settings: EnvSettings, project_settings: ProjectSettings, **overrides):
+    """通过应用组合根创建测试用 IndexBuilder。"""
+
+    return ApplicationFactory(
+        env_settings=env_settings,
+        project_settings=project_settings,
+    ).build_index_builder(**overrides)
 
 
 if __name__ == "__main__":

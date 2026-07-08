@@ -12,20 +12,21 @@ import argparse
 from pathlib import Path
 
 from app.core.settings import EnvSettings, ProjectSettings
-from app.factory import build_index_builder, build_rag_index_from_storage, build_rag_pipeline, build_search_service
+from app.factory import ApplicationFactory
 
 
-def build_index(source: Path, env_settings: EnvSettings, project_settings: ProjectSettings):
+def build_index(source: Path, factory: ApplicationFactory):
     """构建 RAG 离线索引。"""
 
-    builder = build_index_builder(env_settings, project_settings)
+    builder = factory.build_index_builder()
     return builder.build_from_directory(source)
 
 
 def handle_index(args: argparse.Namespace) -> None:
     env_settings = EnvSettings.from_env()
     project_settings = ProjectSettings.from_toml()
-    _, result = build_index(Path(args.source), env_settings, project_settings)
+    factory = ApplicationFactory(env_settings=env_settings, project_settings=project_settings)
+    _, result = build_index(Path(args.source), factory)
     print("索引构建完成")
     print(f"- 文档数量：{result.document_count}")
     print(f"- chunk 数量：{result.chunk_count}")
@@ -44,12 +45,13 @@ def handle_index(args: argparse.Namespace) -> None:
 def handle_ask(args: argparse.Namespace) -> None:
     env_settings = EnvSettings.from_env()
     project_settings = ProjectSettings.from_toml()
+    factory = ApplicationFactory(env_settings=env_settings, project_settings=project_settings)
     if args.use_existing_index:
-        index = build_rag_index_from_storage(project_settings)
+        index = factory.build_rag_index_from_storage()
         build_result = None
     else:
-        index, build_result = build_index(Path(args.source), env_settings, project_settings)
-    pipeline = build_rag_pipeline(env_settings=env_settings, project_settings=project_settings, index=index)
+        index, build_result = build_index(Path(args.source), factory)
+    pipeline = factory.build_rag_pipeline(index)
     answer = pipeline.ask(args.question)
 
     print("回答：")
@@ -74,13 +76,14 @@ def handle_search(args: argparse.Namespace) -> None:
 
     env_settings = EnvSettings.from_env()
     project_settings = ProjectSettings.from_toml()
+    factory = ApplicationFactory(env_settings=env_settings, project_settings=project_settings)
     if args.use_existing_index:
-        index = build_rag_index_from_storage(project_settings)
+        index = factory.build_rag_index_from_storage()
         build_result = None
     else:
-        index, build_result = build_index(Path(args.source), env_settings, project_settings)
+        index, build_result = build_index(Path(args.source), factory)
 
-    service = build_search_service(env_settings, project_settings, index)
+    service = factory.build_search_service(index)
     result = service.search(
         args.query,
         top_k=args.top_k,

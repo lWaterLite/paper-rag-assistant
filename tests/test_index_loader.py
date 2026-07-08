@@ -10,7 +10,7 @@ from pathlib import Path
 
 from app.core.errors import AppError, ErrorCode
 from app.core.settings import EnvSettings, ProjectSettings, VectorRepositorySettings
-from app.factory import build_index_builder, build_rag_index_from_storage
+from app.factory import ApplicationFactory
 from app.retrieval.retrievers import VectorRetriever
 
 
@@ -28,12 +28,13 @@ class IndexLoaderTest(unittest.TestCase):
             )
         )
         try:
-            _, build_result = build_index_builder(
-                EnvSettings(chunk_size=120, chunk_overlap=20),
-                project_settings,
-            ).build_from_directory(Path("data/raw/papers"))
+            factory = ApplicationFactory(
+                env_settings=EnvSettings(chunk_size=120, chunk_overlap=20),
+                project_settings=project_settings,
+            )
+            _, build_result = factory.build_index_builder().build_from_directory(Path("data/raw/papers"))
 
-            loaded_index = build_rag_index_from_storage(project_settings)
+            loaded_index = factory.build_rag_index_from_storage()
             retriever = VectorRetriever(
                 loaded_index.embedding_client,
                 loaded_index.vector_collection,
@@ -59,10 +60,11 @@ class IndexLoaderTest(unittest.TestCase):
             )
         )
         try:
-            _, build_result = build_index_builder(
-                EnvSettings(chunk_size=120, chunk_overlap=20),
-                project_settings,
-            ).build_from_directory(Path("data/raw/papers"))
+            factory = ApplicationFactory(
+                env_settings=EnvSettings(chunk_size=120, chunk_overlap=20),
+                project_settings=project_settings,
+            )
+            _, build_result = factory.build_index_builder().build_from_directory(Path("data/raw/papers"))
             manifest_path = build_result.manifest_path
             self.assertIsNotNone(manifest_path)
             manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -70,7 +72,7 @@ class IndexLoaderTest(unittest.TestCase):
             manifest_path.write_text(json.dumps(manifest_data, ensure_ascii=False, indent=2), encoding="utf-8")
 
             with self.assertRaises(AppError) as context:
-                build_rag_index_from_storage(project_settings)
+                factory.build_rag_index_from_storage()
 
             self.assertEqual(context.exception.code, ErrorCode.INDEX_FAILED)
             self.assertIn("向量数量", context.exception.message)
@@ -79,7 +81,7 @@ class IndexLoaderTest(unittest.TestCase):
 
     def test_build_rag_index_from_storage_rejects_memory_repository(self) -> None:
         with self.assertRaises(AppError) as context:
-            build_rag_index_from_storage(ProjectSettings())
+            ApplicationFactory(project_settings=ProjectSettings()).build_rag_index_from_storage()
 
         self.assertEqual(context.exception.code, ErrorCode.INVALID_CONFIG)
         self.assertIn("加载已有索引", context.exception.message)
@@ -96,7 +98,7 @@ class IndexLoaderTest(unittest.TestCase):
         )
 
         with self.assertRaises(AppError) as context:
-            build_rag_index_from_storage(project_settings)
+            ApplicationFactory(project_settings=project_settings).build_rag_index_from_storage()
 
         self.assertEqual(context.exception.code, ErrorCode.INVALID_CONFIG)
         self.assertIn("persist=true", context.exception.message)

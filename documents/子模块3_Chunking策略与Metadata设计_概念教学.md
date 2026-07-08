@@ -961,9 +961,10 @@ settings.toml
   chunk_overlap = 100
   tokenizer = "char_approx"
 
-app/factory.py
-  build_chunker_config()
-  build_chunker()
+app/factory/
+  ApplicationFactory
+  ConfigFactory.build_chunker_config()
+  IngestionFactory.build_configured_chunker()
 ```
 
 仍然保持我们前面建立的命名规则：

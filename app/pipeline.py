@@ -6,13 +6,13 @@
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import Any, NoReturn
 
 from app.core.settings import EnvSettings
 from app.core.errors import AppError, ErrorCode
 from app.core.models import RagAnswer, RagTrace
-from app.generation.answer_generator import MockAnswerGenerator
-from app.retrieval.context_packer import SimpleContextPacker
+from app.generation.answer_generator import AnswerGenerator
+from app.retrieval.context_packer import ContextPacker
 from app.retrieval.retrievers import Retriever
 
 
@@ -24,8 +24,8 @@ class RagPipeline:
         settings: EnvSettings,
         *,
         retriever: Retriever,
-        context_packer: SimpleContextPacker,
-        answer_generator: MockAnswerGenerator,
+        context_packer: ContextPacker,
+        answer_generator: AnswerGenerator,
     ) -> None:
         self._settings = settings
         self._retriever = retriever
@@ -121,7 +121,7 @@ class RagPipeline:
         exc: Exception,
         default_code: ErrorCode,
         detail: dict[str, Any] | None = None,
-    ) -> None:
+    ) -> NoReturn:
         """记录阶段失败，并抛出带 trace_id 的 AppError。"""
 
         error_code = exc.code if isinstance(exc, AppError) else default_code

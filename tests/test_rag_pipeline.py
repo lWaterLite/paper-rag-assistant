@@ -8,7 +8,7 @@ from pathlib import Path
 from app.core.settings import EnvSettings, ProjectSettings
 from app.core.errors import AppError, ErrorCode
 from app.core.models import RagAnswer
-from app.factory import build_index_builder, build_rag_pipeline
+from app.factory import ApplicationFactory
 from app.retrieval.context_packer import PackedContext
 
 
@@ -21,7 +21,7 @@ class RagPipelineTest(unittest.TestCase):
     def test_index_builder_builds_in_memory_index(self) -> None:
         env_settings = EnvSettings(chunk_size=120, chunk_overlap=20, top_k=2)
         project_settings = ProjectSettings()
-        index, result = build_index_builder(env_settings, project_settings).build_from_directory(SAMPLE_SOURCE_DIR)
+        index, result = create_factory(env_settings, project_settings).build_index_builder().build_from_directory(SAMPLE_SOURCE_DIR)
 
         self.assertGreater(result.document_count, 0)
         self.assertGreater(result.chunk_count, 0)
@@ -37,8 +37,9 @@ class RagPipelineTest(unittest.TestCase):
 
     def test_pipeline_returns_structured_answer(self) -> None:
         env_settings = EnvSettings(chunk_size=120, chunk_overlap=20, top_k=2)
-        index, _ = build_index_builder(env_settings, ProjectSettings()).build_from_directory(SAMPLE_SOURCE_DIR)
-        answer = build_rag_pipeline(env_settings=env_settings, index=index).ask("RAG 为什么需要引用？")
+        factory = create_factory(env_settings)
+        index, _ = factory.build_index_builder().build_from_directory(SAMPLE_SOURCE_DIR)
+        answer = factory.build_rag_pipeline(index).ask("RAG 为什么需要引用？")
 
         self.assertTrue(answer.answer)
         self.assertTrue(answer.trace_id.startswith("trace_"))
@@ -48,22 +49,20 @@ class RagPipelineTest(unittest.TestCase):
     def test_pipeline_uses_configured_bm25_retriever(self) -> None:
         env_settings = EnvSettings(chunk_size=120, chunk_overlap=20, top_k=2, retrieval_strategy="bm25")
         project_settings = ProjectSettings()
-        index, _ = build_index_builder(env_settings, project_settings).build_from_directory(SAMPLE_SOURCE_DIR)
+        factory = create_factory(env_settings, project_settings)
+        index, _ = factory.build_index_builder().build_from_directory(SAMPLE_SOURCE_DIR)
 
-        answer = build_rag_pipeline(
-            env_settings=env_settings,
-            project_settings=project_settings,
-            index=index,
-        ).ask("retrieval generation")
+        answer = factory.build_rag_pipeline(index).ask("retrieval generation")
 
         self.assertGreater(len(answer.retrieved_chunks), 0)
         self.assertEqual(answer.retrieved_chunks[0].retriever, "bm25")
 
     def test_pipeline_marks_trace_success_when_all_stages_succeed(self) -> None:
         env_settings = EnvSettings(chunk_size=120, chunk_overlap=20, top_k=2)
-        index, _ = build_index_builder(env_settings, ProjectSettings()).build_from_directory(SAMPLE_SOURCE_DIR)
+        factory = create_factory(env_settings)
+        index, _ = factory.build_index_builder().build_from_directory(SAMPLE_SOURCE_DIR)
         answer_generator = CapturingAnswerGenerator()
-        pipeline = build_rag_pipeline(env_settings=env_settings, index=index, answer_generator=answer_generator)
+        pipeline = factory.build_rag_pipeline(index, answer_generator=answer_generator)
 
         pipeline.ask("正常问题")
 
@@ -73,8 +72,9 @@ class RagPipelineTest(unittest.TestCase):
 
     def test_pipeline_records_failure_trace_when_retrieval_fails(self) -> None:
         env_settings = EnvSettings(chunk_size=120, chunk_overlap=20, top_k=2)
-        index, _ = build_index_builder(env_settings, ProjectSettings()).build_from_directory(SAMPLE_SOURCE_DIR)
-        pipeline = build_rag_pipeline(env_settings=env_settings, index=index, retriever=FailingRetriever())
+        factory = create_factory(env_settings)
+        index, _ = factory.build_index_builder().build_from_directory(SAMPLE_SOURCE_DIR)
+        pipeline = factory.build_rag_pipeline(index, retriever=FailingRetriever())
 
         with self.assertRaises(AppError) as context:
             pipeline.ask("会失败的问题")
@@ -89,8 +89,9 @@ class RagPipelineTest(unittest.TestCase):
 
     def test_pipeline_records_failure_trace_when_context_packing_fails(self) -> None:
         env_settings = EnvSettings(chunk_size=120, chunk_overlap=20, top_k=2)
-        index, _ = build_index_builder(env_settings, ProjectSettings()).build_from_directory(SAMPLE_SOURCE_DIR)
-        pipeline = build_rag_pipeline(env_settings=env_settings, index=index, context_packer=FailingContextPacker())
+        factory = create_factory(env_settings)
+        index, _ = factory.build_index_builder().build_from_directory(SAMPLE_SOURCE_DIR)
+        pipeline = factory.build_rag_pipeline(index, context_packer=FailingContextPacker())
 
         with self.assertRaises(AppError) as context:
             pipeline.ask("会失败的问题")
@@ -103,8 +104,9 @@ class RagPipelineTest(unittest.TestCase):
 
     def test_pipeline_records_failure_trace_when_generation_fails(self) -> None:
         env_settings = EnvSettings(chunk_size=120, chunk_overlap=20, top_k=2)
-        index, _ = build_index_builder(env_settings, ProjectSettings()).build_from_directory(SAMPLE_SOURCE_DIR)
-        pipeline = build_rag_pipeline(env_settings=env_settings, index=index, answer_generator=FailingAnswerGenerator())
+        factory = create_factory(env_settings)
+        index, _ = factory.build_index_builder().build_from_directory(SAMPLE_SOURCE_DIR)
+        pipeline = factory.build_rag_pipeline(index, answer_generator=FailingAnswerGenerator())
 
         with self.assertRaises(AppError) as context:
             pipeline.ask("会失败的问题")
@@ -164,6 +166,18 @@ class FailingAnswerGenerator:
         trace,
     ) -> RagAnswer:
         raise AppError(ErrorCode.GENERATION_FAILED, "生成失败")
+
+
+def create_factory(
+        env_settings: EnvSettings,
+        project_settings: ProjectSettings | None = None,
+) -> ApplicationFactory:
+    """通过应用组合根创建测试依赖。"""
+
+    return ApplicationFactory(
+        env_settings=env_settings,
+        project_settings=project_settings if project_settings is not None else ProjectSettings(),
+    )
 
 
 if __name__ == "__main__":
