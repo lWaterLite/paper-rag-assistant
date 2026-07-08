@@ -208,6 +208,14 @@ class IndexBuilderSettings(BaseModel):
         return self
 
 
+class RetrievalSettings(BaseModel):
+    """检索子系统结构化配置。"""
+
+    bm25_k1: float = Field(default=1.5, gt=0, description="BM25 词频饱和参数")
+    bm25_b: float = Field(default=0.75, ge=0, le=1, description="BM25 文档长度归一化参数")
+    deduplicate_by_chunk_id: bool = Field(default=True, description="检索结果是否按 chunk_id 去重")
+
+
 class ProjectSettings(BaseModel):
     """从 settings.toml 读取的结构化工程配置。"""
 
@@ -219,6 +227,7 @@ class ProjectSettings(BaseModel):
     embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings)
     vector_repository: VectorRepositorySettings = Field(default_factory=VectorRepositorySettings)
     index_builder: IndexBuilderSettings = Field(default_factory=IndexBuilderSettings)
+    retrieval: RetrievalSettings = Field(default_factory=RetrievalSettings)
 
     @classmethod
     def from_toml(cls, path: Path | str = Path("settings.toml")) -> "ProjectSettings":

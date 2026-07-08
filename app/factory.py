@@ -34,8 +34,10 @@ from app.repositories.chunk_repository import ChunkRepository, LocalJsonChunkRep
 from app.repositories.document_repository import DocumentRepository, LocalJsonDocumentRepository
 from app.repositories.index_manifest_repository import IndexManifestRepository
 from app.repositories.vector_repository import LocalJsonVectorRepository, VectorRepository
+from app.retrieval.configs import BM25Config, RetrievalConfig
 from app.retrieval.context_packer import SimpleContextPacker
-from app.retrieval.retrievers import Retriever, VectorRetriever
+from app.retrieval.retrievers import BM25Retriever, Retriever, VectorRetriever
+from app.retrieval.service import SearchService
 
 
 def build_loader_config(project_settings: ProjectSettings) -> LocalDocumentLoaderConfig:
@@ -119,6 +121,20 @@ def build_index_builder_config(project_settings: ProjectSettings) -> IndexBuilde
         build_report_filename=project_settings.index_builder.build_report_filename,
         skip_existing=project_settings.index_builder.skip_existing,
         fail_on_empty_chunk=project_settings.index_builder.fail_on_empty_chunk,
+    )
+
+
+def build_retrieval_config(env_settings: EnvSettings, project_settings: ProjectSettings) -> RetrievalConfig:
+    """从 EnvSettings 和 ProjectSettings 转换成检索运行时配置。"""
+
+    return RetrievalConfig(
+        strategy=env_settings.retrieval_strategy,
+        top_k=env_settings.top_k,
+        bm25=BM25Config(
+            k1=project_settings.retrieval.bm25_k1,
+            b=project_settings.retrieval.bm25_b,
+        ),
+        deduplicate_by_chunk_id=project_settings.retrieval.deduplicate_by_chunk_id,
     )
 
 
@@ -325,22 +341,76 @@ def build_rag_index_from_storage(project_settings: ProjectSettings) -> RagIndex:
         manifest=manifest,
     )
 
+
+def build_vector_retriever(index: RagIndex) -> VectorRetriever:
+    """创建向量检索器。"""
+
+    return VectorRetriever(
+        index.embedding_client,
+        index.vector_collection,
+        index.chunk_collection,
+    )
+
+
+def build_bm25_retriever(index: RagIndex, project_settings: ProjectSettings) -> BM25Retriever:
+    """根据当前 chunk collection 创建 BM25 检索器。"""
+
+    config = BM25Config(
+        k1=project_settings.retrieval.bm25_k1,
+        b=project_settings.retrieval.bm25_b,
+    )
+    return BM25Retriever(index.chunk_collection.iter_chunks(), config=config)
+
+
+def build_retriever(
+        env_settings: EnvSettings,
+        project_settings: ProjectSettings,
+        index: RagIndex,
+) -> Retriever:
+    """根据检索策略创建在线问答默认检索器。"""
+
+    retrieval_config = build_retrieval_config(env_settings, project_settings)
+    if retrieval_config.strategy == "vector":
+        return build_vector_retriever(index)
+    if retrieval_config.strategy == "bm25":
+        return build_bm25_retriever(index, project_settings)
+    raise AppError(ErrorCode.INVALID_CONFIG, "hybrid 检索将在后续子模块实现，当前请使用 vector 或 bm25")
+
+
+def build_search_service(
+        env_settings: EnvSettings,
+        project_settings: ProjectSettings,
+        index: RagIndex,
+) -> SearchService:
+    """创建只执行检索的 SearchService。"""
+
+    return SearchService(
+        retrievers={
+            "vector": build_vector_retriever(index),
+            "bm25": build_bm25_retriever(index, project_settings),
+        },
+        config=build_retrieval_config(env_settings, project_settings),
+    )
+
+
 def build_rag_pipeline(
         env_settings: EnvSettings,
         index: RagIndex,
         *,
+        project_settings: ProjectSettings | None = None,
         retriever: Retriever | None = None,
         context_packer: SimpleContextPacker | None = None,
         answer_generator: MockAnswerGenerator | None = None,
 ) -> RagPipeline:
     """创建在线 RAG 问答 pipeline。"""
 
+    resolved_project_settings = project_settings if project_settings is not None else ProjectSettings()
     return RagPipeline(
         settings=env_settings,
-        retriever=retriever if retriever is not None else VectorRetriever(
-            index.embedding_client,
-            index.vector_collection,
-            index.chunk_collection,
+        retriever=retriever if retriever is not None else build_retriever(
+            env_settings,
+            resolved_project_settings,
+            index,
         ),
         context_packer=context_packer if context_packer is not None else SimpleContextPacker(
             env_settings.max_context_chars),

@@ -2,6 +2,7 @@
 
 运行示例：
 python -m app.main index --source data/raw/papers
+python -m app.main search "RAG 为什么需要引用？" --use-existing-index
 python -m app.main ask "RAG 为什么需要引用？" --source data/raw/papers
 """
 
@@ -11,7 +12,7 @@ import argparse
 from pathlib import Path
 
 from app.core.settings import EnvSettings, ProjectSettings
-from app.factory import build_index_builder, build_rag_index_from_storage, build_rag_pipeline
+from app.factory import build_index_builder, build_rag_index_from_storage, build_rag_pipeline, build_search_service
 
 
 def build_index(source: Path, env_settings: EnvSettings, project_settings: ProjectSettings):
@@ -48,7 +49,7 @@ def handle_ask(args: argparse.Namespace) -> None:
         build_result = None
     else:
         index, build_result = build_index(Path(args.source), env_settings, project_settings)
-    pipeline = build_rag_pipeline(env_settings=env_settings, index=index)
+    pipeline = build_rag_pipeline(env_settings=env_settings, project_settings=project_settings, index=index)
     answer = pipeline.ask(args.question)
 
     print("回答：")
@@ -68,6 +69,45 @@ def handle_ask(args: argparse.Namespace) -> None:
     print(f"- latency_ms：{answer.latency_ms}")
 
 
+def handle_search(args: argparse.Namespace) -> None:
+    """执行一次检索，不生成回答。"""
+
+    env_settings = EnvSettings.from_env()
+    project_settings = ProjectSettings.from_toml()
+    if args.use_existing_index:
+        index = build_rag_index_from_storage(project_settings)
+        build_result = None
+    else:
+        index, build_result = build_index(Path(args.source), env_settings, project_settings)
+
+    service = build_search_service(env_settings, project_settings, index)
+    result = service.search(
+        args.query,
+        top_k=args.top_k,
+        retriever=args.retriever,
+    )
+
+    print("检索结果：")
+    for chunk in result.results:
+        print(f"- rank={chunk.rank} score={chunk.score} retriever={chunk.retriever}")
+        print(f"  chunk_id：{chunk.chunk_id}")
+        print(f"  source：{chunk.title or chunk.doc_id} | {chunk.source_path}")
+        if chunk.section:
+            print(f"  section：{chunk.section}")
+        print(f"  text：{chunk.text[:240]}")
+    print()
+    print("Trace：")
+    if build_result is not None:
+        print(f"- index_trace_id：{build_result.trace.trace_id}")
+    else:
+        print(f"- loaded_index_id：{index.manifest.index_id}")
+    print(f"- search_trace_id：{result.trace.trace_id}")
+    print(f"- retriever：{result.retriever}")
+    print(f"- top_k：{result.top_k}")
+    print(f"- returned：{len(result.results)}")
+    print(f"- latency_ms：{result.trace.latency_ms}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="paper-rag-assistant RAG 工程练习入口")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -75,6 +115,14 @@ def build_parser() -> argparse.ArgumentParser:
     index_parser = subparsers.add_parser("index", help="构建离线 RAG 索引")
     index_parser.add_argument("--source", default="data/raw/papers", help="文档目录")
     index_parser.set_defaults(handler=handle_index)
+
+    search_parser = subparsers.add_parser("search", help="只执行检索，不生成回答")
+    search_parser.add_argument("query", help="检索查询")
+    search_parser.add_argument("--source", default="data/raw/papers", help="文档目录")
+    search_parser.add_argument("--use-existing-index", action="store_true", help="直接加载已有索引，不重新构建")
+    search_parser.add_argument("--top-k", type=int, default=None, help="本次检索返回数量")
+    search_parser.add_argument("--retriever", choices=["vector", "bm25"], default=None, help="本次检索策略")
+    search_parser.set_defaults(handler=handle_search)
 
     ask_parser = subparsers.add_parser("ask", help="执行一次 mock RAG 问答")
     ask_parser.add_argument("question", help="用户问题")

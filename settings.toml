@@ -50,3 +50,8 @@ manifest_filename = "manifest.json"
 build_report_filename = "index_build_report.json"
 skip_existing = true
 fail_on_empty_chunk = true
+
+[retrieval]
+bm25_k1 = 1.5
+bm25_b = 0.75
+deduplicate_by_chunk_id = true
