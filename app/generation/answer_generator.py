@@ -28,7 +28,9 @@ class AnswerGenerator(Protocol):
 class MockAnswerGenerator:
     """基于检索上下文生成一个演示回答。"""
 
-    def build_prompt(self, question: str, packed_context: PackedContext) -> RagAnswerPrompt:
+    def build_prompt(
+        self, question: str, packed_context: PackedContext
+    ) -> RagAnswerPrompt:
         """构造后续真实 LLM 可直接使用的 prompt。"""
 
         return build_rag_answer_prompt(question, packed_context)

@@ -7,7 +7,12 @@
 from __future__ import annotations
 
 from app.retrieval.retrievers.base import Retriever
-from app.retrieval.retrievers.bm25 import BM25Index, BM25Retriever, BM25SearchHit, tokenize_basic
+from app.retrieval.retrievers.bm25 import (
+    BM25Index,
+    BM25Retriever,
+    BM25SearchHit,
+    tokenize_basic,
+)
 from app.retrieval.retrievers.result_builder import RetrievedChunkBuilder
 from app.retrieval.retrievers.vector import VectorRetriever
 

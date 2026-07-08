@@ -53,27 +53,31 @@ class ApplicationFactory:
         )
         self.ingestion = IngestionFactory(
             configs=self.configs,
-            **({"chunker_registry": self.chunker_registry} if self.chunker_registry is not None else {}),
+            **(
+                {"chunker_registry": self.chunker_registry}
+                if self.chunker_registry is not None
+                else {}
+            ),
         )
         self.indexing = IndexingFactory(configs=self.configs, ingestion=self.ingestion)
         self.retrieval = RetrievalFactory(configs=self.configs)
         self.pipelines = PipelineFactory(configs=self.configs, retrieval=self.retrieval)
 
     def build_index_builder(
-            self,
-            *,
-            ingestion_pipeline: IngestionPipeline | None = None,
-            embedding_client: EmbeddingClient | None = None,
-            embedding_cache: EmbeddingCache | None = None,
-            vector_collection: VectorCollection | None = None,
-            document_collection: DocumentCollection | None = None,
-            chunk_collection: ChunkCollection | None = None,
-            vector_repository: VectorRepository | None = None,
-            document_repository: DocumentRepository | None = None,
-            chunk_repository: ChunkRepository | None = None,
-            ingestion_report_writer: IngestionReportWriter | None = None,
-            chunking_report_writer: ChunkingReportWriter | None = None,
-            chunker_registry: ChunkerRegistry | None = None,
+        self,
+        *,
+        ingestion_pipeline: IngestionPipeline | None = None,
+        embedding_client: EmbeddingClient | None = None,
+        embedding_cache: EmbeddingCache | None = None,
+        vector_collection: VectorCollection | None = None,
+        document_collection: DocumentCollection | None = None,
+        chunk_collection: ChunkCollection | None = None,
+        vector_repository: VectorRepository | None = None,
+        document_repository: DocumentRepository | None = None,
+        chunk_repository: ChunkRepository | None = None,
+        ingestion_report_writer: IngestionReportWriter | None = None,
+        chunking_report_writer: ChunkingReportWriter | None = None,
+        chunker_registry: ChunkerRegistry | None = None,
     ) -> IndexBuilder:
         """创建离线索引构建器。"""
 
@@ -103,12 +107,12 @@ class ApplicationFactory:
         return self.retrieval.build_search_service(index)
 
     def build_rag_pipeline(
-            self,
-            index: RagIndex,
-            *,
-            retriever: Retriever | None = None,
-            context_packer: ContextPacker | None = None,
-            answer_generator: AnswerGenerator | None = None,
+        self,
+        index: RagIndex,
+        *,
+        retriever: Retriever | None = None,
+        context_packer: ContextPacker | None = None,
+        answer_generator: AnswerGenerator | None = None,
     ) -> RagPipeline:
         """创建在线 RAG 问答 pipeline。"""
 

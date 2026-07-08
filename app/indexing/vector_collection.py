@@ -83,7 +83,9 @@ class InMemoryVectorCollection:
         if not self._records_by_chunk_id or top_k <= 0:
             return []
 
-        self._ensure_non_empty_vector(query_vector, ErrorCode.RETRIEVAL_FAILED, "查询向量")
+        self._ensure_non_empty_vector(
+            query_vector, ErrorCode.RETRIEVAL_FAILED, "查询向量"
+        )
         self._ensure_dimension(query_vector, ErrorCode.RETRIEVAL_FAILED, "查询向量")
 
         scored = [
@@ -121,7 +123,9 @@ class InMemoryVectorCollection:
 
         return self._dimension
 
-    def _ensure_dimension(self, vector: list[float], code: ErrorCode, vector_name: str) -> None:
+    def _ensure_dimension(
+        self, vector: list[float], code: ErrorCode, vector_name: str
+    ) -> None:
         """校验向量维度必须与集合维度一致。"""
 
         if self._dimension is None:
@@ -133,7 +137,9 @@ class InMemoryVectorCollection:
             )
 
     @staticmethod
-    def _ensure_non_empty_vector(vector: list[float], code: ErrorCode, vector_name: str) -> None:
+    def _ensure_non_empty_vector(
+        vector: list[float], code: ErrorCode, vector_name: str
+    ) -> None:
         """校验向量不能为空。"""
 
         if not vector:

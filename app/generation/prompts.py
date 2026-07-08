@@ -19,7 +19,9 @@ class RagAnswerPrompt:
     user_prompt: str
 
 
-def build_rag_answer_prompt(question: str, packed_context: PackedContext) -> RagAnswerPrompt:
+def build_rag_answer_prompt(
+    question: str, packed_context: PackedContext
+) -> RagAnswerPrompt:
     """构造真实 LLM 可用的 RAG 回答 prompt。"""
 
     return RagAnswerPrompt(
@@ -116,4 +118,3 @@ def _build_dropped_chunk_summary(packed_context: PackedContext) -> str:
         for chunk in packed_context.dropped_chunks
     ]
     return "\n".join(lines)
-

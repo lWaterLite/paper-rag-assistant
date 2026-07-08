@@ -65,8 +65,12 @@ class SimpleContextPacker:
             citation_id = f"C{len(citations) + 1}"
             separator_length = 2 if context_parts else 0
             prefix = f"[{citation_id}] "
-            remaining_chars = self._max_context_chars - current_length - separator_length
-            candidate_text = self._fit_text_to_budget(candidate.text, len(prefix), remaining_chars)
+            remaining_chars = (
+                self._max_context_chars - current_length - separator_length
+            )
+            candidate_text = self._fit_text_to_budget(
+                candidate.text, len(prefix), remaining_chars
+            )
 
             if candidate_text is None:
                 for chunk in self._iter_candidate_chunks(candidates[candidate_index:]):
@@ -134,7 +138,9 @@ class SimpleContextPacker:
 
         return unique_chunks
 
-    def _merge_adjacent_chunks(self, chunks: list[RetrievedChunk]) -> list[ContextCandidate]:
+    def _merge_adjacent_chunks(
+        self, chunks: list[RetrievedChunk]
+    ) -> list[ContextCandidate]:
         """合并同一文档中的相邻 chunk。"""
 
         candidates: list[ContextCandidate] = []
@@ -161,7 +167,9 @@ class SimpleContextPacker:
             and left.chunk_index + 1 == right.chunk_index
         )
 
-    def _fit_text_to_budget(self, text: str, prefix_length: int, remaining_chars: int) -> str | None:
+    def _fit_text_to_budget(
+        self, text: str, prefix_length: int, remaining_chars: int
+    ) -> str | None:
         """把候选文本放入剩余上下文预算。
 
         如果候选文本过长，则截断。这里先做简单截断，后续接入真实 LLM 后可以替换成摘要。
@@ -188,8 +196,14 @@ class SimpleContextPacker:
         """根据候选片段创建 citation。"""
 
         first_chunk = candidate.chunks[0]
-        page_starts = [chunk.page_start for chunk in candidate.chunks if chunk.page_start is not None]
-        page_ends = [chunk.page_end for chunk in candidate.chunks if chunk.page_end is not None]
+        page_starts = [
+            chunk.page_start
+            for chunk in candidate.chunks
+            if chunk.page_start is not None
+        ]
+        page_ends = [
+            chunk.page_end for chunk in candidate.chunks if chunk.page_end is not None
+        ]
 
         return Citation(
             citation_id=citation_id,
@@ -204,7 +218,9 @@ class SimpleContextPacker:
             section=first_chunk.section,
         )
 
-    def _iter_candidate_chunks(self, candidates: list[ContextCandidate]) -> list[RetrievedChunk]:
+    def _iter_candidate_chunks(
+        self, candidates: list[ContextCandidate]
+    ) -> list[RetrievedChunk]:
         """展开候选片段中的原始 chunk。"""
 
         return [chunk for candidate in candidates for chunk in candidate.chunks]

@@ -40,7 +40,17 @@ class RawDocument:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
-BlockType = Literal["title", "heading", "paragraph", "list", "table", "code", "reference", "caption", "unknown"]
+BlockType = Literal[
+    "title",
+    "heading",
+    "paragraph",
+    "list",
+    "table",
+    "code",
+    "reference",
+    "caption",
+    "unknown",
+]
 
 
 @dataclass(frozen=True)

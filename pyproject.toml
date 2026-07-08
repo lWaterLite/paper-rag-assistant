@@ -8,4 +8,11 @@ dependencies = [
     "pydantic>=2.7",
     "pydantic-settings>=2.2",
     "pymupdf>=1.27.2.3",
+    "pyrefly>=0.60.0",
+]
+
+[tool.pyrefly]
+project-includes = [
+    "**/*.py*",
+    "**/*.ipynb",
 ]

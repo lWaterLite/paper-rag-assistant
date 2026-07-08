@@ -54,7 +54,10 @@ class BasicTextCleaner:
     def _normalize_line_endings(text: str) -> str:
         """统一换行并去除行尾空白。"""
 
-        return "\n".join(line.rstrip() for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"))
+        return "\n".join(
+            line.rstrip()
+            for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+        )
 
     @staticmethod
     def _collapse_blank_lines(text: str) -> str:
@@ -156,7 +159,11 @@ class PdfTextCleaner(BasicTextCleaner):
                 current = current[:-1] + line
                 continue
 
-            if current and not _looks_like_sentence_boundary(current) and not _looks_like_heading(line):
+            if (
+                current
+                and not _looks_like_sentence_boundary(current)
+                and not _looks_like_heading(line)
+            ):
                 current = f"{current} {line}"
             else:
                 if current:
@@ -192,10 +199,10 @@ class PdfTextCleaner(BasicTextCleaner):
 
     @staticmethod
     def _remove_repeated_edge_lines(
-            text: str,
-            repeated_lines: set[str],
-            page_number: int,
-            issues: list[ParseIssue],
+        text: str,
+        repeated_lines: set[str],
+        page_number: int,
+        issues: list[ParseIssue],
     ) -> str:
         """移除检测出的重复页眉页脚。"""
 

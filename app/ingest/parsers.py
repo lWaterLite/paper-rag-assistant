@@ -13,7 +13,13 @@ from html.parser import HTMLParser
 from typing import Protocol
 
 from app.core.errors import AppError, ErrorCode
-from app.core.models import BlockType, ParseIssue, ParsedBlock, ParsedDocument, RawDocument
+from app.core.models import (
+    BlockType,
+    ParsedBlock,
+    ParsedDocument,
+    ParseIssue,
+    RawDocument,
+)
 from app.ingest.cleaners import BasicTextCleaner, HtmlTextCleaner, PdfTextCleaner
 
 
@@ -31,7 +37,9 @@ def build_block_id(document: RawDocument, block_index: int, text: str) -> str:
 
     import hashlib
 
-    digest = hashlib.sha1(f"{document.version_id}:{block_index}:{text}".encode("utf-8")).hexdigest()[:12]
+    digest = hashlib.sha1(
+        f"{document.version_id}:{block_index}:{text}".encode("utf-8")
+    ).hexdigest()[:12]
     return f"block_{digest}"
 
 
@@ -47,7 +55,10 @@ class ParserRegistry:
         for parser in self._parsers:
             if document.file_type in parser.supported_file_types:
                 return parser.parse(document)
-        raise AppError(ErrorCode.DOCUMENT_PARSE_FAILED, f"没有可用解析器处理文档类型：{document.file_type}")
+        raise AppError(
+            ErrorCode.DOCUMENT_PARSE_FAILED,
+            f"没有可用解析器处理文档类型：{document.file_type}",
+        )
 
 
 class PlainTextParser:
@@ -62,7 +73,9 @@ class PlainTextParser:
         """解析普通文本。"""
 
         cleaned = self._cleaner.clean(document.raw_text)
-        title = self._guess_title(cleaned.text, document.metadata.get("filename", document.doc_id))
+        title = self._guess_title(
+            cleaned.text, document.metadata.get("filename", document.doc_id)
+        )
         blocks = self._build_paragraph_blocks(document, cleaned.text)
 
         return ParsedDocument(
@@ -128,7 +141,12 @@ class MarkdownParser(PlainTextParser):
 
         frontmatter, body = self._extract_frontmatter(document.raw_text)
         cleaned = self._cleaner.clean(body)
-        title = str(frontmatter.get("title") or self._guess_title(cleaned.text, document.metadata.get("filename", document.doc_id)))
+        title = str(
+            frontmatter.get("title")
+            or self._guess_title(
+                cleaned.text, document.metadata.get("filename", document.doc_id)
+            )
+        )
         blocks = self._build_markdown_blocks(document, cleaned.text)
 
         return ParsedDocument(
@@ -145,7 +163,9 @@ class MarkdownParser(PlainTextParser):
                 **cleaned.metadata,
                 **{f"frontmatter_{key}": value for key, value in frontmatter.items()},
                 "title": title,
-                "section_count": len({block.section for block in blocks if block.section}),
+                "section_count": len(
+                    {block.section for block in blocks if block.section}
+                ),
                 "parsed_at": datetime.now(UTC).isoformat(),
                 "parser": type(self).__name__,
             },
@@ -222,7 +242,9 @@ class HtmlDocumentParser:
         extractor.feed(document.raw_text)
         extracted_text = extractor.get_text()
         cleaned = self._cleaner.clean(extracted_text)
-        title = extractor.title or self._guess_title(cleaned.text, document.metadata.get("filename", document.doc_id))
+        title = extractor.title or self._guess_title(
+            cleaned.text, document.metadata.get("filename", document.doc_id)
+        )
         blocks = self._build_html_blocks(document, cleaned.text)
 
         return ParsedDocument(
@@ -258,7 +280,11 @@ class HtmlDocumentParser:
         cursor = 0
         current_section: str | None = None
         for block_index, paragraph in enumerate(_split_paragraphs(text)):
-            block_type: BlockType = "heading" if len(paragraph) <= 120 and not paragraph.endswith((".", "。")) else "paragraph"
+            block_type: BlockType = (
+                "heading"
+                if len(paragraph) <= 120 and not paragraph.endswith((".", "。"))
+                else "paragraph"
+            )
             if block_type == "heading":
                 current_section = paragraph
             start = text.find(paragraph, cursor)
@@ -296,9 +322,14 @@ class PdfDocumentParser:
         """
 
         if not document.raw_bytes:
-            raise AppError(ErrorCode.DOCUMENT_PARSE_FAILED, f"PDF 文档缺少原始字节：{document.source_path}")
+            raise AppError(
+                ErrorCode.DOCUMENT_PARSE_FAILED,
+                f"PDF 文档缺少原始字节：{document.source_path}",
+            )
 
-        pages, pdf_metadata = self._extract_pages(document.raw_bytes, document.source_path)
+        pages, pdf_metadata = self._extract_pages(
+            document.raw_bytes, document.source_path
+        )
         if not any(text.strip() for _, text in pages):
             issue = ParseIssue(
                 code="pdf_no_extractable_text",
@@ -308,7 +339,10 @@ class PdfDocumentParser:
             return self._build_empty_pdf_document(document, pdf_metadata, [issue])
 
         cleaned = self._cleaner.clean_pages(pages)
-        title = str(pdf_metadata.get("title") or document.metadata.get("filename", document.doc_id))
+        title = str(
+            pdf_metadata.get("title")
+            or document.metadata.get("filename", document.doc_id)
+        )
         blocks = self._build_pdf_blocks(document, pages)
 
         return ParsedDocument(
@@ -330,7 +364,9 @@ class PdfDocumentParser:
             },
         )
 
-    def _extract_pages(self, raw_bytes: bytes, source_path: str) -> tuple[list[tuple[int, str]], dict[str, str]]:
+    def _extract_pages(
+        self, raw_bytes: bytes, source_path: str
+    ) -> tuple[list[tuple[int, str]], dict[str, str]]:
         """使用 PyMuPDF 从 PDF 字节中提取每页文本。"""
 
         try:
@@ -341,10 +377,14 @@ class PdfDocumentParser:
                 "解析 PDF 需要安装 PyMuPDF。建议执行：uv add pymupdf，或 pip install pymupdf",
             ) from exc
         except Exception as exc:
-            raise AppError(ErrorCode.DOCUMENT_PARSE_FAILED, f"PyMuPDF 解析 PDF 失败：{source_path}") from exc
+            raise AppError(
+                ErrorCode.DOCUMENT_PARSE_FAILED, f"PyMuPDF 解析 PDF 失败：{source_path}"
+            ) from exc
 
     @staticmethod
-    def _extract_pages_with_pymupdf(raw_bytes: bytes) -> tuple[list[tuple[int, str]], dict[str, str]]:
+    def _extract_pages_with_pymupdf(
+        raw_bytes: bytes,
+    ) -> tuple[list[tuple[int, str]], dict[str, str]]:
         import fitz
 
         pages: list[tuple[int, str]] = []
@@ -355,16 +395,22 @@ class PdfDocumentParser:
                 pages.append((index, page.get_text("text")))
         return pages, metadata
 
-    def _build_pdf_blocks(self, document: RawDocument, pages: list[tuple[int, str]]) -> list[ParsedBlock]:
+    def _build_pdf_blocks(
+        self, document: RawDocument, pages: list[tuple[int, str]]
+    ) -> list[ParsedBlock]:
         """按页和段落生成 PDF blocks。"""
 
         blocks: list[ParsedBlock] = []
         block_index = 0
         current_section: str | None = None
         for page_number, page_text in pages:
-            page_cleaned = self._cleaner.clean(self._cleaner.merge_pdf_line_breaks(page_text))
+            page_cleaned = self._cleaner.clean(
+                self._cleaner.merge_pdf_line_breaks(page_text)
+            )
             for paragraph in _split_paragraphs(page_cleaned.text):
-                block_type: BlockType = "heading" if _looks_like_pdf_heading(paragraph) else "paragraph"
+                block_type: BlockType = (
+                    "heading" if _looks_like_pdf_heading(paragraph) else "paragraph"
+                )
                 if block_type == "heading":
                     current_section = paragraph
                 blocks.append(
@@ -391,7 +437,10 @@ class PdfDocumentParser:
     ) -> ParsedDocument:
         """构造无法提取文本的 PDF 解析结果。"""
 
-        title = str(pdf_metadata.get("title") or document.metadata.get("filename", document.doc_id))
+        title = str(
+            pdf_metadata.get("title")
+            or document.metadata.get("filename", document.doc_id)
+        )
         return ParsedDocument(
             doc_id=document.doc_id,
             content_hash=document.content_hash,
@@ -415,7 +464,20 @@ class _ReadableHtmlExtractor(HTMLParser):
     """从 HTML 中提取正文和基础 metadata。"""
 
     ignored_tags = {"script", "style", "noscript", "svg", "nav", "footer", "header"}
-    block_tags = {"p", "li", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre", "td", "th"}
+    block_tags = {
+        "p",
+        "li",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "blockquote",
+        "pre",
+        "td",
+        "th",
+    }
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -500,4 +562,10 @@ def _looks_like_pdf_heading(text: str) -> bool:
     stripped = text.strip()
     if len(stripped) > 120:
         return False
-    return bool(re.match(r"^(\d+(\.\d+)*)?\s*(Abstract|Introduction|Related Work|References|Conclusion)\b", stripped, re.I))
+    return bool(
+        re.match(
+            r"^(\d+(\.\d+)*)?\s*(Abstract|Introduction|Related Work|References|Conclusion)\b",
+            stripped,
+            re.I,
+        )
+    )

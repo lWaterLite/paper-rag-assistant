@@ -68,7 +68,9 @@ class DocumentIdentityBuilder:
     def build_version_id(doc_id: str, content_hash: str) -> str:
         """根据文档身份和内容指纹生成版本 ID。"""
 
-        digest = hashlib.sha1(f"{doc_id}:{content_hash}".encode("utf-8")).hexdigest()[:12]
+        digest = hashlib.sha1(f"{doc_id}:{content_hash}".encode("utf-8")).hexdigest()[
+            :12
+        ]
         return f"v_{digest}"
 
 
@@ -82,7 +84,9 @@ class LocalDocumentLoaderConfig:
 
     recursive: bool = True
 
-    ignored_dir_names: frozenset[str] = frozenset({".git", ".idea", "__pycache__", ".tmp_tests"})
+    ignored_dir_names: frozenset[str] = frozenset(
+        {".git", ".idea", "__pycache__", ".tmp_tests"}
+    )
     ignored_relative_paths: tuple[str, ...] = ("data/indexes",)
     skip_hidden_paths: bool = True
     temporary_file_prefixes: tuple[str, ...] = ("~$",)
@@ -115,10 +119,14 @@ class LocalDocumentLoader:
         """
 
         if not source_dir.exists():
-            raise AppError(ErrorCode.DOCUMENT_LOAD_FAILED, f"文档目录不存在：{source_dir}")
+            raise AppError(
+                ErrorCode.DOCUMENT_LOAD_FAILED, f"文档目录不存在：{source_dir}"
+            )
 
         if not source_dir.is_dir():
-            raise AppError(ErrorCode.DOCUMENT_LOAD_FAILED, f"文档来源不是目录：{source_dir}")
+            raise AppError(
+                ErrorCode.DOCUMENT_LOAD_FAILED, f"文档来源不是目录：{source_dir}"
+            )
 
         documents: list[RawDocument] = []
         for path in self.iter_supported_files(source_dir):
@@ -181,10 +189,13 @@ class LocalDocumentLoader:
         """判断路径是否位于需要忽略的相对目录下。"""
 
         relative_posix = relative.as_posix().lower()
-        ignored_paths = tuple(path.strip("/").lower() for path in self._config.ignored_relative_paths)
+        ignored_paths = tuple(
+            path.strip("/").lower() for path in self._config.ignored_relative_paths
+        )
 
         return any(
-            relative_posix == ignored_path or relative_posix.startswith(f"{ignored_path}/")
+            relative_posix == ignored_path
+            or relative_posix.startswith(f"{ignored_path}/")
             for ignored_path in ignored_paths
             if ignored_path
         )
@@ -193,9 +204,8 @@ class LocalDocumentLoader:
         """判断文件是否是常见临时文件。"""
 
         name = path.name.lower()
-        return (
-            name.startswith(self._config.temporary_file_prefixes)
-            or name.endswith(self._config.temporary_file_suffixes)
+        return name.startswith(self._config.temporary_file_prefixes) or name.endswith(
+            self._config.temporary_file_suffixes
         )
 
     def load_file(self, path: Path) -> RawDocument:
@@ -204,7 +214,9 @@ class LocalDocumentLoader:
         try:
             raw_bytes = path.read_bytes()
         except OSError as exc:
-            raise AppError(ErrorCode.DOCUMENT_LOAD_FAILED, f"文件读取失败：{path}") from exc
+            raise AppError(
+                ErrorCode.DOCUMENT_LOAD_FAILED, f"文件读取失败：{path}"
+            ) from exc
 
         suffix = path.suffix.lower()
         if suffix not in self.supported_suffixes:
@@ -215,7 +227,9 @@ class LocalDocumentLoader:
             try:
                 raw_text = raw_bytes.decode("utf-8")
             except UnicodeDecodeError as exc:
-                raise AppError(ErrorCode.DOCUMENT_LOAD_FAILED, f"文件不是有效 UTF-8 文本：{path}") from exc
+                raise AppError(
+                    ErrorCode.DOCUMENT_LOAD_FAILED, f"文件不是有效 UTF-8 文本：{path}"
+                ) from exc
 
         doc_id = self._identity_builder.build_doc_id(path)
         content_hash = self._identity_builder.build_content_hash(raw_bytes)
@@ -251,4 +265,3 @@ class LocalDocumentLoader:
         if suffix == ".pdf":
             return "pdf"
         return suffix.lower().lstrip(".")
-

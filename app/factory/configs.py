@@ -5,7 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.core.settings import EnvSettings, ProjectSettings
-from app.indexing.configs import EmbeddingConfig, IndexBuilderConfig, VectorRepositoryConfig
+from app.indexing.configs import (
+    EmbeddingConfig,
+    IndexBuilderConfig,
+    VectorRepositoryConfig,
+)
 from app.ingest.chunking.report import ChunkingReportConfig
 from app.ingest.chunking.strategies import ChunkerConfig
 from app.ingest.cleaners import PdfTextCleanerConfig
@@ -50,7 +54,9 @@ class ConfigFactory:
     def build_ingestion_report_config(self) -> IngestionReportConfig:
         """从结构化 ProjectSettings 转换成 ingestion report 配置。"""
 
-        return IngestionReportConfig(output_dir=self.project_settings.ingestion_report.output_dir)
+        return IngestionReportConfig(
+            output_dir=self.project_settings.ingestion_report.output_dir
+        )
 
     def build_chunker_config(self) -> ChunkerConfig:
         """从结构化 ProjectSettings 转换成 chunker 配置。"""
@@ -65,7 +71,9 @@ class ConfigFactory:
     def build_chunking_report_config(self) -> ChunkingReportConfig:
         """从结构化 ProjectSettings 转换成 chunking report 配置。"""
 
-        return ChunkingReportConfig(output_dir=self.project_settings.chunking_report.output_dir)
+        return ChunkingReportConfig(
+            output_dir=self.project_settings.chunking_report.output_dir
+        )
 
     def build_embedding_config(self) -> EmbeddingConfig:
         """从结构化 ProjectSettings 转换成 embedding 运行时配置。"""

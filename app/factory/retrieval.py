@@ -45,7 +45,10 @@ class RetrievalFactory:
             return self.build_vector_retriever(index)
         if retrieval_config.strategy == "bm25":
             return self.build_bm25_retriever(index)
-        raise AppError(ErrorCode.INVALID_CONFIG, "hybrid 检索将在后续子模块实现，当前请使用 vector 或 bm25")
+        raise AppError(
+            ErrorCode.INVALID_CONFIG,
+            "hybrid 检索将在后续子模块实现，当前请使用 vector 或 bm25",
+        )
 
     def build_search_service(self, index: RagIndex) -> SearchService:
         """创建只执行检索的 SearchService。"""

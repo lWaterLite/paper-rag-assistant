@@ -25,7 +25,9 @@ def build_index(source: Path, factory: ApplicationFactory):
 def handle_index(args: argparse.Namespace) -> None:
     env_settings = EnvSettings.from_env()
     project_settings = ProjectSettings.from_toml()
-    factory = ApplicationFactory(env_settings=env_settings, project_settings=project_settings)
+    factory = ApplicationFactory(
+        env_settings=env_settings, project_settings=project_settings
+    )
     _, result = build_index(Path(args.source), factory)
     print("索引构建完成")
     print(f"- 文档数量：{result.document_count}")
@@ -45,7 +47,9 @@ def handle_index(args: argparse.Namespace) -> None:
 def handle_ask(args: argparse.Namespace) -> None:
     env_settings = EnvSettings.from_env()
     project_settings = ProjectSettings.from_toml()
-    factory = ApplicationFactory(env_settings=env_settings, project_settings=project_settings)
+    factory = ApplicationFactory(
+        env_settings=env_settings, project_settings=project_settings
+    )
     if args.use_existing_index:
         index = factory.build_rag_index_from_storage()
         build_result = None
@@ -59,7 +63,9 @@ def handle_ask(args: argparse.Namespace) -> None:
     print()
     print("引用：")
     for citation in answer.citations:
-        print(f"- [{citation.citation_id}] {citation.title or citation.doc_id} | {citation.source_path}")
+        print(
+            f"- [{citation.citation_id}] {citation.title or citation.doc_id} | {citation.source_path}"
+        )
         print(f"  {citation.snippet}")
     print()
     print("Trace：")
@@ -76,7 +82,9 @@ def handle_search(args: argparse.Namespace) -> None:
 
     env_settings = EnvSettings.from_env()
     project_settings = ProjectSettings.from_toml()
-    factory = ApplicationFactory(env_settings=env_settings, project_settings=project_settings)
+    factory = ApplicationFactory(
+        env_settings=env_settings, project_settings=project_settings
+    )
     if args.use_existing_index:
         index = factory.build_rag_index_from_storage()
         build_result = None
@@ -122,15 +130,23 @@ def build_parser() -> argparse.ArgumentParser:
     search_parser = subparsers.add_parser("search", help="只执行检索，不生成回答")
     search_parser.add_argument("query", help="检索查询")
     search_parser.add_argument("--source", default="data/raw/papers", help="文档目录")
-    search_parser.add_argument("--use-existing-index", action="store_true", help="直接加载已有索引，不重新构建")
-    search_parser.add_argument("--top-k", type=int, default=None, help="本次检索返回数量")
-    search_parser.add_argument("--retriever", choices=["vector", "bm25"], default=None, help="本次检索策略")
+    search_parser.add_argument(
+        "--use-existing-index", action="store_true", help="直接加载已有索引，不重新构建"
+    )
+    search_parser.add_argument(
+        "--top-k", type=int, default=None, help="本次检索返回数量"
+    )
+    search_parser.add_argument(
+        "--retriever", choices=["vector", "bm25"], default=None, help="本次检索策略"
+    )
     search_parser.set_defaults(handler=handle_search)
 
     ask_parser = subparsers.add_parser("ask", help="执行一次 mock RAG 问答")
     ask_parser.add_argument("question", help="用户问题")
     ask_parser.add_argument("--source", default="data/raw/papers", help="文档目录")
-    ask_parser.add_argument("--use-existing-index", action="store_true", help="直接加载已有索引，不重新构建")
+    ask_parser.add_argument(
+        "--use-existing-index", action="store_true", help="直接加载已有索引，不重新构建"
+    )
     ask_parser.set_defaults(handler=handle_ask)
 
     return parser

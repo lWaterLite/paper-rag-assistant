@@ -63,7 +63,11 @@ class ChunkingReportWriter:
         empty_chunks = [chunk for chunk in chunks if not chunk.text.strip()]
         missing_doc_id = [chunk for chunk in chunks if not chunk.doc_id]
         missing_source_path = [chunk for chunk in chunks if not chunk.source_path]
-        missing_page = [chunk for chunk in chunks if chunk.page_start is None and _looks_like_pdf_chunk(chunk)]
+        missing_page = [
+            chunk
+            for chunk in chunks
+            if chunk.page_start is None and _looks_like_pdf_chunk(chunk)
+        ]
         missing_section = [chunk for chunk in chunks if not chunk.section]
 
         return {
@@ -110,9 +114,15 @@ def _build_document_summaries(
                 "avg_token_count": round(mean(token_counts), 2) if token_counts else 0,
                 "max_token_count": max(token_counts) if token_counts else 0,
                 "missing_page_count": len(
-                    [chunk for chunk in document_chunks if chunk.page_start is None and _looks_like_pdf_chunk(chunk)]
+                    [
+                        chunk
+                        for chunk in document_chunks
+                        if chunk.page_start is None and _looks_like_pdf_chunk(chunk)
+                    ]
                 ),
-                "missing_section_count": len([chunk for chunk in document_chunks if not chunk.section]),
+                "missing_section_count": len(
+                    [chunk for chunk in document_chunks if not chunk.section]
+                ),
             }
         )
 
@@ -122,7 +132,9 @@ def _build_document_summaries(
 def _looks_like_pdf_chunk(chunk: DocumentChunk) -> bool:
     """判断 chunk 是否来自 PDF 文档。"""
 
-    return str(chunk.metadata.get("suffix") or "").lower() == ".pdf" or chunk.source_path.lower().endswith(".pdf")
+    return str(
+        chunk.metadata.get("suffix") or ""
+    ).lower() == ".pdf" or chunk.source_path.lower().endswith(".pdf")
 
 
 def _infer_chunker_name(chunks: list[DocumentChunk]) -> str:

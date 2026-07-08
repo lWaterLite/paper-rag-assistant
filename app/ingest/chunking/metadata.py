@@ -43,5 +43,11 @@ class ChunkMetadataBuilder:
         metadata = dict(document_metadata)
         metadata.update(chunk_metadata.to_dict())
         if extra_metadata:
-            metadata.update({key: value for key, value in extra_metadata.items() if value is not None})
+            metadata.update(
+                {
+                    key: value
+                    for key, value in extra_metadata.items()
+                    if value is not None
+                }
+            )
         return metadata

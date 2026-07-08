@@ -35,10 +35,7 @@ class LocalJsonChunkRepository:
             return collection
 
         payload = json.loads(self._path.read_text(encoding="utf-8"))
-        collection.add_many(
-            DocumentChunk(**item)
-            for item in payload.get("chunks", [])
-        )
+        collection.add_many(DocumentChunk(**item) for item in payload.get("chunks", []))
         return collection
 
     def save(self, collection: ChunkCollection) -> None:
@@ -47,7 +44,11 @@ class LocalJsonChunkRepository:
         payload = {
             "chunks": [
                 asdict(chunk)
-                for chunk in sorted(collection.iter_chunks(), key=lambda item: item.chunk_id)
+                for chunk in sorted(
+                    collection.iter_chunks(), key=lambda item: item.chunk_id
+                )
             ]
         }
-        self._path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        self._path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+        )

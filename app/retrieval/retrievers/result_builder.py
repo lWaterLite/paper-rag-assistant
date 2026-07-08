@@ -14,11 +14,11 @@ class RetrievedChunkBuilder:
 
     @staticmethod
     def from_chunk(
-            chunk: DocumentChunk,
-            *,
-            score: float,
-            rank: int,
-            retriever: str,
+        chunk: DocumentChunk,
+        *,
+        score: float,
+        rank: int,
+        retriever: str,
     ) -> RetrievedChunk:
         """根据 DocumentChunk、分数和排名构造统一检索结果。"""
 

@@ -40,8 +40,12 @@ class AskRequest(ApiModel):
     """
 
     question: str = Field(description="用户问题")
-    top_k: int | None = Field(default=None, ge=1, le=50, description="本次请求覆盖的检索数量")
-    include_retrieved_chunks: bool = Field(default=False, description="是否返回原始检索片段")
+    top_k: int | None = Field(
+        default=None, ge=1, le=50, description="本次请求覆盖的检索数量"
+    )
+    include_retrieved_chunks: bool = Field(
+        default=False, description="是否返回原始检索片段"
+    )
     debug_trace: bool = Field(default=False, description="是否返回 pipeline trace")
 
     @field_validator("question")
@@ -59,8 +63,12 @@ class SearchRequest(ApiModel):
     """
 
     query: str = Field(description="检索查询")
-    top_k: int | None = Field(default=None, ge=1, le=50, description="本次请求覆盖的检索数量")
-    retriever: RetrievalStrategy | None = Field(default=None, description="本次请求指定的检索策略")
+    top_k: int | None = Field(
+        default=None, ge=1, le=50, description="本次请求覆盖的检索数量"
+    )
+    retriever: RetrievalStrategy | None = Field(
+        default=None, description="本次请求指定的检索策略"
+    )
     debug_trace: bool = Field(default=False, description="是否返回检索 trace")
 
     @field_validator("query")

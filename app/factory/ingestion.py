@@ -9,7 +9,13 @@ from app.ingest.chunking.registry import ChunkerRegistry, build_default_chunker_
 from app.ingest.chunking.strategies import Chunker
 from app.ingest.cleaners import BasicTextCleaner, HtmlTextCleaner, PdfTextCleaner
 from app.ingest.loaders import DocumentIdentityBuilder, LocalDocumentLoader
-from app.ingest.parsers import HtmlDocumentParser, MarkdownParser, ParserRegistry, PdfDocumentParser, PlainTextParser
+from app.ingest.parsers import (
+    HtmlDocumentParser,
+    MarkdownParser,
+    ParserRegistry,
+    PdfDocumentParser,
+    PlainTextParser,
+)
 from app.ingest.pipeline import IngestionPipeline
 
 
@@ -18,19 +24,23 @@ class IngestionFactory:
     """组装文档加载、解析、清洗和切分相关对象。"""
 
     configs: ConfigFactory
-    chunker_registry: ChunkerRegistry = field(default_factory=build_default_chunker_registry)
+    chunker_registry: ChunkerRegistry = field(
+        default_factory=build_default_chunker_registry
+    )
 
     def build_configured_chunker(
-            self,
-            *,
-            chunker_registry: ChunkerRegistry | None = None,
+        self,
+        *,
+        chunker_registry: ChunkerRegistry | None = None,
     ) -> Chunker:
         """根据项目配置创建 chunker。
 
         默认使用工厂持有的 registry；调用方也可以显式传入已经注册过外部策略的 registry。
         """
 
-        registry = chunker_registry if chunker_registry is not None else self.chunker_registry
+        registry = (
+            chunker_registry if chunker_registry is not None else self.chunker_registry
+        )
         return registry.create(self.configs.build_chunker_config())
 
     def build_document_identity_builder(self) -> DocumentIdentityBuilder:

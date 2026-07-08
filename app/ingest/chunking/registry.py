@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from app.ingest.chunking.strategies import CharacterChunker, Chunker, ChunkerConfig, FixedTokenChunker, SectionAwareChunker
+from app.ingest.chunking.strategies import (
+    CharacterChunker,
+    Chunker,
+    ChunkerConfig,
+    FixedTokenChunker,
+    SectionAwareChunker,
+)
 
 
 class ChunkerRegistry:
@@ -25,7 +31,9 @@ class ChunkerRegistry:
             raise ValueError("chunker 策略名称不能为空")
         if normalized_name in self._chunker_classes:
             raise ValueError(f"chunker 策略已注册：{normalized_name}")
-        if not isinstance(chunker_class, type) or not issubclass(chunker_class, Chunker):
+        if not isinstance(chunker_class, type) or not issubclass(
+            chunker_class, Chunker
+        ):
             raise TypeError("chunker_class 必须是 Chunker 的子类")
         self._chunker_classes[normalized_name] = chunker_class
 

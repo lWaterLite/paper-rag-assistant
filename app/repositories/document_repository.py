@@ -14,7 +14,10 @@ from app.core.models import (
     ParseIssue,
     RawDocument,
 )
-from app.ingest.document_collection import DocumentCollection, InMemoryDocumentCollection
+from app.ingest.document_collection import (
+    DocumentCollection,
+    InMemoryDocumentCollection,
+)
 
 
 class DocumentRepository(Protocol):
@@ -53,14 +56,20 @@ class LocalJsonDocumentRepository:
         payload = {
             "raw_documents": [
                 _serialize_raw_document(document)
-                for document in sorted(collection.iter_raw(), key=lambda item: item.doc_id)
+                for document in sorted(
+                    collection.iter_raw(), key=lambda item: item.doc_id
+                )
             ],
             "parsed_documents": [
                 _serialize_parsed_document(document)
-                for document in sorted(collection.iter_parsed(), key=lambda item: item.doc_id)
+                for document in sorted(
+                    collection.iter_parsed(), key=lambda item: item.doc_id
+                )
             ],
         }
-        self._path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        self._path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
 
 def _serialize_raw_document(document: RawDocument) -> dict[str, Any]:
@@ -68,7 +77,9 @@ def _serialize_raw_document(document: RawDocument) -> dict[str, Any]:
 
     data = asdict(document)
     raw_bytes = data.pop("raw_bytes")
-    data["raw_bytes_base64"] = base64.b64encode(raw_bytes).decode("ascii") if raw_bytes is not None else None
+    data["raw_bytes_base64"] = (
+        base64.b64encode(raw_bytes).decode("ascii") if raw_bytes is not None else None
+    )
     return data
 
 
@@ -76,7 +87,9 @@ def _deserialize_raw_document(data: dict[str, Any]) -> RawDocument:
     """从 JSON dict 恢复 RawDocument。"""
 
     raw_bytes_base64 = data.pop("raw_bytes_base64", None)
-    raw_bytes = base64.b64decode(raw_bytes_base64.encode("ascii")) if raw_bytes_base64 else None
+    raw_bytes = (
+        base64.b64decode(raw_bytes_base64.encode("ascii")) if raw_bytes_base64 else None
+    )
     return RawDocument(raw_bytes=raw_bytes, **data)
 
 
@@ -89,12 +102,6 @@ def _serialize_parsed_document(document: ParsedDocument) -> dict[str, Any]:
 def _deserialize_parsed_document(data: dict[str, Any]) -> ParsedDocument:
     """从 JSON dict 恢复 ParsedDocument。"""
 
-    blocks = [
-        ParsedBlock(**item)
-        for item in data.pop("blocks", [])
-    ]
-    parse_issues = [
-        ParseIssue(**item)
-        for item in data.pop("parse_issues", [])
-    ]
+    blocks = [ParsedBlock(**item) for item in data.pop("blocks", [])]
+    parse_issues = [ParseIssue(**item) for item in data.pop("parse_issues", [])]
     return ParsedDocument(blocks=blocks, parse_issues=parse_issues, **data)

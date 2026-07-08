@@ -2,7 +2,12 @@
 
 from app.retrieval.configs import BM25Config, RetrievalConfig
 from app.retrieval.pipeline import RetrievalPipeline, RetrievalPipelineResult
-from app.retrieval.retrievers import BM25Index, BM25Retriever, Retriever, VectorRetriever
+from app.retrieval.retrievers import (
+    BM25Index,
+    BM25Retriever,
+    Retriever,
+    VectorRetriever,
+)
 from app.retrieval.service import SearchResult, SearchService
 
 __all__ = [

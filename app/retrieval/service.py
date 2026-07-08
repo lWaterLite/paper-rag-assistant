@@ -19,19 +19,19 @@ class SearchService:
     """
 
     def __init__(
-            self,
-            *,
-            retrievers: Mapping[str, Retriever],
-            config: RetrievalConfig,
+        self,
+        *,
+        retrievers: Mapping[str, Retriever],
+        config: RetrievalConfig,
     ) -> None:
         self._pipeline = RetrievalPipeline(retrievers=retrievers, config=config)
 
     def search(
-            self,
-            query: str,
-            *,
-            top_k: int | None = None,
-            retriever: RetrievalStrategy | None = None,
+        self,
+        query: str,
+        *,
+        top_k: int | None = None,
+        retriever: RetrievalStrategy | None = None,
     ) -> SearchResult:
         """执行一次检索并返回可调试结果。"""
 

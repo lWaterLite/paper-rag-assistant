@@ -53,25 +53,25 @@ class IndexManifest:
 
     @classmethod
     def build(
-            cls,
-            *,
-            source_dir: Path,
-            chunker: str,
-            chunk_size: int,
-            chunk_overlap: int,
-            embedding_provider: str,
-            embedding_model: str,
-            embedding_dimension: int,
-            document_count: int,
-            chunk_count: int,
-            vector_count: int,
-            document_versions: dict[str, str],
-            embedding_batch_size: int = 1,
-            vector_repository_type: str = "memory",
-            vector_collection_name: str = "default",
-            distance_metric: str = "cosine",
-            parent_index_id: str | None = None,
-            status: IndexVersionStatus = READY_INDEX_STATUS,
+        cls,
+        *,
+        source_dir: Path,
+        chunker: str,
+        chunk_size: int,
+        chunk_overlap: int,
+        embedding_provider: str,
+        embedding_model: str,
+        embedding_dimension: int,
+        document_count: int,
+        chunk_count: int,
+        vector_count: int,
+        document_versions: dict[str, str],
+        embedding_batch_size: int = 1,
+        vector_repository_type: str = "memory",
+        vector_collection_name: str = "default",
+        distance_metric: str = "cosine",
+        parent_index_id: str | None = None,
+        status: IndexVersionStatus = READY_INDEX_STATUS,
     ) -> "IndexManifest":
         """根据索引构建参数创建 manifest。"""
 
@@ -175,13 +175,21 @@ def validate_manifest_compatible(
             f"schema_version: manifest={manifest.schema_version}, current={CURRENT_INDEX_SCHEMA_VERSION}"
         )
     if manifest.status != READY_INDEX_STATUS:
-        mismatches.append(f"status: manifest={manifest.status}, required={READY_INDEX_STATUS}")
+        mismatches.append(
+            f"status: manifest={manifest.status}, required={READY_INDEX_STATUS}"
+        )
     if manifest.embedding_provider != embedding_config.provider:
-        mismatches.append(f"embedding_provider: manifest={manifest.embedding_provider}, current={embedding_config.provider}")
+        mismatches.append(
+            f"embedding_provider: manifest={manifest.embedding_provider}, current={embedding_config.provider}"
+        )
     if manifest.embedding_model != embedding_config.model:
-        mismatches.append(f"embedding_model: manifest={manifest.embedding_model}, current={embedding_config.model}")
+        mismatches.append(
+            f"embedding_model: manifest={manifest.embedding_model}, current={embedding_config.model}"
+        )
     if manifest.embedding_dimension != embedding_config.dimension:
-        mismatches.append(f"embedding_dimension: manifest={manifest.embedding_dimension}, current={embedding_config.dimension}")
+        mismatches.append(
+            f"embedding_dimension: manifest={manifest.embedding_dimension}, current={embedding_config.dimension}"
+        )
     if manifest.embedding_batch_size != embedding_config.batch_size:
         mismatches.append(
             f"embedding_batch_size: manifest={manifest.embedding_batch_size}, current={embedding_config.batch_size}"
@@ -197,15 +205,17 @@ def validate_manifest_compatible(
             f"current={vector_repository_config.collection_name}"
         )
     if manifest.distance_metric != vector_repository_config.distance_metric:
-        mismatches.append(f"distance_metric: manifest={manifest.distance_metric}, current={vector_repository_config.distance_metric}")
+        mismatches.append(
+            f"distance_metric: manifest={manifest.distance_metric}, current={vector_repository_config.distance_metric}"
+        )
     if mismatches:
         raise ValueError("索引 manifest 与当前配置不兼容：" + "；".join(mismatches))
 
 
 def _build_index_id(
-        *,
-        config_hash: str,
-        document_set_hash: str,
+    *,
+    config_hash: str,
+    document_set_hash: str,
 ) -> str:
     """生成稳定 index_id。
 

@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
-from app.api.schemas import SearchRequest, SearchResponse, retrieved_chunk_to_response, trace_to_response
+from app.api.schemas import (
+    SearchRequest,
+    SearchResponse,
+    retrieved_chunk_to_response,
+    trace_to_response,
+)
 from app.retrieval.service import SearchService
 
 
-def handle_search_request(request: SearchRequest, search_service: SearchService) -> SearchResponse:
+def handle_search_request(
+    request: SearchRequest, search_service: SearchService
+) -> SearchResponse:
     """处理 /search 请求。
 
     这里不依赖具体 Web 框架，后续接入 FastAPI 时可以直接在 route 中调用。

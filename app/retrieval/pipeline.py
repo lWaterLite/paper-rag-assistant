@@ -37,9 +37,9 @@ class RetrievalResultStage(Protocol):
     """检索结果后处理阶段协议。"""
 
     def process(
-            self,
-            chunks: Sequence[RetrievedChunk],
-            context: RetrievalPipelineContext,
+        self,
+        chunks: Sequence[RetrievedChunk],
+        context: RetrievalPipelineContext,
     ) -> list[RetrievedChunk]:
         """处理当前阶段接收到的检索结果。"""
 
@@ -48,9 +48,9 @@ class ChunkIdDeduplicationStage:
     """按 chunk_id 去重，并保持首次出现顺序。"""
 
     def process(
-            self,
-            chunks: Sequence[RetrievedChunk],
-            context: RetrievalPipelineContext,
+        self,
+        chunks: Sequence[RetrievedChunk],
+        context: RetrievalPipelineContext,
     ) -> list[RetrievedChunk]:
         """去除重复 chunk，并重新分配 rank。"""
 
@@ -73,13 +73,13 @@ class TopKLimitStage:
     """限制最终返回的 top_k 数量。"""
 
     def process(
-            self,
-            chunks: Sequence[RetrievedChunk],
-            context: RetrievalPipelineContext,
+        self,
+        chunks: Sequence[RetrievedChunk],
+        context: RetrievalPipelineContext,
     ) -> list[RetrievedChunk]:
         """只保留本次请求需要的前 top_k 条结果。"""
 
-        return list(chunks[:context.top_k])
+        return list(chunks[: context.top_k])
 
 
 class RetrievalPipeline:
@@ -90,22 +90,26 @@ class RetrievalPipeline:
     """
 
     def __init__(
-            self,
-            *,
-            retrievers: Mapping[str, Retriever],
-            config: RetrievalConfig,
-            result_stages: Sequence[RetrievalResultStage] | None = None,
+        self,
+        *,
+        retrievers: Mapping[str, Retriever],
+        config: RetrievalConfig,
+        result_stages: Sequence[RetrievalResultStage] | None = None,
     ) -> None:
         self._retrievers = dict(retrievers)
         self._config = config
-        self._result_stages = list(result_stages) if result_stages is not None else self._build_default_stages(config)
+        self._result_stages = (
+            list(result_stages)
+            if result_stages is not None
+            else self._build_default_stages(config)
+        )
 
     def search(
-            self,
-            query: str,
-            *,
-            top_k: int | None = None,
-            retriever: RetrievalStrategy | None = None,
+        self,
+        query: str,
+        *,
+        top_k: int | None = None,
+        retriever: RetrievalStrategy | None = None,
     ) -> RetrievalPipelineResult:
         """执行一次完整检索。"""
 
@@ -117,7 +121,9 @@ class RetrievalPipeline:
         resolved_retriever = retriever or self._config.strategy
         retriever_impl = self._retrievers.get(resolved_retriever)
         if retriever_impl is None:
-            raise AppError(ErrorCode.INVALID_CONFIG, f"不支持的检索策略：{resolved_retriever}")
+            raise AppError(
+                ErrorCode.INVALID_CONFIG, f"不支持的检索策略：{resolved_retriever}"
+            )
 
         context = RetrievalPipelineContext(
             query=cleaned_query,
@@ -131,7 +137,9 @@ class RetrievalPipeline:
             results = retriever_impl.retrieve(cleaned_query, top_k=resolved_top_k)
             results = self._apply_result_stages(results, context)
         except Exception as exc:
-            error_code = exc.code if isinstance(exc, AppError) else ErrorCode.RETRIEVAL_FAILED
+            error_code = (
+                exc.code if isinstance(exc, AppError) else ErrorCode.RETRIEVAL_FAILED
+            )
             error_message = exc.message if isinstance(exc, AppError) else str(exc)
             trace.record_stage(
                 "retrieval",
@@ -179,13 +187,15 @@ class RetrievalPipeline:
 
         resolved = self._config.top_k if top_k is None else top_k
         if resolved <= 0:
-            raise AppError(ErrorCode.INVALID_CONFIG, f"top_k 必须大于 0，当前 top_k={resolved}")
+            raise AppError(
+                ErrorCode.INVALID_CONFIG, f"top_k 必须大于 0，当前 top_k={resolved}"
+            )
         return resolved
 
     def _apply_result_stages(
-            self,
-            results: Sequence[RetrievedChunk],
-            context: RetrievalPipelineContext,
+        self,
+        results: Sequence[RetrievedChunk],
+        context: RetrievalPipelineContext,
     ) -> list[RetrievedChunk]:
         """按顺序执行检索结果后处理阶段。"""
 

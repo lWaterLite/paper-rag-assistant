@@ -33,7 +33,10 @@ def validate_index_from_storage(
             f"vector_collection={vector_collection.count()}",
         )
 
-    if manifest.vector_count > 0 and vector_collection.dimension != manifest.embedding_dimension:
+    if (
+        manifest.vector_count > 0
+        and vector_collection.dimension != manifest.embedding_dimension
+    ):
         raise AppError(
             ErrorCode.INDEX_FAILED,
             f"索引向量维度与 manifest 不一致：manifest={manifest.embedding_dimension}，"

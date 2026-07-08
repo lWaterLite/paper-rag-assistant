@@ -33,15 +33,19 @@ class BM25Index:
         self._config = config
         self._tokenized_chunks = [tokenize_basic(chunk.text) for chunk in self._chunks]
         self._term_frequencies = [Counter(tokens) for tokens in self._tokenized_chunks]
-        self._document_frequencies = self._build_document_frequencies(self._tokenized_chunks)
-        self._average_document_length = self._calculate_average_document_length(self._tokenized_chunks)
+        self._document_frequencies = self._build_document_frequencies(
+            self._tokenized_chunks
+        )
+        self._average_document_length = self._calculate_average_document_length(
+            self._tokenized_chunks
+        )
 
     @classmethod
     def from_chunks(
-            cls,
-            chunks: Iterable[DocumentChunk],
-            *,
-            config: BM25Config | None = None,
+        cls,
+        chunks: Iterable[DocumentChunk],
+        *,
+        config: BM25Config | None = None,
     ) -> "BM25Index":
         """根据 chunks 创建 BM25 索引。"""
 
@@ -95,9 +99,15 @@ class BM25Index:
 
             inverse_document_frequency = self._inverse_document_frequency(term)
             denominator = frequency + self._config.k1 * (
-                1 - self._config.b + self._config.b * document_length / self._average_document_length
+                1
+                - self._config.b
+                + self._config.b * document_length / self._average_document_length
             )
-            score += inverse_document_frequency * (frequency * (self._config.k1 + 1)) / denominator
+            score += (
+                inverse_document_frequency
+                * (frequency * (self._config.k1 + 1))
+                / denominator
+            )
 
         return score
 
@@ -106,10 +116,14 @@ class BM25Index:
 
         document_count = len(self._chunks)
         document_frequency = self._document_frequencies.get(term, 0)
-        return math.log(1 + (document_count - document_frequency + 0.5) / (document_frequency + 0.5))
+        return math.log(
+            1 + (document_count - document_frequency + 0.5) / (document_frequency + 0.5)
+        )
 
     @staticmethod
-    def _build_document_frequencies(tokenized_chunks: list[list[str]]) -> dict[str, int]:
+    def _build_document_frequencies(
+        tokenized_chunks: list[list[str]],
+    ) -> dict[str, int]:
         """统计每个词出现在多少个 chunk 中。"""
 
         frequencies: dict[str, int] = {}
@@ -132,12 +146,12 @@ class BM25Retriever:
     """基于 BM25Index 的关键词检索器。"""
 
     def __init__(
-            self,
-            chunks_or_index: Iterable[DocumentChunk] | BM25Index,
-            *,
-            config: BM25Config | None = None,
-            k1: float | None = None,
-            b: float | None = None,
+        self,
+        chunks_or_index: Iterable[DocumentChunk] | BM25Index,
+        *,
+        config: BM25Config | None = None,
+        k1: float | None = None,
+        b: float | None = None,
     ) -> None:
         resolved_config = config or BM25Config(
             k1=BM25Config().k1 if k1 is None else k1,

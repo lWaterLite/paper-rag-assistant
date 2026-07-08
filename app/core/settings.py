@@ -33,11 +33,19 @@ class EnvSettings(BaseSettings):
     chunk_size: int = Field(default=500, gt=0, description="每个 chunk 的目标字符长度")
     chunk_overlap: int = Field(default=80, ge=0, description="相邻 chunk 的重叠字符数")
     top_k: int = Field(default=3, gt=0, description="检索阶段返回的候选 chunk 数量")
-    max_context_chars: int = Field(default=1800, gt=0, description="进入生成阶段的最大上下文字符数")
-    mock_embedding_dimension: int = Field(default=16, gt=0, description="mock embedding 的向量维度")
+    max_context_chars: int = Field(
+        default=1800, gt=0, description="进入生成阶段的最大上下文字符数"
+    )
+    mock_embedding_dimension: int = Field(
+        default=16, gt=0, description="mock embedding 的向量维度"
+    )
     require_citation: bool = Field(default=True, description="回答是否要求包含引用")
-    retrieval_strategy: Literal["vector", "bm25", "hybrid"] = Field(default="vector", description="检索策略")
-    index_storage_path: Path = Field(default=Path("data/indexes"), description="索引持久化目录")
+    retrieval_strategy: Literal["vector", "bm25", "hybrid"] = Field(
+        default="vector", description="检索策略"
+    )
+    index_storage_path: Path = Field(
+        default=Path("data/indexes"), description="索引持久化目录"
+    )
     debug_trace: bool = Field(default=False, description="是否在响应中返回完整 trace")
 
     @model_validator(mode="after")
@@ -65,7 +73,9 @@ class EnvSettings(BaseSettings):
         try:
             return cls()
         except ValidationError as exc:
-            raise AppError(ErrorCode.INVALID_CONFIG, _format_validation_error(exc)) from exc
+            raise AppError(
+                ErrorCode.INVALID_CONFIG, _format_validation_error(exc)
+            ) from exc
 
 
 class LoaderSettings(BaseModel):
@@ -73,7 +83,9 @@ class LoaderSettings(BaseModel):
 
     recursive: bool = True
     ignored_dir_names: frozenset[str] = Field(
-        default_factory=lambda: frozenset({".git", ".idea", "__pycache__", ".tmp_tests"})
+        default_factory=lambda: frozenset(
+            {".git", ".idea", "__pycache__", ".tmp_tests"}
+        )
     )
     ignored_relative_paths: tuple[str, ...] = ("data/indexes",)
     skip_hidden_paths: bool = True
@@ -104,7 +116,9 @@ class PdfCleanerSettings(BaseModel):
 class IngestionReportSettings(BaseModel):
     """文档摄取报告的结构化配置。"""
 
-    output_dir: Path = Field(default=Path("logs"), description="摄取报告 JSON 的输出目录")
+    output_dir: Path = Field(
+        default=Path("logs"), description="摄取报告 JSON 的输出目录"
+    )
 
 
 class ChunkingSettings(BaseModel):
@@ -117,7 +131,9 @@ class ChunkingSettings(BaseModel):
     )
     chunk_size: int = Field(default=600, gt=0, description="每个 chunk 的目标长度")
     chunk_overlap: int = Field(default=100, ge=0, description="相邻 chunk 的重叠长度")
-    tokenizer: Literal["char_approx", "simple_regex"] = Field(default="char_approx", description="token 估算方式")
+    tokenizer: Literal["char_approx", "simple_regex"] = Field(
+        default="char_approx", description="token 估算方式"
+    )
 
     @model_validator(mode="after")
     def validate_chunk_window(self) -> "ChunkingSettings":
@@ -137,7 +153,9 @@ class ChunkingSettings(BaseModel):
 class ChunkingReportSettings(BaseModel):
     """chunking 质量报告配置。"""
 
-    output_dir: Path = Field(default=Path("logs"), description="chunking 报告 JSON 的输出目录")
+    output_dir: Path = Field(
+        default=Path("logs"), description="chunking 报告 JSON 的输出目录"
+    )
 
 
 class EmbeddingSettings(BaseModel):
@@ -147,13 +165,23 @@ class EmbeddingSettings(BaseModel):
     API key 不放在这里，只记录应读取哪个环境变量。
     """
 
-    provider: Literal["mock", "openai"] = Field(default="mock", description="embedding 服务提供方")
-    model: str = Field(default="mock-hash-embedding", min_length=1, description="embedding 模型名称")
+    provider: Literal["mock", "openai"] = Field(
+        default="mock", description="embedding 服务提供方"
+    )
+    model: str = Field(
+        default="mock-hash-embedding", min_length=1, description="embedding 模型名称"
+    )
     dimension: int = Field(default=16, gt=0, description="embedding 向量维度")
     batch_size: int = Field(default=32, gt=0, description="embedding 批处理大小")
-    timeout_seconds: float = Field(default=30.0, gt=0, description="embedding 请求超时时间")
+    timeout_seconds: float = Field(
+        default=30.0, gt=0, description="embedding 请求超时时间"
+    )
     max_retries: int = Field(default=2, ge=0, description="embedding 最大重试次数")
-    api_key_env_name: str = Field(default="OPENAI_API_KEY", min_length=1, description="真实 provider 的 API key 环境变量名")
+    api_key_env_name: str = Field(
+        default="OPENAI_API_KEY",
+        min_length=1,
+        description="真实 provider 的 API key 环境变量名",
+    )
 
     @model_validator(mode="after")
     def validate_text_fields(self) -> "EmbeddingSettings":
@@ -171,10 +199,16 @@ class EmbeddingSettings(BaseModel):
 class VectorRepositorySettings(BaseModel):
     """向量持久化的结构化配置。"""
 
-    type: Literal["memory", "local_json"] = Field(default="memory", description="向量存储类型")
+    type: Literal["memory", "local_json"] = Field(
+        default="memory", description="向量存储类型"
+    )
     index_dir: Path = Field(default=Path("data/indexes"), description="索引根目录")
-    collection_name: str = Field(default="papers_baseline", min_length=1, description="向量集合名称")
-    distance_metric: Literal["cosine"] = Field(default="cosine", description="向量相似度算法")
+    collection_name: str = Field(
+        default="papers_baseline", min_length=1, description="向量集合名称"
+    )
+    distance_metric: Literal["cosine"] = Field(
+        default="cosine", description="向量相似度算法"
+    )
     persist: bool = Field(default=False, description="是否持久化向量索引")
 
     @model_validator(mode="after")
@@ -190,10 +224,20 @@ class VectorRepositorySettings(BaseModel):
 class IndexBuilderSettings(BaseModel):
     """索引构建流程配置。"""
 
-    manifest_filename: str = Field(default="manifest.json", min_length=1, description="索引 manifest 文件名")
-    build_report_filename: str = Field(default="index_build_report.json", min_length=1, description="索引构建报告文件名")
-    skip_existing: bool = Field(default=True, description="是否跳过已经写入向量库的 chunk")
-    fail_on_empty_chunk: bool = Field(default=True, description="遇到空 chunk 时是否直接失败")
+    manifest_filename: str = Field(
+        default="manifest.json", min_length=1, description="索引 manifest 文件名"
+    )
+    build_report_filename: str = Field(
+        default="index_build_report.json",
+        min_length=1,
+        description="索引构建报告文件名",
+    )
+    skip_existing: bool = Field(
+        default=True, description="是否跳过已经写入向量库的 chunk"
+    )
+    fail_on_empty_chunk: bool = Field(
+        default=True, description="遇到空 chunk 时是否直接失败"
+    )
 
     @model_validator(mode="after")
     def validate_filenames(self) -> "IndexBuilderSettings":
@@ -212,8 +256,12 @@ class RetrievalSettings(BaseModel):
     """检索子系统结构化配置。"""
 
     bm25_k1: float = Field(default=1.5, gt=0, description="BM25 词频饱和参数")
-    bm25_b: float = Field(default=0.75, ge=0, le=1, description="BM25 文档长度归一化参数")
-    deduplicate_by_chunk_id: bool = Field(default=True, description="检索结果是否按 chunk_id 去重")
+    bm25_b: float = Field(
+        default=0.75, ge=0, le=1, description="BM25 文档长度归一化参数"
+    )
+    deduplicate_by_chunk_id: bool = Field(
+        default=True, description="检索结果是否按 chunk_id 去重"
+    )
 
 
 class ProjectSettings(BaseModel):
@@ -221,11 +269,17 @@ class ProjectSettings(BaseModel):
 
     loader: LoaderSettings = Field(default_factory=LoaderSettings)
     pdf_cleaner: PdfCleanerSettings = Field(default_factory=PdfCleanerSettings)
-    ingestion_report: IngestionReportSettings = Field(default_factory=IngestionReportSettings)
+    ingestion_report: IngestionReportSettings = Field(
+        default_factory=IngestionReportSettings
+    )
     chunking: ChunkingSettings = Field(default_factory=ChunkingSettings)
-    chunking_report: ChunkingReportSettings = Field(default_factory=ChunkingReportSettings)
+    chunking_report: ChunkingReportSettings = Field(
+        default_factory=ChunkingReportSettings
+    )
     embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings)
-    vector_repository: VectorRepositorySettings = Field(default_factory=VectorRepositorySettings)
+    vector_repository: VectorRepositorySettings = Field(
+        default_factory=VectorRepositorySettings
+    )
     index_builder: IndexBuilderSettings = Field(default_factory=IndexBuilderSettings)
     retrieval: RetrievalSettings = Field(default_factory=RetrievalSettings)
 

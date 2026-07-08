@@ -101,9 +101,13 @@ class FileEmbeddingCache:
                 "text_hash": key.text_hash,
                 "vector": vector,
             }
-            for key, vector in sorted(self._items.items(), key=lambda item: _cache_key_to_string(item[0]))
+            for key, vector in sorted(
+                self._items.items(), key=lambda item: _cache_key_to_string(item[0])
+            )
         ]
-        self._path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        self._path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
     def _load_if_exists(self) -> None:
         """加载已有缓存文件。"""

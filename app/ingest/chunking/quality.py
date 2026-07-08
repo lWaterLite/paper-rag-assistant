@@ -103,7 +103,9 @@ class ChunkingQualityChecker:
 
         issues: list[ChunkingQualityIssue] = []
         issues.extend(self._check_empty_result(documents=documents, chunks=chunks))
-        issues.extend(self._check_required_identity_fields(chunks=chunks, config=config))
+        issues.extend(
+            self._check_required_identity_fields(chunks=chunks, config=config)
+        )
         issues.extend(self._check_empty_chunks(chunks=chunks, config=config))
         issues.extend(self._check_avg_token_count(chunks=chunks, config=config))
         issues.extend(self._check_pdf_page_ratio(chunks=chunks, config=config))
@@ -159,7 +161,9 @@ class ChunkingQualityChecker:
                 )
 
         if config.require_source_path:
-            missing_source_path_count = len([chunk for chunk in chunks if not chunk.source_path])
+            missing_source_path_count = len(
+                [chunk for chunk in chunks if not chunk.source_path]
+            )
             if missing_source_path_count:
                 issues.append(
                     ChunkingQualityIssue(
@@ -212,7 +216,10 @@ class ChunkingQualityChecker:
         avg_token_count = mean(chunk.token_count for chunk in chunks)
         issues: list[ChunkingQualityIssue] = []
 
-        if config.min_avg_token_count is not None and avg_token_count < config.min_avg_token_count:
+        if (
+            config.min_avg_token_count is not None
+            and avg_token_count < config.min_avg_token_count
+        ):
             issues.append(
                 ChunkingQualityIssue(
                     code="avg_token_count_too_low",
@@ -223,7 +230,10 @@ class ChunkingQualityChecker:
                 )
             )
 
-        if config.max_avg_token_count is not None and avg_token_count > config.max_avg_token_count:
+        if (
+            config.max_avg_token_count is not None
+            and avg_token_count > config.max_avg_token_count
+        ):
             issues.append(
                 ChunkingQualityIssue(
                     code="avg_token_count_too_high",
@@ -248,7 +258,9 @@ class ChunkingQualityChecker:
         if not pdf_chunks:
             return []
 
-        missing_page_count = len([chunk for chunk in pdf_chunks if chunk.page_start is None])
+        missing_page_count = len(
+            [chunk for chunk in pdf_chunks if chunk.page_start is None]
+        )
         missing_page_ratio = missing_page_count / len(pdf_chunks)
         if missing_page_ratio <= config.max_missing_pdf_page_ratio:
             return []
@@ -301,7 +313,9 @@ class ChunkingQualityChecker:
 def _looks_like_pdf_chunk(chunk: DocumentChunk) -> bool:
     """判断 chunk 是否来自 PDF 文档。"""
 
-    return str(chunk.metadata.get("suffix") or "").lower() == ".pdf" or chunk.source_path.lower().endswith(".pdf")
+    return str(
+        chunk.metadata.get("suffix") or ""
+    ).lower() == ".pdf" or chunk.source_path.lower().endswith(".pdf")
 
 
 def _validate_ratio(name: str, value: float) -> None:

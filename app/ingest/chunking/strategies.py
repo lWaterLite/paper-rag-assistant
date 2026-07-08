@@ -70,7 +70,9 @@ class SectionGroup:
 def _build_chunk_id(version_id: str, chunk_index: int, chunk_text: str) -> str:
     """生成稳定 chunk_id。"""
 
-    digest = hashlib.sha1(f"{version_id}:{chunk_index}:{chunk_text}".encode("utf-8")).hexdigest()[:12]
+    digest = hashlib.sha1(
+        f"{version_id}:{chunk_index}:{chunk_text}".encode("utf-8")
+    ).hexdigest()[:12]
     return f"chunk_{digest}"
 
 
@@ -109,7 +111,9 @@ def _regex_token_spans(text: str) -> list[tuple[int, int]]:
     return [(match.start(), match.end()) for match in pattern.finditer(text)]
 
 
-def _split_text_windows_by_chars(text: str, chunk_size: int, chunk_overlap: int) -> list[TextWindow]:
+def _split_text_windows_by_chars(
+    text: str, chunk_size: int, chunk_overlap: int
+) -> list[TextWindow]:
     """按字符窗口切分文本。"""
 
     if not text:
@@ -158,17 +162,17 @@ class Chunker(ABC):
         """把解析后的文档切成 chunks。"""
 
     def _build_chunk(
-            self,
-            *,
-            document: ParsedDocument,
-            chunk_index: int,
-            text: str,
-            section: str | None = None,
-            page_start: int | None = None,
-            page_end: int | None = None,
-            char_start: int | None = None,
-            char_end: int | None = None,
-            extra_metadata: dict[str, int | str | bool | None] | None = None,
+        self,
+        *,
+        document: ParsedDocument,
+        chunk_index: int,
+        text: str,
+        section: str | None = None,
+        page_start: int | None = None,
+        page_end: int | None = None,
+        char_start: int | None = None,
+        char_end: int | None = None,
+        extra_metadata: dict[str, int | str | bool | None] | None = None,
     ) -> DocumentChunk:
         """统一构造 DocumentChunk，保证 metadata 形状一致。"""
 
@@ -389,11 +393,18 @@ class SectionAwareChunker(Chunker):
         return sections
 
 
-def _build_section_group(section: str | None, blocks: list[ParsedBlock]) -> SectionGroup:
+def _build_section_group(
+    section: str | None, blocks: list[ParsedBlock]
+) -> SectionGroup:
     """把同一个 section 下的 blocks 聚合为文本组。"""
 
     text = "\n\n".join(block.text.strip() for block in blocks if block.text.strip())
-    page_values = [page for block in blocks for page in (block.page_start, block.page_end) if page is not None]
+    page_values = [
+        page
+        for block in blocks
+        for page in (block.page_start, block.page_end)
+        if page is not None
+    ]
     char_starts = [block.char_start for block in blocks if block.char_start is not None]
     char_ends = [block.char_end for block in blocks if block.char_end is not None]
 

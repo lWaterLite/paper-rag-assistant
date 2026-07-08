@@ -8,7 +8,11 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from app.core.errors import AppError, ErrorCode
-from app.indexing.vector_collection import InMemoryVectorCollection, VectorCollection, VectorRecord
+from app.indexing.vector_collection import (
+    InMemoryVectorCollection,
+    VectorCollection,
+    VectorRecord,
+)
 
 
 class VectorRepository(Protocol):
@@ -35,7 +39,9 @@ class LocalJsonVectorRepository:
             return collection
 
         payload = json.loads(self._path.read_text(encoding="utf-8"))
-        declared_dimension = _parse_declared_dimension(payload.get("dimension"), path=self._path)
+        declared_dimension = _parse_declared_dimension(
+            payload.get("dimension"), path=self._path
+        )
         for item in payload.get("records", []):
             chunk_id = str(item["chunk_id"])
             vector = [float(value) for value in item["vector"]]
@@ -61,10 +67,14 @@ class LocalJsonVectorRepository:
             "dimension": collection.dimension,
             "records": [
                 asdict(record)
-                for record in sorted(collection.iter_records(), key=lambda item: item.chunk_id)
+                for record in sorted(
+                    collection.iter_records(), key=lambda item: item.chunk_id
+                )
             ],
         }
-        self._path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        self._path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
 
 def _parse_declared_dimension(value: Any, *, path: Path) -> int | None:
@@ -86,11 +96,11 @@ def _parse_declared_dimension(value: Any, *, path: Path) -> int | None:
 
 
 def _validate_record_dimension(
-        *,
-        path: Path,
-        chunk_id: str,
-        vector: list[float],
-        declared_dimension: int | None,
+    *,
+    path: Path,
+    chunk_id: str,
+    vector: list[float],
+    declared_dimension: int | None,
 ) -> None:
     """校验记录实际向量维度必须匹配 JSON 声明维度。"""
 

@@ -129,7 +129,9 @@ class OpenAIEmbeddingClient:
             )
             batch_vectors = [
                 item.embedding
-                for item in sorted(response.data, key=lambda item: getattr(item, "index", 0))
+                for item in sorted(
+                    response.data, key=lambda item: getattr(item, "index", 0)
+                )
             ]
             validate_embedding_vectors(
                 expected_count=len(batch),
@@ -203,4 +205,6 @@ def _normalize(vector: list[float]) -> list[float]:
 def _batched(items: list[str], batch_size: int) -> list[list[str]]:
     """按固定大小切分 batch。"""
 
-    return [items[index:index + batch_size] for index in range(0, len(items), batch_size)]
+    return [
+        items[index : index + batch_size] for index in range(0, len(items), batch_size)
+    ]

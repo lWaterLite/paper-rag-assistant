@@ -8,7 +8,11 @@ from pathlib import Path
 
 from app.core.errors import AppError, ErrorCode
 from app.core.models import DocumentChunk, RagTrace, RawDocument
-from app.indexing.configs import EmbeddingConfig, IndexBuilderConfig, VectorRepositoryConfig
+from app.indexing.configs import (
+    EmbeddingConfig,
+    IndexBuilderConfig,
+    VectorRepositoryConfig,
+)
 from app.indexing.embedding_cache import EmbeddingCache
 from app.indexing.embeddings import EmbeddingClient, validate_embedding_vectors
 from app.indexing.manifest import (
@@ -24,7 +28,12 @@ from app.ingest.chunking.collection import ChunkCollection
 from app.ingest.chunking.report import ChunkingReportConfig, ChunkingReportWriter
 from app.ingest.chunking.strategies import Chunker
 from app.ingest.document_collection import DocumentCollection
-from app.ingest.pipeline import IngestionFailure, IngestionPipeline, IngestionReportConfig, IngestionReportWriter
+from app.ingest.pipeline import (
+    IngestionFailure,
+    IngestionPipeline,
+    IngestionReportConfig,
+    IngestionReportWriter,
+)
 from app.repositories.chunk_repository import ChunkRepository
 from app.repositories.document_repository import DocumentRepository
 from app.repositories.index_manifest_repository import IndexManifestRepository
@@ -108,7 +117,9 @@ class IndexBuilder:
         self._chunking_report_writer = chunking_report_writer
         self._chunking_report_config = chunking_report_config
 
-    def build_from_directory(self, source_dir: Path) -> tuple[RagIndex, IndexBuildResult]:
+    def build_from_directory(
+        self, source_dir: Path
+    ) -> tuple[RagIndex, IndexBuildResult]:
         """从目录构建内存索引。"""
 
         self._prepare_output_directories()
@@ -150,7 +161,9 @@ class IndexBuilder:
                 vector_count=0,
                 status=BUILDING_INDEX_STATUS,
             )
-            building_manifest_path = self._write_manifest_if_persistent(building_manifest)
+            building_manifest_path = self._write_manifest_if_persistent(
+                building_manifest
+            )
             self._record_manifest_stage(
                 trace=trace,
                 stage="manifest_building",
@@ -196,13 +209,16 @@ class IndexBuilder:
             started = time.perf_counter()
             if self._config.skip_existing:
                 chunks_to_index = [
-                    chunk for chunk in indexable_chunks
+                    chunk
+                    for chunk in indexable_chunks
                     if not self._vector_collection.contains_chunk(chunk.chunk_id)
                 ]
             else:
                 chunks_to_index = indexable_chunks
             skipped_existing_chunks = len(indexable_chunks) - len(chunks_to_index)
-            vectors, cache_hits, cache_misses = self._embed_chunks_with_cache(chunks_to_index)
+            vectors, cache_hits, cache_misses = self._embed_chunks_with_cache(
+                chunks_to_index
+            )
             for chunk, vector in zip(chunks_to_index, vectors, strict=True):
                 self._vector_collection.add(_build_vector_record(chunk, vector))
             latest_vector_count = self._vector_collection.count()
@@ -263,7 +279,11 @@ class IndexBuilder:
                 chunking_report_path=chunking_report_path,
                 manifest_path=manifest_path,
             )
-            build_report_path = self._write_build_report(result) if self._vector_repository_config.persist else None
+            build_report_path = (
+                self._write_build_report(result)
+                if self._vector_repository_config.persist
+                else None
+            )
             result = replace(result, build_report_path=build_report_path)
             return index, result
         except Exception as exc:
@@ -280,9 +300,15 @@ class IndexBuilder:
         """准备索引构建会写入的目录。"""
 
         if self._vector_repository_config.persist:
-            self._vector_repository_config.collection_dir.mkdir(parents=True, exist_ok=True)
-        self._ingestion_report_config.output_path.parent.mkdir(parents=True, exist_ok=True)
-        self._chunking_report_config.output_path.parent.mkdir(parents=True, exist_ok=True)
+            self._vector_repository_config.collection_dir.mkdir(
+                parents=True, exist_ok=True
+            )
+        self._ingestion_report_config.output_path.parent.mkdir(
+            parents=True, exist_ok=True
+        )
+        self._chunking_report_config.output_path.parent.mkdir(
+            parents=True, exist_ok=True
+        )
 
     def _prepare_ingestion_report_output(self) -> Path:
         """准备 ingestion 报告输出路径。
@@ -304,17 +330,20 @@ class IndexBuilder:
     def _write_build_report(self, result: IndexBuildResult) -> Path:
         """写入索引构建报告。"""
 
-        output_path = self._vector_repository_config.collection_dir / self._config.build_report_filename
+        output_path = (
+            self._vector_repository_config.collection_dir
+            / self._config.build_report_filename
+        )
         return self._build_report_writer.write(result, output_path)
 
     def _build_manifest(
-            self,
-            *,
-            source_dir: Path,
-            raw_documents: list[RawDocument],
-            chunk_count: int,
-            vector_count: int,
-            status: IndexVersionStatus,
+        self,
+        *,
+        source_dir: Path,
+        raw_documents: list[RawDocument],
+        chunk_count: int,
+        vector_count: int,
+        status: IndexVersionStatus,
     ) -> IndexManifest:
         """根据当前构建上下文生成 manifest。"""
 
@@ -333,7 +362,9 @@ class IndexBuilder:
             document_count=len(raw_documents),
             chunk_count=chunk_count,
             vector_count=vector_count,
-            document_versions={document.doc_id: document.version_id for document in raw_documents},
+            document_versions={
+                document.doc_id: document.version_id for document in raw_documents
+            },
             status=status,
         )
 
@@ -345,13 +376,13 @@ class IndexBuilder:
         return self._manifest_repository.write(manifest)
 
     def _record_manifest_stage(
-            self,
-            *,
-            trace: RagTrace,
-            stage: str,
-            started: float,
-            manifest: IndexManifest,
-            manifest_path: Path | None,
+        self,
+        *,
+        trace: RagTrace,
+        stage: str,
+        started: float,
+        manifest: IndexManifest,
+        manifest_path: Path | None,
     ) -> None:
         """记录 manifest 状态写入阶段。"""
 
@@ -360,7 +391,9 @@ class IndexBuilder:
             "success",
             started,
             {
-                "manifest_path": manifest_path.as_posix() if manifest_path is not None else None,
+                "manifest_path": manifest_path.as_posix()
+                if manifest_path is not None
+                else None,
                 "index_id": manifest.index_id,
                 "schema_version": manifest.schema_version,
                 "status": manifest.status,
@@ -370,11 +403,11 @@ class IndexBuilder:
         )
 
     def _write_failed_manifest_if_possible(
-            self,
-            *,
-            building_manifest: IndexManifest | None,
-            chunk_count: int,
-            vector_count: int,
+        self,
+        *,
+        building_manifest: IndexManifest | None,
+        chunk_count: int,
+        vector_count: int,
     ) -> None:
         """构建失败时尽量把 manifest 状态覆盖为 failed。
 
@@ -394,7 +427,9 @@ class IndexBuilder:
         except Exception:
             return
 
-    def _embed_chunks_with_cache(self, chunks: list[DocumentChunk]) -> tuple[list[list[float]], int, int]:
+    def _embed_chunks_with_cache(
+        self, chunks: list[DocumentChunk]
+    ) -> tuple[list[list[float]], int, int]:
         """使用缓存批量生成 chunk embedding。
 
         缓存命中时直接复用向量；未命中时集中批量请求 embedding client，再写回缓存。
@@ -406,7 +441,9 @@ class IndexBuilder:
         cache_hits = 0
 
         for index, chunk in enumerate(chunks):
-            cached_vector = self._embedding_cache.get(self._embedding_client, chunk.text)
+            cached_vector = self._embedding_cache.get(
+                self._embedding_client, chunk.text
+            )
             if cached_vector is None:
                 missing_indices.append(index)
                 missing_texts.append(chunk.text)

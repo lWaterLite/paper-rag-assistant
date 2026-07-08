@@ -36,7 +36,9 @@ class IndexBuildReportWriter:
         """写入索引构建报告，并返回报告路径。"""
 
         output_path.write_text(
-            json.dumps(self.build_report(result), ensure_ascii=False, indent=2, default=str),
+            json.dumps(
+                self.build_report(result), ensure_ascii=False, indent=2, default=str
+            ),
             encoding="utf-8",
         )
         return output_path

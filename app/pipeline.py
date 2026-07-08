@@ -39,7 +39,9 @@ class RagPipeline:
 
         started = time.perf_counter()
         try:
-            retrieved_chunks = self._retriever.retrieve(question, top_k=self._settings.top_k)
+            retrieved_chunks = self._retriever.retrieve(
+                question, top_k=self._settings.top_k
+            )
         except Exception as exc:
             self._record_failure_and_raise(
                 trace=trace,
@@ -107,7 +109,9 @@ class RagPipeline:
                 },
             )
         else:
-            trace.record_stage("generation", "success", started, {"answer_chars": len(answer.answer)})
+            trace.record_stage(
+                "generation", "success", started, {"answer_chars": len(answer.answer)}
+            )
             trace.mark_success()
 
         return answer

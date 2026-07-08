@@ -7,8 +7,16 @@ from dataclasses import dataclass
 from app.core.errors import AppError, ErrorCode
 from app.factory.configs import ConfigFactory
 from app.factory.ingestion import IngestionFactory
-from app.indexing.embedding_cache import EmbeddingCache, FileEmbeddingCache, InMemoryEmbeddingCache
-from app.indexing.embeddings import EmbeddingClient, MockEmbeddingClient, OpenAIEmbeddingClient
+from app.indexing.embedding_cache import (
+    EmbeddingCache,
+    FileEmbeddingCache,
+    InMemoryEmbeddingCache,
+)
+from app.indexing.embeddings import (
+    EmbeddingClient,
+    MockEmbeddingClient,
+    OpenAIEmbeddingClient,
+)
 from app.indexing.index_builder import IndexBuilder, RagIndex
 from app.indexing.index_loader import validate_index_from_storage
 from app.indexing.report import IndexBuildReportWriter
@@ -16,12 +24,21 @@ from app.indexing.vector_collection import InMemoryVectorCollection, VectorColle
 from app.ingest.chunking.collection import ChunkCollection, InMemoryChunkCollection
 from app.ingest.chunking.registry import ChunkerRegistry
 from app.ingest.chunking.report import ChunkingReportWriter
-from app.ingest.document_collection import DocumentCollection, InMemoryDocumentCollection
+from app.ingest.document_collection import (
+    DocumentCollection,
+    InMemoryDocumentCollection,
+)
 from app.ingest.pipeline import IngestionPipeline, IngestionReportWriter
 from app.repositories.chunk_repository import ChunkRepository, LocalJsonChunkRepository
-from app.repositories.document_repository import DocumentRepository, LocalJsonDocumentRepository
+from app.repositories.document_repository import (
+    DocumentRepository,
+    LocalJsonDocumentRepository,
+)
 from app.repositories.index_manifest_repository import IndexManifestRepository
-from app.repositories.vector_repository import LocalJsonVectorRepository, VectorRepository
+from app.repositories.vector_repository import (
+    LocalJsonVectorRepository,
+    VectorRepository,
+)
 
 
 @dataclass(slots=True)
@@ -45,7 +62,10 @@ class IndexingFactory:
         """根据配置创建 embedding cache。"""
 
         vector_repository_config = self.configs.build_vector_repository_config()
-        if vector_repository_config.repository_type == "local_json" and vector_repository_config.persist:
+        if (
+            vector_repository_config.repository_type == "local_json"
+            and vector_repository_config.persist
+        ):
             return FileEmbeddingCache(vector_repository_config.embedding_cache_path)
         return InMemoryEmbeddingCache()
 
@@ -88,20 +108,20 @@ class IndexingFactory:
         return LocalJsonChunkRepository(config.chunk_collection_path)
 
     def build_index_builder(
-            self,
-            *,
-            ingestion_pipeline: IngestionPipeline | None = None,
-            embedding_client: EmbeddingClient | None = None,
-            embedding_cache: EmbeddingCache | None = None,
-            vector_collection: VectorCollection | None = None,
-            document_collection: DocumentCollection | None = None,
-            chunk_collection: ChunkCollection | None = None,
-            vector_repository: VectorRepository | None = None,
-            document_repository: DocumentRepository | None = None,
-            chunk_repository: ChunkRepository | None = None,
-            ingestion_report_writer: IngestionReportWriter | None = None,
-            chunking_report_writer: ChunkingReportWriter | None = None,
-            chunker_registry: ChunkerRegistry | None = None,
+        self,
+        *,
+        ingestion_pipeline: IngestionPipeline | None = None,
+        embedding_client: EmbeddingClient | None = None,
+        embedding_cache: EmbeddingCache | None = None,
+        vector_collection: VectorCollection | None = None,
+        document_collection: DocumentCollection | None = None,
+        chunk_collection: ChunkCollection | None = None,
+        vector_repository: VectorRepository | None = None,
+        document_repository: DocumentRepository | None = None,
+        chunk_repository: ChunkRepository | None = None,
+        ingestion_report_writer: IngestionReportWriter | None = None,
+        chunking_report_writer: ChunkingReportWriter | None = None,
+        chunker_registry: ChunkerRegistry | None = None,
     ) -> IndexBuilder:
         """创建离线索引构建器。
 
@@ -115,21 +135,47 @@ class IndexingFactory:
             config=index_builder_config,
             embedding_config=embedding_config,
             vector_repository_config=vector_repository_config,
-            ingestion_pipeline=ingestion_pipeline if ingestion_pipeline is not None else self.ingestion.build_ingestion_pipeline(),
-            chunker=self.ingestion.build_configured_chunker(chunker_registry=chunker_registry),
-            embedding_client=embedding_client if embedding_client is not None else self.build_embedding_client(),
-            embedding_cache=embedding_cache if embedding_cache is not None else self.build_embedding_cache(),
-            vector_collection=vector_collection if vector_collection is not None else self.build_vector_collection(),
-            document_collection=document_collection if document_collection is not None else self.build_document_collection(),
-            chunk_collection=chunk_collection if chunk_collection is not None else self.build_chunk_collection(),
-            vector_repository=vector_repository if vector_repository is not None else self.build_vector_repository(),
-            document_repository=document_repository if document_repository is not None else self.build_document_repository(),
-            chunk_repository=chunk_repository if chunk_repository is not None else self.build_chunk_repository(),
-            manifest_repository=IndexManifestRepository(vector_repository_config.collection_dir, index_builder_config),
+            ingestion_pipeline=ingestion_pipeline
+            if ingestion_pipeline is not None
+            else self.ingestion.build_ingestion_pipeline(),
+            chunker=self.ingestion.build_configured_chunker(
+                chunker_registry=chunker_registry
+            ),
+            embedding_client=embedding_client
+            if embedding_client is not None
+            else self.build_embedding_client(),
+            embedding_cache=embedding_cache
+            if embedding_cache is not None
+            else self.build_embedding_cache(),
+            vector_collection=vector_collection
+            if vector_collection is not None
+            else self.build_vector_collection(),
+            document_collection=document_collection
+            if document_collection is not None
+            else self.build_document_collection(),
+            chunk_collection=chunk_collection
+            if chunk_collection is not None
+            else self.build_chunk_collection(),
+            vector_repository=vector_repository
+            if vector_repository is not None
+            else self.build_vector_repository(),
+            document_repository=document_repository
+            if document_repository is not None
+            else self.build_document_repository(),
+            chunk_repository=chunk_repository
+            if chunk_repository is not None
+            else self.build_chunk_repository(),
+            manifest_repository=IndexManifestRepository(
+                vector_repository_config.collection_dir, index_builder_config
+            ),
             build_report_writer=IndexBuildReportWriter(),
-            ingestion_report_writer=ingestion_report_writer if ingestion_report_writer is not None else IngestionReportWriter(),
+            ingestion_report_writer=ingestion_report_writer
+            if ingestion_report_writer is not None
+            else IngestionReportWriter(),
             ingestion_report_config=self.configs.build_ingestion_report_config(),
-            chunking_report_writer=chunking_report_writer if chunking_report_writer is not None else ChunkingReportWriter(),
+            chunking_report_writer=chunking_report_writer
+            if chunking_report_writer is not None
+            else ChunkingReportWriter(),
             chunking_report_config=self.configs.build_chunking_report_config(),
         )
 
@@ -137,7 +183,10 @@ class IndexingFactory:
         """从已有持久化索引加载在线 RAG 索引。"""
 
         vector_repository_config = self.configs.build_vector_repository_config()
-        if vector_repository_config.repository_type != "local_json" or not vector_repository_config.persist:
+        if (
+            vector_repository_config.repository_type != "local_json"
+            or not vector_repository_config.persist
+        ):
             raise AppError(
                 ErrorCode.INVALID_CONFIG,
                 "加载已有索引要求 vector_repository.type='local_json' 且 persist=true；"
