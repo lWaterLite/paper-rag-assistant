@@ -45,6 +45,20 @@ class RagPipelineTest(unittest.TestCase):
         self.assertLessEqual(len(answer.retrieved_chunks), env_settings.top_k)
         self.assertGreater(len(answer.citations), 0)
 
+    def test_pipeline_uses_configured_bm25_retriever(self) -> None:
+        env_settings = EnvSettings(chunk_size=120, chunk_overlap=20, top_k=2, retrieval_strategy="bm25")
+        project_settings = ProjectSettings()
+        index, _ = build_index_builder(env_settings, project_settings).build_from_directory(SAMPLE_SOURCE_DIR)
+
+        answer = build_rag_pipeline(
+            env_settings=env_settings,
+            project_settings=project_settings,
+            index=index,
+        ).ask("retrieval generation")
+
+        self.assertGreater(len(answer.retrieved_chunks), 0)
+        self.assertEqual(answer.retrieved_chunks[0].retriever, "bm25")
+
     def test_pipeline_marks_trace_success_when_all_stages_succeed(self) -> None:
         env_settings = EnvSettings(chunk_size=120, chunk_overlap=20, top_k=2)
         index, _ = build_index_builder(env_settings, ProjectSettings()).build_from_directory(SAMPLE_SOURCE_DIR)

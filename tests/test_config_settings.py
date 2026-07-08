@@ -24,6 +24,7 @@ from app.core.settings import (
     IngestionReportSettings,
     PdfCleanerSettings,
     ProjectSettings,
+    RetrievalSettings,
     VectorRepositorySettings,
 )
 from app.core.errors import AppError, ErrorCode
@@ -167,6 +168,11 @@ manifest_filename = "test_manifest.json"
 build_report_filename = "test_index_report.json"
 skip_existing = false
 fail_on_empty_chunk = false
+
+[retrieval]
+bm25_k1 = 1.8
+bm25_b = 0.65
+deduplicate_by_chunk_id = false
 """.strip(),
                 encoding="utf-8",
             )
@@ -196,6 +202,9 @@ fail_on_empty_chunk = false
             self.assertEqual(project_settings.index_builder.build_report_filename, "test_index_report.json")
             self.assertFalse(project_settings.index_builder.skip_existing)
             self.assertFalse(project_settings.index_builder.fail_on_empty_chunk)
+            self.assertEqual(project_settings.retrieval.bm25_k1, 1.8)
+            self.assertEqual(project_settings.retrieval.bm25_b, 0.65)
+            self.assertFalse(project_settings.retrieval.deduplicate_by_chunk_id)
         finally:
             if config_path.parent.exists():
                 shutil.rmtree(config_path.parent, ignore_errors=True)
@@ -249,6 +258,17 @@ fail_on_empty_chunk = false
             IndexBuilderSettings(manifest_filename=" ")
 
         self.assertIn("manifest_filename", str(context.exception))
+
+    def test_retrieval_settings_rejects_invalid_bm25_parameters(self) -> None:
+        with self.assertRaises(ValidationError) as context:
+            RetrievalSettings(bm25_k1=0)
+
+        self.assertIn("bm25_k1", str(context.exception))
+
+        with self.assertRaises(ValidationError) as context:
+            RetrievalSettings(bm25_b=1.5)
+
+        self.assertIn("bm25_b", str(context.exception))
 
 
 if __name__ == "__main__":
