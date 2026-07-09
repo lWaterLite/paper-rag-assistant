@@ -19,93 +19,62 @@ from app.core.settings import (
     BM25Settings,
     ChunkingReportSettings,
     ChunkingSettings,
+    ContextPackingSettings,
     EmbeddingSettings,
     EnvSettings,
+    HybridRetrievalSettings,
     IndexBuilderSettings,
     IngestionReportSettings,
     PdfCleanerSettings,
     ProjectSettings,
+    RetrievalSettings,
     TokenizerSettings,
     VectorRepositorySettings,
 )
-from app.core.errors import AppError, ErrorCode
 
 
 class SettingsTest(unittest.TestCase):
     """验证 EnvSettings 与 ProjectSettings 配置读取与校验。"""
 
-    def test_settings_rejects_invalid_chunk_overlap(self) -> None:
-        with self.assertRaises(ValidationError) as context:
-            EnvSettings(chunk_size=100, chunk_overlap=100)
-
-        self.assertIn("chunk_overlap", str(context.exception))
-
-    def test_settings_rejects_chunk_overlap_greater_than_chunk_size(self) -> None:
-        with self.assertRaises(ValidationError) as context:
-            EnvSettings(chunk_size=100, chunk_overlap=120)
-
-        self.assertIn("chunk_overlap", str(context.exception))
-
-    def test_settings_rejects_non_positive_chunk_size(self) -> None:
-        with self.assertRaises(ValidationError) as context:
-            EnvSettings(chunk_size=0, chunk_overlap=0)
-
-        self.assertIn("chunk_size", str(context.exception))
-
-    def test_settings_from_env_wraps_invalid_chunk_window_as_app_error(self) -> None:
-        env = {
-            "RAG_CHUNK_SIZE": "100",
-            "RAG_CHUNK_OVERLAP": "100",
-        }
-        with patch.dict(os.environ, env, clear=False):
-            with self.assertRaises(AppError) as context:
-                EnvSettings.from_env()
-
-        self.assertEqual(context.exception.code, ErrorCode.INVALID_CONFIG)
-        self.assertIn("chunk_overlap", context.exception.message)
-
-    def test_settings_from_env_parses_bool_values(self) -> None:
-        with patch.dict(os.environ, {"RAG_REQUIRE_CITATION": "off"}, clear=False):
+    def test_env_settings_reads_openai_api_key_as_secret(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"OPENAI_API_KEY": "test-secret"},
+            clear=False,
+        ):
             env_settings = EnvSettings.from_env()
 
-        self.assertFalse(env_settings.require_citation)
+        self.assertEqual(
+            env_settings.openai_api_key.get_secret_value(),
+            "test-secret",
+        )
+        self.assertNotIn("test-secret", str(env_settings))
 
-    def test_settings_from_env_rejects_invalid_int(self) -> None:
-        with patch.dict(os.environ, {"RAG_TOP_K": "abc"}, clear=False):
-            with self.assertRaises(AppError) as context:
-                EnvSettings.from_env()
+    def test_env_settings_treats_blank_secret_as_missing(self) -> None:
+        settings = EnvSettings(OPENAI_API_KEY="")
 
-        self.assertEqual(context.exception.code, ErrorCode.INVALID_CONFIG)
-        self.assertIn("top_k", context.exception.message)
+        self.assertIsNone(settings.openai_api_key)
 
-    def test_settings_accepts_supported_retrieval_strategy(self) -> None:
-        env_settings = EnvSettings(retrieval_strategy="bm25")
-
-        self.assertEqual(env_settings.retrieval_strategy, "bm25")
-
-    def test_settings_rejects_unsupported_retrieval_strategy(self) -> None:
+    def test_env_settings_rejects_legacy_non_secret_fields(self) -> None:
         with self.assertRaises(ValidationError) as context:
-            EnvSettings(retrieval_strategy="random")
+            EnvSettings(RAG_TOP_K="5")
 
-        self.assertIn("retrieval_strategy", str(context.exception))
+        self.assertIn("RAG_TOP_K", str(context.exception))
 
-    def test_settings_converts_index_storage_path_to_path(self) -> None:
-        env_settings = EnvSettings(index_storage_path="data/custom-index")
+    def test_retrieval_settings_accepts_external_strategy_name(self) -> None:
+        settings = RetrievalSettings(strategy=" external ")
 
-        self.assertEqual(env_settings.index_storage_path, Path("data/custom-index"))
+        self.assertEqual(settings.strategy, "external")
 
-    def test_settings_from_env_reads_added_fields(self) -> None:
-        env = {
-            "RAG_RETRIEVAL_STRATEGY": "hybrid",
-            "RAG_INDEX_STORAGE_PATH": "data/env-index",
-            "RAG_DEBUG_TRACE": "true",
-        }
-        with patch.dict(os.environ, env, clear=False):
-            env_settings = EnvSettings.from_env()
+    def test_retrieval_settings_rejects_blank_strategy(self) -> None:
+        with self.assertRaises(ValidationError) as context:
+            RetrievalSettings(strategy=" ")
 
-        self.assertEqual(env_settings.retrieval_strategy, "hybrid")
-        self.assertEqual(env_settings.index_storage_path, Path("data/env-index"))
-        self.assertTrue(env_settings.debug_trace)
+        self.assertIn("strategy", str(context.exception))
+
+    def test_context_packing_settings_rejects_non_positive_budget(self) -> None:
+        with self.assertRaises(ValidationError):
+            ContextPackingSettings(max_context_chars=0)
 
     def test_settings_rejects_invalid_pdf_cleaner_ratio(self) -> None:
         with self.assertRaises(ValidationError) as context:
@@ -155,7 +124,6 @@ dimension = 24
 batch_size = 16
 timeout_seconds = 12.5
 max_retries = 1
-api_key_env_name = "TEST_OPENAI_API_KEY"
 
 [indexing.vector_repository]
 type = "local_json"
@@ -171,6 +139,8 @@ skip_existing = false
 fail_on_empty_chunk = false
 
 [retrieval]
+strategy = "hybrid"
+top_k = 7
 deduplicate_by_chunk_id = false
 
 [retrieval.tokenizer]
@@ -179,6 +149,15 @@ strategy = "regex"
 [retrieval.bm25]
 k1 = 1.8
 b = 0.65
+
+[retrieval.hybrid]
+candidate_multiplier = 4
+rrf_rank_constant = 50
+vector_weight = 1.2
+bm25_weight = 0.8
+
+[retrieval.context_packing]
+max_context_chars = 2400
 """.strip(),
                 encoding="utf-8",
             )
@@ -199,7 +178,6 @@ b = 0.65
             self.assertEqual(project_settings.ingestion.chunking.report.output_dir, Path(".tmp_tests/chunking-reports"))
             self.assertEqual(project_settings.indexing.embedding.dimension, 24)
             self.assertEqual(project_settings.indexing.embedding.batch_size, 16)
-            self.assertEqual(project_settings.indexing.embedding.api_key_env_name, "TEST_OPENAI_API_KEY")
             self.assertEqual(project_settings.indexing.vector_repository.type, "local_json")
             self.assertEqual(project_settings.indexing.vector_repository.index_dir, Path(".tmp_tests/indexes"))
             self.assertEqual(project_settings.indexing.vector_repository.collection_name, "test_collection")
@@ -210,6 +188,20 @@ b = 0.65
             self.assertFalse(project_settings.indexing.builder.fail_on_empty_chunk)
             self.assertEqual(project_settings.retrieval.bm25.k1, 1.8)
             self.assertEqual(project_settings.retrieval.bm25.b, 0.65)
+            self.assertEqual(
+                project_settings.retrieval.hybrid.candidate_multiplier, 4
+            )
+            self.assertEqual(
+                project_settings.retrieval.hybrid.rrf_rank_constant, 50
+            )
+            self.assertEqual(project_settings.retrieval.hybrid.vector_weight, 1.2)
+            self.assertEqual(project_settings.retrieval.hybrid.bm25_weight, 0.8)
+            self.assertEqual(project_settings.retrieval.strategy, "hybrid")
+            self.assertEqual(project_settings.retrieval.top_k, 7)
+            self.assertEqual(
+                project_settings.retrieval.context_packing.max_context_chars,
+                2400,
+            )
             self.assertFalse(project_settings.retrieval.deduplicate_by_chunk_id)
             self.assertEqual(project_settings.retrieval.tokenizer.strategy, "regex")
         finally:
@@ -287,6 +279,14 @@ b = 0.65
             TokenizerSettings(strategy=" ")
 
         self.assertIn("strategy", str(context.exception))
+
+    def test_hybrid_settings_rejects_invalid_values(self) -> None:
+        with self.assertRaises(ValidationError):
+            HybridRetrievalSettings(candidate_multiplier=0)
+        with self.assertRaises(ValidationError):
+            HybridRetrievalSettings(rrf_rank_constant=0)
+        with self.assertRaises(ValidationError):
+            HybridRetrievalSettings(vector_weight=0)
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ import unittest
 from app.core.models import RetrievedChunk
 from app.retrieval.configs import RetrievalConfig
 from app.retrieval.pipeline import RetrievalPipeline
+from app.retrieval.retrievers import RetrieverRegistry
 
 
 def build_result(chunk_id: str, *, rank: int = 1, retriever: str = "vector") -> RetrievedChunk:
@@ -42,21 +43,30 @@ class StaticRetriever:
         return list(self._results)
 
 
+def build_registry(**retrievers: StaticRetriever) -> RetrieverRegistry:
+    """把测试检索器注册为惰性 provider。"""
+
+    registry = RetrieverRegistry()
+    for name, retriever in retrievers.items():
+        registry.register(name, lambda retriever=retriever: retriever)
+    return registry
+
+
 class RetrievalPipelineTest(unittest.TestCase):
     """验证 retrieval pipeline 的阶段编排。"""
 
     def test_pipeline_deduplicates_and_limits_results(self) -> None:
         pipeline = RetrievalPipeline(
-            retrievers={
-                "vector": StaticRetriever(
+            registry=build_registry(
+                vector=StaticRetriever(
                     [
                         build_result("chunk_a", rank=1),
                         build_result("chunk_a", rank=2),
                         build_result("chunk_b", rank=3),
                         build_result("chunk_c", rank=4),
                     ]
-                )
-            },
+                ),
+            ),
             config=RetrievalConfig(strategy="vector", top_k=2, deduplicate_by_chunk_id=True),
         )
 
@@ -68,14 +78,14 @@ class RetrievalPipelineTest(unittest.TestCase):
 
     def test_pipeline_can_keep_duplicate_chunks_when_configured(self) -> None:
         pipeline = RetrievalPipeline(
-            retrievers={
-                "vector": StaticRetriever(
+            registry=build_registry(
+                vector=StaticRetriever(
                     [
                         build_result("chunk_a", rank=1),
                         build_result("chunk_a", rank=2),
                     ]
-                )
-            },
+                ),
+            ),
             config=RetrievalConfig(strategy="vector", top_k=2, deduplicate_by_chunk_id=False),
         )
 

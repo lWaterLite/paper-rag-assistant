@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from app.core.settings import EnvSettings, ProjectSettings
+from app.core.settings import EnvSettings, ProjectSettings, RetrievalSettings
 from app.core.errors import AppError, ErrorCode
 from app.core.models import RagAnswer
 from app.factory import ApplicationFactory
@@ -19,7 +19,7 @@ class RagPipelineTest(unittest.TestCase):
     """验证离线索引流程与在线问答流程。"""
 
     def test_index_builder_builds_in_memory_index(self) -> None:
-        env_settings = EnvSettings(chunk_size=120, chunk_overlap=20, top_k=2)
+        env_settings = EnvSettings()
         project_settings = ProjectSettings()
         index, result = create_factory(env_settings, project_settings).build_index_builder().build_from_directory(SAMPLE_SOURCE_DIR)
 
@@ -42,19 +42,27 @@ class RagPipelineTest(unittest.TestCase):
         self.assertGreater(len(result.manifest.document_versions), 0)
 
     def test_pipeline_returns_structured_answer(self) -> None:
-        env_settings = EnvSettings(chunk_size=120, chunk_overlap=20, top_k=2)
-        factory = create_factory(env_settings)
+        env_settings = EnvSettings()
+        project_settings = ProjectSettings(
+            retrieval=RetrievalSettings(top_k=2)
+        )
+        factory = create_factory(env_settings, project_settings)
         index, _ = factory.build_index_builder().build_from_directory(SAMPLE_SOURCE_DIR)
         answer = factory.build_rag_pipeline(index).ask("RAG 为什么需要引用？")
 
         self.assertTrue(answer.answer)
         self.assertTrue(answer.trace_id.startswith("trace_"))
-        self.assertLessEqual(len(answer.retrieved_chunks), env_settings.top_k)
+        self.assertLessEqual(
+            len(answer.retrieved_chunks),
+            project_settings.retrieval.top_k,
+        )
         self.assertGreater(len(answer.citations), 0)
 
     def test_pipeline_uses_configured_bm25_retriever(self) -> None:
-        env_settings = EnvSettings(chunk_size=120, chunk_overlap=20, top_k=2, retrieval_strategy="bm25")
-        project_settings = ProjectSettings()
+        env_settings = EnvSettings()
+        project_settings = ProjectSettings(
+            retrieval=RetrievalSettings(strategy="bm25", top_k=2)
+        )
         factory = create_factory(env_settings, project_settings)
         index, _ = factory.build_index_builder().build_from_directory(SAMPLE_SOURCE_DIR)
 
@@ -63,8 +71,27 @@ class RagPipelineTest(unittest.TestCase):
         self.assertGreater(len(answer.retrieved_chunks), 0)
         self.assertEqual(answer.retrieved_chunks[0].retriever, "bm25")
 
+    def test_pipeline_uses_configured_hybrid_retriever(self) -> None:
+        env_settings = EnvSettings()
+        project_settings = ProjectSettings(
+            retrieval=RetrievalSettings(strategy="hybrid", top_k=2)
+        )
+        factory = create_factory(env_settings, project_settings)
+        index, _ = factory.build_index_builder().build_from_directory(
+            SAMPLE_SOURCE_DIR
+        )
+
+        answer = factory.build_rag_pipeline(index).ask("retrieval generation")
+
+        self.assertGreater(len(answer.retrieved_chunks), 0)
+        self.assertEqual(answer.retrieved_chunks[0].retriever, "hybrid")
+        self.assertGreater(
+            len(answer.retrieved_chunks[0].retrieval_signals),
+            0,
+        )
+
     def test_pipeline_marks_trace_success_when_all_stages_succeed(self) -> None:
-        env_settings = EnvSettings(chunk_size=120, chunk_overlap=20, top_k=2)
+        env_settings = EnvSettings()
         factory = create_factory(env_settings)
         index, _ = factory.build_index_builder().build_from_directory(SAMPLE_SOURCE_DIR)
         answer_generator = CapturingAnswerGenerator()
@@ -77,7 +104,7 @@ class RagPipelineTest(unittest.TestCase):
         self.assertIsNone(answer_generator.trace.failure_type)
 
     def test_pipeline_records_failure_trace_when_retrieval_fails(self) -> None:
-        env_settings = EnvSettings(chunk_size=120, chunk_overlap=20, top_k=2)
+        env_settings = EnvSettings()
         factory = create_factory(env_settings)
         index, _ = factory.build_index_builder().build_from_directory(SAMPLE_SOURCE_DIR)
         pipeline = factory.build_rag_pipeline(index, retriever=FailingRetriever())
@@ -94,7 +121,7 @@ class RagPipelineTest(unittest.TestCase):
         self.assertEqual(error.trace.stages[-1].status, "error")
 
     def test_pipeline_records_failure_trace_when_context_packing_fails(self) -> None:
-        env_settings = EnvSettings(chunk_size=120, chunk_overlap=20, top_k=2)
+        env_settings = EnvSettings()
         factory = create_factory(env_settings)
         index, _ = factory.build_index_builder().build_from_directory(SAMPLE_SOURCE_DIR)
         pipeline = factory.build_rag_pipeline(index, context_packer=FailingContextPacker())
@@ -109,7 +136,7 @@ class RagPipelineTest(unittest.TestCase):
         self.assertEqual([stage.stage for stage in error.trace.stages], ["retrieval", "context_packing"])
 
     def test_pipeline_records_failure_trace_when_generation_fails(self) -> None:
-        env_settings = EnvSettings(chunk_size=120, chunk_overlap=20, top_k=2)
+        env_settings = EnvSettings()
         factory = create_factory(env_settings)
         index, _ = factory.build_index_builder().build_from_directory(SAMPLE_SOURCE_DIR)
         pipeline = factory.build_rag_pipeline(index, answer_generator=FailingAnswerGenerator())

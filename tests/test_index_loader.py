@@ -36,7 +36,7 @@ class IndexLoaderTest(unittest.TestCase):
         )
         try:
             factory = ApplicationFactory(
-                env_settings=EnvSettings(chunk_size=120, chunk_overlap=20),
+                env_settings=EnvSettings(),
                 project_settings=project_settings,
             )
             _, build_result = factory.build_index_builder().build_from_directory(Path("data/raw/papers"))
@@ -70,7 +70,7 @@ class IndexLoaderTest(unittest.TestCase):
         )
         try:
             factory = ApplicationFactory(
-                env_settings=EnvSettings(chunk_size=120, chunk_overlap=20),
+                env_settings=EnvSettings(),
                 project_settings=project_settings,
             )
             _, build_result = factory.build_index_builder().build_from_directory(Path("data/raw/papers"))

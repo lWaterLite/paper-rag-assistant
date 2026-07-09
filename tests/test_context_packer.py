@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 
 from app.core.models import RetrievedChunk
-from app.retrieval.context_packer import SimpleContextPacker
+from app.retrieval.context_packer import ContextPackerConfig, SimpleContextPacker
 
 
 def build_retrieved_chunk(
@@ -43,7 +43,7 @@ class SimpleContextPackerTest(unittest.TestCase):
             build_retrieved_chunk("chunk_2", "重复内容", chunk_index=1),
         ]
 
-        packed = SimpleContextPacker(max_context_chars=100).pack(chunks)
+        packed = SimpleContextPacker(ContextPackerConfig(100)).pack(chunks)
 
         self.assertEqual(len(packed.used_chunks), 1)
         self.assertEqual(len(packed.dropped_chunks), 1)
@@ -55,7 +55,7 @@ class SimpleContextPackerTest(unittest.TestCase):
             build_retrieved_chunk("chunk_2", "第二段", chunk_index=1),
         ]
 
-        packed = SimpleContextPacker(max_context_chars=100).pack(chunks)
+        packed = SimpleContextPacker(ContextPackerConfig(100)).pack(chunks)
 
         self.assertEqual(len(packed.citations), 1)
         self.assertEqual(len(packed.used_chunks), 2)
@@ -68,7 +68,7 @@ class SimpleContextPackerTest(unittest.TestCase):
             build_retrieved_chunk("chunk_3", "第三段内容", doc_id="doc_more", version_id="v_more", chunk_index=0),
         ]
 
-        packed = SimpleContextPacker(max_context_chars=12).pack(chunks)
+        packed = SimpleContextPacker(ContextPackerConfig(12)).pack(chunks)
 
         self.assertEqual(len(packed.used_chunks), 1)
         self.assertEqual(len(packed.dropped_chunks), 2)
@@ -81,7 +81,7 @@ class SimpleContextPackerTest(unittest.TestCase):
             build_retrieved_chunk("chunk_1", "a" * 100, chunk_index=0),
         ]
 
-        packed = SimpleContextPacker(max_context_chars=20).pack(chunks)
+        packed = SimpleContextPacker(ContextPackerConfig(20)).pack(chunks)
 
         self.assertEqual(len(packed.used_chunks), 1)
         self.assertLessEqual(len(packed.context_text), 20)
@@ -93,7 +93,7 @@ class SimpleContextPackerTest(unittest.TestCase):
             build_retrieved_chunk("chunk_2", "另一段", doc_id="doc_other", version_id="v_other", chunk_index=0),
         ]
 
-        packed = SimpleContextPacker(max_context_chars=5).pack(chunks)
+        packed = SimpleContextPacker(ContextPackerConfig(5)).pack(chunks)
 
         self.assertEqual(packed.context_text, "")
         self.assertEqual(packed.citations, [])
@@ -110,7 +110,7 @@ class SimpleContextPackerTest(unittest.TestCase):
             build_retrieved_chunk("chunk_3", "新内容", doc_id="doc_other", version_id="v_other", chunk_index=0),
         ]
 
-        packed = SimpleContextPacker(max_context_chars=100).pack(chunks)
+        packed = SimpleContextPacker(ContextPackerConfig(100)).pack(chunks)
 
         self.assertEqual([citation.citation_id for citation in packed.citations], ["C1", "C2"])
         self.assertEqual([chunk.chunk_id for chunk in packed.used_chunks], ["chunk_1", "chunk_3"])

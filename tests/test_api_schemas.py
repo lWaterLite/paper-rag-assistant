@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 import unittest
+from dataclasses import replace
 
 from pydantic import ValidationError
 
@@ -15,7 +16,13 @@ from app.api.schemas import (
     retrieved_chunk_to_response,
     trace_to_response,
 )
-from app.core.models import Citation, RagAnswer, RagTrace, RetrievedChunk
+from app.core.models import (
+    Citation,
+    RagAnswer,
+    RagTrace,
+    RetrievalSignal,
+    RetrievedChunk,
+)
 
 
 def build_retrieved_chunk() -> RetrievedChunk:
@@ -76,7 +83,7 @@ class ApiSchemaTest(unittest.TestCase):
         with self.assertRaises(ValidationError):
             AskRequest(question="什么是 RAG？", top_k=0)
 
-    def test_search_request_validates_query_and_retriever(self) -> None:
+    def test_search_request_validates_query_and_accepts_external_retriever(self) -> None:
         request = SearchRequest(query="  embedding  ", retriever="hybrid")
 
         self.assertEqual(request.query, "embedding")
@@ -85,8 +92,12 @@ class ApiSchemaTest(unittest.TestCase):
         with self.assertRaises(ValidationError):
             SearchRequest(query="")
 
+        external_request = SearchRequest(query="RAG", retriever="external")
+
+        self.assertEqual(external_request.retriever, "external")
+
         with self.assertRaises(ValidationError):
-            SearchRequest(query="RAG", retriever="unknown")
+            SearchRequest(query="RAG", retriever=" ")
 
     def test_retrieved_chunk_response_keeps_source_and_score(self) -> None:
         response = retrieved_chunk_to_response(build_retrieved_chunk())
@@ -96,6 +107,24 @@ class ApiSchemaTest(unittest.TestCase):
         self.assertEqual(response.rank, 1)
         self.assertEqual(response.source_path, "docs/rag.md")
         self.assertEqual(response.metadata["language"], "zh")
+
+    def test_retrieved_chunk_response_exposes_hybrid_signals(self) -> None:
+        chunk = replace(
+            build_retrieved_chunk(),
+            retriever="hybrid",
+            retrieval_signals=(
+                RetrievalSignal("vector", rank=2, score=0.81),
+                RetrievalSignal("bm25", rank=1, score=7.5),
+            ),
+        )
+
+        response = retrieved_chunk_to_response(chunk)
+
+        self.assertEqual(
+            [signal.retriever for signal in response.retrieval_signals],
+            ["vector", "bm25"],
+        )
+        self.assertEqual(response.retrieval_signals[1].score, 7.5)
 
     def test_ask_response_hides_retrieved_chunks_by_default(self) -> None:
         response = rag_answer_to_response(build_answer())

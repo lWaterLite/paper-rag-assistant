@@ -9,6 +9,7 @@ from app.api.schemas import SearchRequest
 from app.core.errors import AppError, ErrorCode
 from app.core.models import RetrievedChunk
 from app.retrieval.configs import RetrievalConfig
+from app.retrieval.retrievers import RetrieverRegistry
 from app.retrieval.service import SearchService
 
 
@@ -47,21 +48,30 @@ class StaticRetriever:
         ]
 
 
+def build_registry(**retrievers: StaticRetriever) -> RetrieverRegistry:
+    """创建包含指定测试检索器的注册表。"""
+
+    registry = RetrieverRegistry()
+    for name, retriever in retrievers.items():
+        registry.register(name, lambda retriever=retriever: retriever)
+    return registry
+
+
 class SearchServiceTest(unittest.TestCase):
     """验证 search 服务编排。"""
 
     def test_search_uses_default_retriever_and_deduplicates_chunks(self) -> None:
         service = SearchService(
-            retrievers={
-                "vector": StaticRetriever(
+            registry=build_registry(
+                vector=StaticRetriever(
                     "vector",
                     [
                         build_result("chunk_a", rank=1, retriever="vector"),
                         build_result("chunk_a", rank=2, retriever="vector"),
                         build_result("chunk_b", rank=3, retriever="vector"),
                     ],
-                )
-            },
+                ),
+            ),
             config=RetrievalConfig(strategy="vector", top_k=3, deduplicate_by_chunk_id=True),
         )
 
@@ -75,10 +85,16 @@ class SearchServiceTest(unittest.TestCase):
 
     def test_search_allows_request_level_retriever_override(self) -> None:
         service = SearchService(
-            retrievers={
-                "vector": StaticRetriever("vector", [build_result("vector_chunk", retriever="vector")]),
-                "bm25": StaticRetriever("bm25", [build_result("bm25_chunk", retriever="bm25")]),
-            },
+            registry=build_registry(
+                vector=StaticRetriever(
+                    "vector",
+                    [build_result("vector_chunk", retriever="vector")],
+                ),
+                bm25=StaticRetriever(
+                    "bm25",
+                    [build_result("bm25_chunk", retriever="bm25")],
+                ),
+            ),
             config=RetrievalConfig(strategy="vector", top_k=1),
         )
 
@@ -89,7 +105,7 @@ class SearchServiceTest(unittest.TestCase):
 
     def test_search_rejects_unsupported_retriever(self) -> None:
         service = SearchService(
-            retrievers={"vector": StaticRetriever("vector", [])},
+            registry=build_registry(vector=StaticRetriever("vector", [])),
             config=RetrievalConfig(strategy="vector", top_k=1),
         )
 
@@ -101,7 +117,12 @@ class SearchServiceTest(unittest.TestCase):
 
     def test_search_handler_maps_domain_result_to_api_response(self) -> None:
         service = SearchService(
-            retrievers={"bm25": StaticRetriever("bm25", [build_result("chunk_a", retriever="bm25")])},
+            registry=build_registry(
+                bm25=StaticRetriever(
+                    "bm25",
+                    [build_result("chunk_a", retriever="bm25")],
+                )
+            ),
             config=RetrievalConfig(strategy="bm25", top_k=1),
         )
 

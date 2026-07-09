@@ -79,7 +79,7 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
     """验证 IndexBuilder 会复用 embedding cache。"""
 
     def test_second_build_reuses_embedding_cache(self) -> None:
-        env_settings = EnvSettings(chunk_size=120, chunk_overlap=20)
+        env_settings = EnvSettings()
         cache = InMemoryEmbeddingCache()
         client = CountingEmbeddingClient()
 
@@ -106,7 +106,7 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
         self.assertEqual(client.embedded_text_count, first_result.chunk_count)
 
     def test_same_builder_skips_chunks_already_in_vector_collection(self) -> None:
-        env_settings = EnvSettings(chunk_size=120, chunk_overlap=20)
+        env_settings = EnvSettings()
         client = CountingEmbeddingClient()
         builder = create_index_builder(env_settings, ProjectSettings(), embedding_client=client)
 
@@ -120,7 +120,7 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
         self.assertEqual(client.embedded_text_count, first_result.chunk_count)
 
     def test_index_builder_writes_ingestion_report_from_project_settings(self) -> None:
-        env_settings = EnvSettings(chunk_size=120, chunk_overlap=20)
+        env_settings = EnvSettings()
         report_dir = Path(".tmp_tests") / f"ingestion_reports_{uuid.uuid4().hex}"
         chunking_report_dir = Path(".tmp_tests") / f"chunking_reports_{uuid.uuid4().hex}"
         project_settings = ProjectSettings(
@@ -159,7 +159,7 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
         self.assertEqual(chunking_stage.detail["report_path"], result.chunking_report_path.as_posix())
 
     def test_index_builder_persists_local_json_index_artifacts(self) -> None:
-        env_settings = EnvSettings(chunk_size=120, chunk_overlap=20)
+        env_settings = EnvSettings()
         index_dir = Path(".tmp_tests") / f"indexes_{uuid.uuid4().hex}"
         report_dir = Path(".tmp_tests") / f"ingestion_reports_{uuid.uuid4().hex}"
         chunking_report_dir = Path(".tmp_tests") / f"chunking_reports_{uuid.uuid4().hex}"
@@ -239,7 +239,7 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
 
         try:
             builder = create_index_builder(
-                EnvSettings(chunk_size=120, chunk_overlap=20),
+                EnvSettings(),
                 project_settings,
                 embedding_client=WrongDimensionEmbeddingClient(),
             )

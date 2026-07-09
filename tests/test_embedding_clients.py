@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import os
 import unittest
-from unittest.mock import patch
 
 from app.core.errors import AppError, ErrorCode
 from app.indexing.configs import EmbeddingConfig
@@ -40,9 +38,8 @@ class EmbeddingClientTest(unittest.TestCase):
 
     def test_openai_embedding_client_rejects_missing_api_key(self) -> None:
         config = EmbeddingConfig(provider="openai", model="text-embedding-3-small", dimension=1536)
-        with patch.dict(os.environ, {}, clear=True):
-            with self.assertRaises(AppError) as context:
-                OpenAIEmbeddingClient(config)
+        with self.assertRaises(AppError) as context:
+            OpenAIEmbeddingClient(config)
 
         self.assertEqual(context.exception.code, ErrorCode.INVALID_CONFIG)
         self.assertIn("OPENAI_API_KEY", context.exception.message)
