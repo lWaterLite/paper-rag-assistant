@@ -316,7 +316,7 @@ _average_document_length
 
 ```text
 query
-  -> tokenize_basic(query)
+  -> index 持有的 Tokenizer.tokenize(query)
   -> 对每个 chunk 计算 BM25 score
   -> 过滤 score <= 0 的 chunk
   -> 按 score 降序
@@ -325,32 +325,29 @@ query
 
 ### `BM25Retriever`
 
-`BM25Retriever` 接收：
+`BM25Retriever` 只接收已经构建完成的：
 
 ```python
-Iterable[DocumentChunk] | BM25Index
+BM25Index
 ```
 
-这样后续可以有两种使用方式：
-
 ```python
-BM25Retriever(chunk_collection.iter_chunks())
-```
-
-或者：
-
-```python
-index = BM25Index.from_chunks(chunks, config=config)
+index = BM25Index.from_chunks(
+    chunks,
+    config=config,
+    tokenizer=tokenizer,
+)
 retriever = BM25Retriever(index)
 ```
 
-这给后续“BM25 index 持久化”或“启动时构建、请求时复用”留出了空间。
+这种边界确保 BM25Retriever 不负责索引构建，也避免它自行创建配置或 tokenizer。
+后续实现“BM25 index 持久化”或“启动时构建、请求时复用”时，检索器接口无需变化。
 
 ---
 
-## 8. `tokenize_basic`
+## 8. Tokenizer 策略
 
-当前 tokenizer 是轻量教学版：
+当前内置的 `RegexTokenizer` 是轻量正则分词器：
 
 ```text
 英文、数字、下划线：按连续词提取
@@ -371,13 +368,17 @@ retriever = BM25Retriever(index)
 
 它的局限是中文词组会被拆散。
 
-后续如果要提升中文检索质量，可以把 tokenizer 抽象成策略：
+项目通过 `Tokenizer` Protocol 和 `TokenizerRegistry` 支持替换策略：
 
 ```text
-BasicTokenizer
+RegexTokenizer
 JiebaTokenizer
 OpenSearchAnalyzerTokenizer
 ```
+
+`RetrievalFactory` 根据 `settings.toml` 中的
+`retrieval.tokenizer.strategy` 选择实现，并把同一个 tokenizer 注入
+`BM25Index`。索引文本与查询文本因此始终采用一致的分词规则。
 
 ---
 
@@ -814,15 +815,17 @@ BM25 index 持久化
 
 ## 19. 练习 1：设计 Tokenizer 策略
 
-当前 BM25 使用 `tokenize_basic` 函数。
+当前 BM25 使用可注入的 `Tokenizer` 协议。
 
 这个实现适合教学，但真实工程里 tokenizer 往往需要可替换。
 
-请你设计一个 tokenizer 策略结构，例如：
+本练习已经实现以下 tokenizer 策略结构：
 
 ```text
 Tokenizer Protocol
-BasicTokenizer
+RegexTokenizer
+TokenizerConfig
+TokenizerRegistry
 未来 JiebaTokenizer
 未来 OpenSearchAnalyzerTokenizer
 ```

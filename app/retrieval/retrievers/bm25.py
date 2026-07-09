@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import math
-import re
 from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -11,6 +10,7 @@ from dataclasses import dataclass
 from app.core.models import DocumentChunk, RetrievedChunk
 from app.retrieval.configs import BM25Config
 from app.retrieval.retrievers.result_builder import RetrievedChunkBuilder
+from app.retrieval.tokenizers import Tokenizer
 
 
 @dataclass(frozen=True)
@@ -28,10 +28,18 @@ class BM25Index:
     这个类负责维护关键词检索需要的统计信息，BM25Retriever 只负责把搜索命中转换成统一结果。
     """
 
-    def __init__(self, chunks: Iterable[DocumentChunk], config: BM25Config) -> None:
+    def __init__(
+        self,
+        chunks: Iterable[DocumentChunk],
+        config: BM25Config,
+        tokenizer: Tokenizer,
+    ) -> None:
         self._chunks = list(chunks)
         self._config = config
-        self._tokenized_chunks = [tokenize_basic(chunk.text) for chunk in self._chunks]
+        self._tokenizer = tokenizer
+        self._tokenized_chunks = [
+            list(self._tokenizer.tokenize(chunk.text)) for chunk in self._chunks
+        ]
         self._term_frequencies = [Counter(tokens) for tokens in self._tokenized_chunks]
         self._document_frequencies = self._build_document_frequencies(
             self._tokenized_chunks
@@ -45,11 +53,12 @@ class BM25Index:
         cls,
         chunks: Iterable[DocumentChunk],
         *,
-        config: BM25Config | None = None,
+        config: BM25Config,
+        tokenizer: Tokenizer,
     ) -> "BM25Index":
         """根据 chunks 创建 BM25 索引。"""
 
-        return cls(chunks, config or BM25Config())
+        return cls(chunks, config, tokenizer)
 
     @property
     def chunk_count(self) -> int:
@@ -69,7 +78,7 @@ class BM25Index:
         if top_k <= 0 or not self._chunks:
             return []
 
-        query_terms = tokenize_basic(query)
+        query_terms = list(self._tokenizer.tokenize(query))
         if not query_terms:
             return []
 
@@ -145,22 +154,8 @@ class BM25Index:
 class BM25Retriever:
     """基于 BM25Index 的关键词检索器。"""
 
-    def __init__(
-        self,
-        chunks_or_index: Iterable[DocumentChunk] | BM25Index,
-        *,
-        config: BM25Config | None = None,
-        k1: float | None = None,
-        b: float | None = None,
-    ) -> None:
-        resolved_config = config or BM25Config(
-            k1=BM25Config().k1 if k1 is None else k1,
-            b=BM25Config().b if b is None else b,
-        )
-        if isinstance(chunks_or_index, BM25Index):
-            self._index = chunks_or_index
-        else:
-            self._index = BM25Index.from_chunks(chunks_or_index, config=resolved_config)
+    def __init__(self, index: BM25Index) -> None:
+        self._index = index
 
     def retrieve(self, query: str, top_k: int) -> list[RetrievedChunk]:
         """检索与 query 关键词最相关的 chunk。"""
@@ -174,12 +169,3 @@ class BM25Retriever:
             )
             for hit in self._index.search(query, top_k=top_k)
         ]
-
-
-def tokenize_basic(text: str) -> list[str]:
-    """教学版 tokenizer。
-
-    英文词按单词切分，中文按单字切分。后续可以替换为专业 tokenizer。
-    """
-
-    return re.findall(r"[a-zA-Z0-9_]+|[\u4e00-\u9fff]", text.lower())

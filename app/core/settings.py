@@ -252,9 +252,29 @@ class IndexBuilderSettings(BaseModel):
         return self
 
 
+class TokenizerSettings(BaseModel):
+    """检索分词器的结构化配置。"""
+
+    strategy: str = Field(
+        default="regex",
+        min_length=1,
+        description="BM25 索引与查询共同使用的分词策略",
+    )
+
+    @model_validator(mode="after")
+    def validate_strategy(self) -> "TokenizerSettings":
+        """清理并校验分词器策略名称。"""
+
+        self.strategy = self.strategy.strip()
+        if not self.strategy:
+            raise ValueError("strategy 不能为空")
+        return self
+
+
 class RetrievalSettings(BaseModel):
     """检索子系统结构化配置。"""
 
+    tokenizer: TokenizerSettings = Field(default_factory=TokenizerSettings)
     bm25_k1: float = Field(default=1.5, gt=0, description="BM25 词频饱和参数")
     bm25_b: float = Field(
         default=0.75, ge=0, le=1, description="BM25 文档长度归一化参数"

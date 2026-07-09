@@ -9,6 +9,12 @@ from app.retrieval.retrievers import (
     VectorRetriever,
 )
 from app.retrieval.service import SearchResult, SearchService
+from app.retrieval.tokenizers import (
+    RegexTokenizer,
+    Tokenizer,
+    TokenizerConfig,
+    TokenizerRegistry,
+)
 
 __all__ = [
     "BM25Config",
@@ -20,5 +26,9 @@ __all__ = [
     "Retriever",
     "SearchResult",
     "SearchService",
+    "RegexTokenizer",
+    "Tokenizer",
+    "TokenizerConfig",
+    "TokenizerRegistry",
     "VectorRetriever",
 ]

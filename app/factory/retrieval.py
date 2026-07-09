@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from app.core.errors import AppError, ErrorCode
 from app.factory.configs import ConfigFactory
 from app.indexing.index_builder import RagIndex
-from app.retrieval.configs import BM25Config
-from app.retrieval.retrievers import BM25Retriever, Retriever, VectorRetriever
+from app.retrieval.retrievers import BM25Index, BM25Retriever, Retriever, VectorRetriever
 from app.retrieval.service import SearchService
+from app.retrieval.tokenizers import (
+    Tokenizer,
+    TokenizerRegistry,
+    build_default_tokenizer_registry,
+)
 
 
 @dataclass(slots=True)
@@ -17,6 +21,9 @@ class RetrievalFactory:
     """组装在线检索相关对象。"""
 
     configs: ConfigFactory
+    tokenizer_registry: TokenizerRegistry = field(
+        default_factory=build_default_tokenizer_registry
+    )
 
     @staticmethod
     def build_vector_retriever(index: RagIndex) -> VectorRetriever:
@@ -31,11 +38,20 @@ class RetrievalFactory:
     def build_bm25_retriever(self, index: RagIndex) -> BM25Retriever:
         """根据当前 chunk collection 创建 BM25 检索器。"""
 
-        config = BM25Config(
-            k1=self.configs.project_settings.retrieval.bm25_k1,
-            b=self.configs.project_settings.retrieval.bm25_b,
+        retrieval_config = self.configs.build_retrieval_config()
+        bm25_index = BM25Index.from_chunks(
+            index.chunk_collection.iter_chunks(),
+            config=retrieval_config.bm25,
+            tokenizer=self.build_tokenizer(),
         )
-        return BM25Retriever(index.chunk_collection.iter_chunks(), config=config)
+        return BM25Retriever(bm25_index)
+
+    def build_tokenizer(self) -> Tokenizer:
+        """根据当前配置创建 BM25 使用的分词器。"""
+
+        return self.tokenizer_registry.create(
+            self.configs.build_tokenizer_config()
+        )
 
     def build_retriever(self, index: RagIndex) -> Retriever:
         """根据检索策略创建在线问答默认检索器。"""

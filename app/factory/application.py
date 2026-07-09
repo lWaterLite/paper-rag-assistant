@@ -27,6 +27,7 @@ from app.repositories.vector_repository import VectorRepository
 from app.retrieval.context_packer import ContextPacker
 from app.retrieval.retrievers import Retriever
 from app.retrieval.service import SearchService
+from app.retrieval.tokenizers import TokenizerRegistry
 
 
 @dataclass(slots=True)
@@ -40,6 +41,7 @@ class ApplicationFactory:
     env_settings: EnvSettings = field(default_factory=EnvSettings)
     project_settings: ProjectSettings = field(default_factory=ProjectSettings)
     chunker_registry: ChunkerRegistry | None = None
+    tokenizer_registry: TokenizerRegistry | None = None
     configs: ConfigFactory = field(init=False)
     ingestion: IngestionFactory = field(init=False)
     indexing: IndexingFactory = field(init=False)
@@ -60,7 +62,14 @@ class ApplicationFactory:
             ),
         )
         self.indexing = IndexingFactory(configs=self.configs, ingestion=self.ingestion)
-        self.retrieval = RetrievalFactory(configs=self.configs)
+        self.retrieval = RetrievalFactory(
+            configs=self.configs,
+            **(
+                {"tokenizer_registry": self.tokenizer_registry}
+                if self.tokenizer_registry is not None
+                else {}
+            ),
+        )
         self.pipelines = PipelineFactory(configs=self.configs, retrieval=self.retrieval)
 
     def build_index_builder(

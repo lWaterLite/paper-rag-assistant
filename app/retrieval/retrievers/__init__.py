@@ -11,7 +11,6 @@ from app.retrieval.retrievers.bm25 import (
     BM25Index,
     BM25Retriever,
     BM25SearchHit,
-    tokenize_basic,
 )
 from app.retrieval.retrievers.result_builder import RetrievedChunkBuilder
 from app.retrieval.retrievers.vector import VectorRetriever
@@ -23,5 +22,4 @@ __all__ = [
     "RetrievedChunkBuilder",
     "Retriever",
     "VectorRetriever",
-    "tokenize_basic",
 ]

@@ -16,6 +16,7 @@ from app.ingest.cleaners import PdfTextCleanerConfig
 from app.ingest.loaders import LocalDocumentLoaderConfig
 from app.ingest.pipeline import IngestionReportConfig
 from app.retrieval.configs import BM25Config, RetrievalConfig
+from app.retrieval.tokenizers import TokenizerConfig
 
 
 @dataclass(slots=True)
@@ -120,4 +121,11 @@ class ConfigFactory:
                 b=self.project_settings.retrieval.bm25_b,
             ),
             deduplicate_by_chunk_id=self.project_settings.retrieval.deduplicate_by_chunk_id,
+        )
+
+    def build_tokenizer_config(self) -> TokenizerConfig:
+        """从 ProjectSettings 转换成分词器运行时配置。"""
+
+        return TokenizerConfig(
+            strategy=self.project_settings.retrieval.tokenizer.strategy,
         )
