@@ -33,94 +33,101 @@ class ConfigFactory:
     def build_loader_config(self) -> LocalDocumentLoaderConfig:
         """从结构化 ProjectSettings 转换成本地文档 loader 配置。"""
 
+        settings = self.project_settings.ingestion.loader
         return LocalDocumentLoaderConfig(
-            recursive=self.project_settings.loader.recursive,
-            ignored_dir_names=self.project_settings.loader.ignored_dir_names,
-            ignored_relative_paths=self.project_settings.loader.ignored_relative_paths,
-            skip_hidden_paths=self.project_settings.loader.skip_hidden_paths,
-            temporary_file_prefixes=self.project_settings.loader.temporary_file_prefixes,
-            temporary_file_suffixes=self.project_settings.loader.temporary_file_suffixes,
+            recursive=settings.recursive,
+            ignored_dir_names=settings.ignored_dir_names,
+            ignored_relative_paths=settings.ignored_relative_paths,
+            skip_hidden_paths=settings.skip_hidden_paths,
+            temporary_file_prefixes=settings.temporary_file_prefixes,
+            temporary_file_suffixes=settings.temporary_file_suffixes,
         )
 
     def build_pdf_text_cleaner_config(self) -> PdfTextCleanerConfig:
         """从结构化 ProjectSettings 转换成 PDF cleaner 配置。"""
 
+        settings = self.project_settings.ingestion.cleaning.pdf
         return PdfTextCleanerConfig(
-            edge_line_count=self.project_settings.pdf_cleaner.edge_line_count,
-            min_repeat_ratio=self.project_settings.pdf_cleaner.min_repeat_ratio,
-            min_line_length=self.project_settings.pdf_cleaner.min_line_length,
-            max_line_length=self.project_settings.pdf_cleaner.max_line_length,
+            edge_line_count=settings.edge_line_count,
+            min_repeat_ratio=settings.min_repeat_ratio,
+            min_line_length=settings.min_line_length,
+            max_line_length=settings.max_line_length,
         )
 
     def build_ingestion_report_config(self) -> IngestionReportConfig:
         """从结构化 ProjectSettings 转换成 ingestion report 配置。"""
 
         return IngestionReportConfig(
-            output_dir=self.project_settings.ingestion_report.output_dir
+            output_dir=self.project_settings.ingestion.report.output_dir
         )
 
     def build_chunker_config(self) -> ChunkerConfig:
         """从结构化 ProjectSettings 转换成 chunker 配置。"""
 
+        settings = self.project_settings.ingestion.chunking
         return ChunkerConfig(
-            strategy=self.project_settings.chunking.strategy,
-            chunk_size=self.project_settings.chunking.chunk_size,
-            chunk_overlap=self.project_settings.chunking.chunk_overlap,
-            tokenizer=self.project_settings.chunking.tokenizer,
+            strategy=settings.strategy,
+            chunk_size=settings.chunk_size,
+            chunk_overlap=settings.chunk_overlap,
+            tokenizer=settings.tokenizer,
         )
 
     def build_chunking_report_config(self) -> ChunkingReportConfig:
         """从结构化 ProjectSettings 转换成 chunking report 配置。"""
 
         return ChunkingReportConfig(
-            output_dir=self.project_settings.chunking_report.output_dir
+            output_dir=self.project_settings.ingestion.chunking.report.output_dir
         )
 
     def build_embedding_config(self) -> EmbeddingConfig:
         """从结构化 ProjectSettings 转换成 embedding 运行时配置。"""
 
+        settings = self.project_settings.indexing.embedding
         return EmbeddingConfig(
-            provider=self.project_settings.embedding.provider,
-            model=self.project_settings.embedding.model,
-            dimension=self.project_settings.embedding.dimension,
-            batch_size=self.project_settings.embedding.batch_size,
-            timeout_seconds=self.project_settings.embedding.timeout_seconds,
-            max_retries=self.project_settings.embedding.max_retries,
-            api_key_env_name=self.project_settings.embedding.api_key_env_name,
+            provider=settings.provider,
+            model=settings.model,
+            dimension=settings.dimension,
+            batch_size=settings.batch_size,
+            timeout_seconds=settings.timeout_seconds,
+            max_retries=settings.max_retries,
+            api_key_env_name=settings.api_key_env_name,
         )
 
     def build_vector_repository_config(self) -> VectorRepositoryConfig:
         """从结构化 ProjectSettings 转换成向量持久化运行时配置。"""
 
+        settings = self.project_settings.indexing.vector_repository
         return VectorRepositoryConfig(
-            repository_type=self.project_settings.vector_repository.type,
-            index_dir=self.project_settings.vector_repository.index_dir,
-            collection_name=self.project_settings.vector_repository.collection_name,
-            distance_metric=self.project_settings.vector_repository.distance_metric,
-            persist=self.project_settings.vector_repository.persist,
+            repository_type=settings.type,
+            index_dir=settings.index_dir,
+            collection_name=settings.collection_name,
+            distance_metric=settings.distance_metric,
+            persist=settings.persist,
         )
 
     def build_index_builder_config(self) -> IndexBuilderConfig:
         """从结构化 ProjectSettings 转换成索引构建运行时配置。"""
 
+        settings = self.project_settings.indexing.builder
         return IndexBuilderConfig(
-            manifest_filename=self.project_settings.index_builder.manifest_filename,
-            build_report_filename=self.project_settings.index_builder.build_report_filename,
-            skip_existing=self.project_settings.index_builder.skip_existing,
-            fail_on_empty_chunk=self.project_settings.index_builder.fail_on_empty_chunk,
+            manifest_filename=settings.manifest_filename,
+            build_report_filename=settings.build_report_filename,
+            skip_existing=settings.skip_existing,
+            fail_on_empty_chunk=settings.fail_on_empty_chunk,
         )
 
     def build_retrieval_config(self) -> RetrievalConfig:
         """从 EnvSettings 和 ProjectSettings 转换成检索运行时配置。"""
 
+        settings = self.project_settings.retrieval
         return RetrievalConfig(
             strategy=self.env_settings.retrieval_strategy,
             top_k=self.env_settings.top_k,
             bm25=BM25Config(
-                k1=self.project_settings.retrieval.bm25_k1,
-                b=self.project_settings.retrieval.bm25_b,
+                k1=settings.bm25.k1,
+                b=settings.bm25.b,
             ),
-            deduplicate_by_chunk_id=self.project_settings.retrieval.deduplicate_by_chunk_id,
+            deduplicate_by_chunk_id=settings.deduplicate_by_chunk_id,
         )
 
     def build_tokenizer_config(self) -> TokenizerConfig:

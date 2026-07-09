@@ -1,9 +1,18 @@
-# paper-rag-assistant 结构化工程配置
+# paper-rag-assistant 非敏感工程配置
 #
-# .env 继续用于环境相关、敏感或部署覆盖项。
-# 本文件用于 loader、cleaner 等结构化配置。
+# 配置树按照系统数据流排列：
+#   ingestion（加载、清洗、切分）
+#       -> indexing（向量化、持久化、索引构建）
+#       -> retrieval（在线召回与结果处理）
+#
+# .env 仅保留密钥、部署环境覆盖项和少量应用入口参数。
 
-[loader]
+
+# =============================================================================
+# 1. Ingestion：原始文档 -> 可索引 DocumentChunk
+# =============================================================================
+
+[ingestion.loader]
 recursive = true
 ignored_dir_names = [".git", ".idea", "__pycache__", ".tmp_tests"]
 ignored_relative_paths = ["data/indexes"]
@@ -11,25 +20,30 @@ skip_hidden_paths = true
 temporary_file_prefixes = ["~$"]
 temporary_file_suffixes = [".tmp", ".part", ".crdownload"]
 
-[pdf_cleaner]
+[ingestion.cleaning.pdf]
 edge_line_count = 2
 min_repeat_ratio = 0.6
 min_line_length = 3
 max_line_length = 120
 
-[ingestion_report]
-output_dir = "logs"
-
-[chunking]
+[ingestion.chunking]
 strategy = "section_aware"
 chunk_size = 600
 chunk_overlap = 100
 tokenizer = "char_approx"
 
-[chunking_report]
+[ingestion.chunking.report]
 output_dir = "logs"
 
-[embedding]
+[ingestion.report]
+output_dir = "logs"
+
+
+# =============================================================================
+# 2. Indexing：DocumentChunk -> Embedding -> 持久化索引
+# =============================================================================
+
+[indexing.embedding]
 provider = "mock"
 model = "mock-hash-embedding"
 dimension = 16
@@ -38,23 +52,30 @@ timeout_seconds = 30.0
 max_retries = 2
 api_key_env_name = "OPENAI_API_KEY"
 
-[vector_repository]
+[indexing.vector_repository]
 type = "local_json"
 index_dir = "data/indexes"
 collection_name = "papers_baseline"
 distance_metric = "cosine"
 persist = true
 
-[index_builder]
+[indexing.builder]
 manifest_filename = "manifest.json"
 build_report_filename = "index_build_report.json"
 skip_existing = true
 fail_on_empty_chunk = true
 
+
+# =============================================================================
+# 3. Retrieval：持久化索引 + Query -> RetrievedChunk
+# =============================================================================
+
 [retrieval]
-bm25_k1 = 1.5
-bm25_b = 0.75
 deduplicate_by_chunk_id = true
 
 [retrieval.tokenizer]
 strategy = "regex"
+
+[retrieval.bm25]
+k1 = 1.5
+b = 0.75

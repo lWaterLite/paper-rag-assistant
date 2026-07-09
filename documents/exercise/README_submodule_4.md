@@ -52,7 +52,7 @@
 10. `app/core/settings.py`
    - 增加 `EmbeddingSettings`、`VectorRepositorySettings`、`IndexBuilderSettings`。
 11. `settings.toml`
-   - 增加 `[embedding]`、`[vector_repository]`、`[index_builder]` 配置段。
+   - 增加 `[indexing.embedding]`、`[indexing.vector_repository]`、`[indexing.builder]` 配置段。
 12. `tests/test_embedding_clients.py`
    - 测试 mock embedding、维度校验和 OpenAI provider 缺 key 的错误。
 13. `tests/test_embedding_cache.py`
@@ -104,7 +104,7 @@ User Query
 子模块 4 新增三段配置：
 
 ```toml
-[embedding]
+[indexing.embedding]
 provider = "mock"
 model = "mock-hash-embedding"
 dimension = 16
@@ -113,14 +113,14 @@ timeout_seconds = 30.0
 max_retries = 2
 api_key_env_name = "OPENAI_API_KEY"
 
-[vector_repository]
+[indexing.vector_repository]
 type = "local_json"
 index_dir = "data/indexes"
 collection_name = "papers_baseline"
 distance_metric = "cosine"
 persist = true
 
-[index_builder]
+[indexing.builder]
 manifest_filename = "manifest.json"
 build_report_filename = "index_build_report.json"
 skip_existing = true
@@ -136,7 +136,7 @@ fail_on_empty_chunk = true
 
 ### `EmbeddingSettings` 与 `EmbeddingConfig`
 
-`EmbeddingSettings` 位于 `app/core/settings.py`，代表 TOML 中 `[embedding]` 的形状。
+`EmbeddingSettings` 位于 `app/core/settings.py`，代表 TOML 中 `[indexing.embedding]` 的形状。
 
 `EmbeddingConfig` 位于 `app/indexing/configs.py`，代表 embedding client 真正接收的配置。
 
@@ -346,7 +346,7 @@ OPENAI_API_KEY=你的真实 key
 再把 `settings.toml` 改为：
 
 ```toml
-[embedding]
+[indexing.embedding]
 provider = "openai"
 model = "text-embedding-3-small"
 dimension = 1536
@@ -750,7 +750,7 @@ settings.toml
 例如：
 
 ```text
-[vector_repository].type = "local_json"
+[indexing.vector_repository].type = "local_json"
   -> VectorRepositorySettings
   -> VectorRepositoryConfig
   -> InMemoryVectorCollection
@@ -997,7 +997,7 @@ pgvector
 要求：
 
 1. 新实现必须满足当前 collection/repository 分层。
-2. factory 根据 `settings.toml` 的 `[vector_repository].type` 选择实现。
+2. factory 根据 `settings.toml` 的 `[indexing.vector_repository].type` 选择实现。
 3. 不要让业务代码直接依赖具体 SDK。
 4. manifest 中记录新的 vector repository 类型。
 
@@ -1130,7 +1130,7 @@ OPENAI_API_KEY=你的真实 key
 3. 修改 `settings.toml`：
 
 ```toml
-[embedding]
+[indexing.embedding]
 provider = "openai"
 model = "text-embedding-3-small"
 dimension = 1536

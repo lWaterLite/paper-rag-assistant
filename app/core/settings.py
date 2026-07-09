@@ -121,8 +121,16 @@ class IngestionReportSettings(BaseModel):
     )
 
 
+class ChunkingReportSettings(BaseModel):
+    """chunking 质量报告配置。"""
+
+    output_dir: Path = Field(
+        default=Path("logs"), description="chunking 报告 JSON 的输出目录"
+    )
+
+
 class ChunkingSettings(BaseModel):
-    """文本切分的结构化配置。"""
+    """文本切分及其质量报告的结构化配置。"""
 
     strategy: str = Field(
         default="section_aware",
@@ -134,6 +142,7 @@ class ChunkingSettings(BaseModel):
     tokenizer: Literal["char_approx", "simple_regex"] = Field(
         default="char_approx", description="token 估算方式"
     )
+    report: ChunkingReportSettings = Field(default_factory=ChunkingReportSettings)
 
     @model_validator(mode="after")
     def validate_chunk_window(self) -> "ChunkingSettings":
@@ -148,14 +157,6 @@ class ChunkingSettings(BaseModel):
                 f"chunk_size={self.chunk_size}"
             )
         return self
-
-
-class ChunkingReportSettings(BaseModel):
-    """chunking 质量报告配置。"""
-
-    output_dir: Path = Field(
-        default=Path("logs"), description="chunking 报告 JSON 的输出目录"
-    )
 
 
 class EmbeddingSettings(BaseModel):
@@ -271,36 +272,53 @@ class TokenizerSettings(BaseModel):
         return self
 
 
+class BM25Settings(BaseModel):
+    """BM25 检索算法的结构化配置。"""
+
+    k1: float = Field(default=1.5, gt=0, description="词频饱和参数")
+    b: float = Field(default=0.75, ge=0, le=1, description="文档长度归一化参数")
+
+
 class RetrievalSettings(BaseModel):
     """检索子系统结构化配置。"""
 
     tokenizer: TokenizerSettings = Field(default_factory=TokenizerSettings)
-    bm25_k1: float = Field(default=1.5, gt=0, description="BM25 词频饱和参数")
-    bm25_b: float = Field(
-        default=0.75, ge=0, le=1, description="BM25 文档长度归一化参数"
-    )
+    bm25: BM25Settings = Field(default_factory=BM25Settings)
     deduplicate_by_chunk_id: bool = Field(
         default=True, description="检索结果是否按 chunk_id 去重"
     )
 
 
-class ProjectSettings(BaseModel):
-    """从 settings.toml 读取的结构化工程配置。"""
+class CleaningSettings(BaseModel):
+    """文档清洗阶段的结构化配置。"""
+
+    pdf: PdfCleanerSettings = Field(default_factory=PdfCleanerSettings)
+
+
+class IngestionSettings(BaseModel):
+    """文档加载、清洗、切分与摄取报告配置。"""
 
     loader: LoaderSettings = Field(default_factory=LoaderSettings)
-    pdf_cleaner: PdfCleanerSettings = Field(default_factory=PdfCleanerSettings)
-    ingestion_report: IngestionReportSettings = Field(
-        default_factory=IngestionReportSettings
-    )
+    cleaning: CleaningSettings = Field(default_factory=CleaningSettings)
     chunking: ChunkingSettings = Field(default_factory=ChunkingSettings)
-    chunking_report: ChunkingReportSettings = Field(
-        default_factory=ChunkingReportSettings
-    )
+    report: IngestionReportSettings = Field(default_factory=IngestionReportSettings)
+
+
+class IndexingSettings(BaseModel):
+    """Embedding、持久化与索引构建配置。"""
+
     embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings)
     vector_repository: VectorRepositorySettings = Field(
         default_factory=VectorRepositorySettings
     )
-    index_builder: IndexBuilderSettings = Field(default_factory=IndexBuilderSettings)
+    builder: IndexBuilderSettings = Field(default_factory=IndexBuilderSettings)
+
+
+class ProjectSettings(BaseModel):
+    """从 settings.toml 读取的结构化工程配置。"""
+
+    ingestion: IngestionSettings = Field(default_factory=IngestionSettings)
+    indexing: IndexingSettings = Field(default_factory=IndexingSettings)
     retrieval: RetrievalSettings = Field(default_factory=RetrievalSettings)
 
     @classmethod

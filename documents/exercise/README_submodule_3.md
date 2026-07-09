@@ -71,13 +71,13 @@ chunking 位于 parsing/cleaning 之后、embedding 之前。它不应该负责�
 当前 chunking 配置位于：
 
 ```toml
-[chunking]
+[ingestion.chunking]
 strategy = "section_aware"
 chunk_size = 600
 chunk_overlap = 100
 tokenizer = "char_approx"
 
-[chunking_report]
+[ingestion.chunking.report]
 output_dir = "logs"
 ```
 
