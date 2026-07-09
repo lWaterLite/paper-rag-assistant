@@ -843,23 +843,51 @@ TokenizerRegistry
 
 ## 20. 练习 2：设计 Hybrid Retrieval 的接口位置
 
-本次代码还没有实现 hybrid retrieval，但已经为它留下位置：
+当前代码还没有实现 hybrid retrieval，但检索主链路已经重构为：
 
 ```text
-Retriever 协议
-SearchService retrievers registry
-dedup.py
-RetrievalConfig.strategy = "hybrid"
+SearchService
+  -> RetrievalPipeline
+      -> 根据 retriever 名称从 Mapping[str, Retriever] 选择实现
+      -> Retriever.retrieve(...)
+      -> RetrievalResultStage 后处理链
+          -> ChunkIdDeduplicationStage
+          -> TopKLimitStage
 ```
 
-请你设计 `HybridRetriever` 应该放在哪里，以及它应该依赖什么。
+相关扩展位置如下：
+
+```text
+app/retrieval/retrievers/base.py
+  Retriever 协议
+
+app/retrieval/retrievers/
+  VectorRetriever
+  BM25Retriever
+  未来的 HybridRetriever
+
+app/retrieval/pipeline.py
+  持有 retriever 名称到实现的映射
+  统一执行结果后处理阶段
+
+app/factory/retrieval.py
+  创建具体 retriever
+  把可用策略组装后交给 SearchService
+
+RetrievalConfig.strategy
+  当前类型已经允许 "hybrid"
+  但 factory 尚未创建并注册对应实现
+```
+
+请你在这套现有结构中设计 `HybridRetriever` 应该依赖什么，以及它应当如何由
+`RetrievalFactory` 创建并加入 `RetrievalPipeline` 使用的检索器映射。
 
 建议思考：
 
 1. 它是否应该同时依赖 `VectorRetriever` 和 `BM25Retriever`？
 2. 它是否应该先分别取 top-k，再做合并？
 3. 分数不能直接比较时，应使用什么融合策略？
-4. 去重应该在 HybridRetriever 内部做，还是交给 SearchService？
+4. 来源结果的去重应在 `HybridRetriever` 融合时完成，还是交给 pipeline 的结果阶段？
 5. 它返回的 `retriever` 字段应该是 `hybrid`，还是保留原始来源？
 
 这个练习的重点是检索策略组合，不是立刻实现复杂排序算法。
@@ -868,7 +896,24 @@ RetrievalConfig.strategy = "hybrid"
 
 ## 21. 练习 3：设计 Search Debug Report
 
-`SearchService` 当前已经返回 trace，但真实排查检索问题时可能还需要更详细的 debug report。
+当前 trace 的实际生成与返回链路是：
+
+```text
+RetrievalPipeline.search(...)
+  -> 创建 RagTrace
+  -> 记录 retrieval 阶段状态、耗时和基础详情
+  -> 返回 RetrievalPipelineResult
+
+SearchService.search(...)
+  -> 返回同一个结果对象
+
+handle_search_request(...)
+  -> 根据 SearchRequest.debug_trace
+  -> 决定是否把 RagTrace 转换为 API TraceResponse
+```
+
+现有 trace 适合观察一次请求是否成功，但其中只有 retrieval 阶段的基础信息。
+真实排查召回问题时，还需要候选数量变化、索引版本和检索配置快照等更详细的数据。
 
 你可以设计一个：
 
@@ -896,7 +941,9 @@ latency_ms
 
 1. 不要把 report 写入 retriever。
 2. 不要让 API schema 直接依赖内部 report 数据结构。
-3. 思考 report 应该由 SearchService 生成，还是由单独 writer 生成。
+3. 区分“由 pipeline 或独立组件组装 report”与“由 writer 持久化 report”这两个职责。
+4. 如果需要统计去重前后的数量，应让 pipeline 在各阶段边界收集数据，不要让后处理阶段直接写文件。
+5. `index_id`、embedding 配置和 BM25 配置应通过明确的运行时快照提供，不能让 report 组件自行读取全局 Settings。
 
 这个练习重点是排障能力设计。
 
@@ -904,7 +951,25 @@ latency_ms
 
 ## 22. 练习 4：让 `/search` 支持比较模式
 
-现在 `/search` 一次只使用一个 retriever。
+当前单次搜索调用链是：
+
+```text
+SearchRequest
+  query
+  top_k
+  retriever
+  debug_trace
+
+handle_search_request(...)
+  -> SearchService.search(...)
+      -> RetrievalPipeline.search(...)
+          -> 选择一个 Retriever
+          -> 返回 RetrievalPipelineResult
+  -> SearchResponse
+```
+
+因此，当前一次请求只会选择一个 retriever。API schema、handler 和 retrieval
+pipeline 都只表达单策略结果。
 
 你可以设计一个比较模式：
 
@@ -920,10 +985,12 @@ latency_ms
 
 要求：
 
-1. 不要破坏现有 SearchRequest。
-2. 思考是否应该新增 CompareSearchRequest。
-3. 返回结构中要能清楚区分不同 retriever。
-4. 不要直接比较 vector score 和 BM25 score。
+1. 不要改变现有 `SearchRequest -> SearchResponse` 的单策略语义。
+2. 评估是否新增 `CompareSearchRequest`、`CompareSearchResponse` 和独立 handler。
+3. 比较模式应复用 `SearchService` 或 `RetrievalPipeline` 的现有单策略入口，不要在 API handler 中直接调用具体 retriever。
+4. 返回结构中要清楚区分每个 retriever 的结果、trace 与耗时。
+5. 不要直接比较 vector score 和 BM25 score。
+6. 比较模式只用于并列观察；如果要合并排序，应由练习 2 的 hybrid retrieval 负责。
 
 这个练习重点是 API 契约设计。
 
