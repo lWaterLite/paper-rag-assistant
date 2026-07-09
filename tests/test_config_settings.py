@@ -16,6 +16,7 @@ from unittest.mock import patch
 from pydantic import ValidationError
 
 from app.core.settings import (
+    BM25Settings,
     ChunkingReportSettings,
     ChunkingSettings,
     EmbeddingSettings,
@@ -24,7 +25,6 @@ from app.core.settings import (
     IngestionReportSettings,
     PdfCleanerSettings,
     ProjectSettings,
-    RetrievalSettings,
     TokenizerSettings,
     VectorRepositorySettings,
 )
@@ -125,30 +125,30 @@ class SettingsTest(unittest.TestCase):
         try:
             config_path.write_text(
                 """
-[loader]
+[ingestion.loader]
 recursive = false
 ignored_dir_names = [".git", "__pycache__"]
 temporary_file_suffixes = [".tmp"]
 
-[pdf_cleaner]
+[ingestion.cleaning.pdf]
 edge_line_count = 3
 min_repeat_ratio = 0.75
 min_line_length = 4
 max_line_length = 80
 
-[ingestion_report]
-output_dir = ".tmp_tests/ingestion-reports"
-
-[chunking]
+[ingestion.chunking]
 strategy = "fixed_token"
 chunk_size = 256
 chunk_overlap = 32
 tokenizer = "simple_regex"
 
-[chunking_report]
+[ingestion.chunking.report]
 output_dir = ".tmp_tests/chunking-reports"
 
-[embedding]
+[ingestion.report]
+output_dir = ".tmp_tests/ingestion-reports"
+
+[indexing.embedding]
 provider = "mock"
 model = "mock-hash-embedding"
 dimension = 24
@@ -157,57 +157,59 @@ timeout_seconds = 12.5
 max_retries = 1
 api_key_env_name = "TEST_OPENAI_API_KEY"
 
-[vector_repository]
+[indexing.vector_repository]
 type = "local_json"
 index_dir = ".tmp_tests/indexes"
 collection_name = "test_collection"
 distance_metric = "cosine"
 persist = true
 
-[index_builder]
+[indexing.builder]
 manifest_filename = "test_manifest.json"
 build_report_filename = "test_index_report.json"
 skip_existing = false
 fail_on_empty_chunk = false
 
 [retrieval]
-bm25_k1 = 1.8
-bm25_b = 0.65
 deduplicate_by_chunk_id = false
 
 [retrieval.tokenizer]
 strategy = "regex"
+
+[retrieval.bm25]
+k1 = 1.8
+b = 0.65
 """.strip(),
                 encoding="utf-8",
             )
 
             project_settings = ProjectSettings.from_toml(config_path)
 
-            self.assertFalse(project_settings.loader.recursive)
-            self.assertEqual(project_settings.loader.ignored_dir_names, frozenset({".git", "__pycache__"}))
-            self.assertEqual(project_settings.loader.temporary_file_suffixes, (".tmp",))
-            self.assertEqual(project_settings.pdf_cleaner.edge_line_count, 3)
-            self.assertEqual(project_settings.pdf_cleaner.min_repeat_ratio, 0.75)
-            self.assertEqual(project_settings.pdf_cleaner.max_line_length, 80)
-            self.assertEqual(project_settings.ingestion_report.output_dir, Path(".tmp_tests/ingestion-reports"))
-            self.assertEqual(project_settings.chunking.strategy, "fixed_token")
-            self.assertEqual(project_settings.chunking.chunk_size, 256)
-            self.assertEqual(project_settings.chunking.chunk_overlap, 32)
-            self.assertEqual(project_settings.chunking.tokenizer, "simple_regex")
-            self.assertEqual(project_settings.chunking_report.output_dir, Path(".tmp_tests/chunking-reports"))
-            self.assertEqual(project_settings.embedding.dimension, 24)
-            self.assertEqual(project_settings.embedding.batch_size, 16)
-            self.assertEqual(project_settings.embedding.api_key_env_name, "TEST_OPENAI_API_KEY")
-            self.assertEqual(project_settings.vector_repository.type, "local_json")
-            self.assertEqual(project_settings.vector_repository.index_dir, Path(".tmp_tests/indexes"))
-            self.assertEqual(project_settings.vector_repository.collection_name, "test_collection")
-            self.assertTrue(project_settings.vector_repository.persist)
-            self.assertEqual(project_settings.index_builder.manifest_filename, "test_manifest.json")
-            self.assertEqual(project_settings.index_builder.build_report_filename, "test_index_report.json")
-            self.assertFalse(project_settings.index_builder.skip_existing)
-            self.assertFalse(project_settings.index_builder.fail_on_empty_chunk)
-            self.assertEqual(project_settings.retrieval.bm25_k1, 1.8)
-            self.assertEqual(project_settings.retrieval.bm25_b, 0.65)
+            self.assertFalse(project_settings.ingestion.loader.recursive)
+            self.assertEqual(project_settings.ingestion.loader.ignored_dir_names, frozenset({".git", "__pycache__"}))
+            self.assertEqual(project_settings.ingestion.loader.temporary_file_suffixes, (".tmp",))
+            self.assertEqual(project_settings.ingestion.cleaning.pdf.edge_line_count, 3)
+            self.assertEqual(project_settings.ingestion.cleaning.pdf.min_repeat_ratio, 0.75)
+            self.assertEqual(project_settings.ingestion.cleaning.pdf.max_line_length, 80)
+            self.assertEqual(project_settings.ingestion.report.output_dir, Path(".tmp_tests/ingestion-reports"))
+            self.assertEqual(project_settings.ingestion.chunking.strategy, "fixed_token")
+            self.assertEqual(project_settings.ingestion.chunking.chunk_size, 256)
+            self.assertEqual(project_settings.ingestion.chunking.chunk_overlap, 32)
+            self.assertEqual(project_settings.ingestion.chunking.tokenizer, "simple_regex")
+            self.assertEqual(project_settings.ingestion.chunking.report.output_dir, Path(".tmp_tests/chunking-reports"))
+            self.assertEqual(project_settings.indexing.embedding.dimension, 24)
+            self.assertEqual(project_settings.indexing.embedding.batch_size, 16)
+            self.assertEqual(project_settings.indexing.embedding.api_key_env_name, "TEST_OPENAI_API_KEY")
+            self.assertEqual(project_settings.indexing.vector_repository.type, "local_json")
+            self.assertEqual(project_settings.indexing.vector_repository.index_dir, Path(".tmp_tests/indexes"))
+            self.assertEqual(project_settings.indexing.vector_repository.collection_name, "test_collection")
+            self.assertTrue(project_settings.indexing.vector_repository.persist)
+            self.assertEqual(project_settings.indexing.builder.manifest_filename, "test_manifest.json")
+            self.assertEqual(project_settings.indexing.builder.build_report_filename, "test_index_report.json")
+            self.assertFalse(project_settings.indexing.builder.skip_existing)
+            self.assertFalse(project_settings.indexing.builder.fail_on_empty_chunk)
+            self.assertEqual(project_settings.retrieval.bm25.k1, 1.8)
+            self.assertEqual(project_settings.retrieval.bm25.b, 0.65)
             self.assertFalse(project_settings.retrieval.deduplicate_by_chunk_id)
             self.assertEqual(project_settings.retrieval.tokenizer.strategy, "regex")
         finally:
@@ -266,14 +268,14 @@ strategy = "regex"
 
     def test_retrieval_settings_rejects_invalid_bm25_parameters(self) -> None:
         with self.assertRaises(ValidationError) as context:
-            RetrievalSettings(bm25_k1=0)
+            BM25Settings(k1=0)
 
-        self.assertIn("bm25_k1", str(context.exception))
+        self.assertIn("k1", str(context.exception))
 
         with self.assertRaises(ValidationError) as context:
-            RetrievalSettings(bm25_b=1.5)
+            BM25Settings(b=1.5)
 
-        self.assertIn("bm25_b", str(context.exception))
+        self.assertIn("b", str(context.exception))
 
     def test_tokenizer_settings_normalizes_strategy(self) -> None:
         settings = TokenizerSettings(strategy=" custom ")

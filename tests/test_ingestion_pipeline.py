@@ -7,7 +7,7 @@ import unittest
 import uuid
 from pathlib import Path
 
-from app.core.settings import LoaderSettings, ProjectSettings
+from app.core.settings import IngestionSettings, LoaderSettings, ProjectSettings
 from app.core.errors import AppError, ErrorCode
 from app.core.models import RawDocument
 from app.factory import ApplicationFactory
@@ -111,7 +111,9 @@ class IngestionPipelineTest(unittest.TestCase):
         self.assertEqual(context.exception.code, ErrorCode.DOCUMENT_PARSE_FAILED)
 
     def test_factory_applies_non_recursive_loader_config(self) -> None:
-        project_settings = ProjectSettings(loader=LoaderSettings(recursive=False))
+        project_settings = ProjectSettings(
+            ingestion=IngestionSettings(loader=LoaderSettings(recursive=False))
+        )
         loader = create_local_document_loader(project_settings)
 
         paths = list(loader.iter_supported_files(Path("data/raw/papers")))

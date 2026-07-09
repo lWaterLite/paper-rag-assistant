@@ -11,9 +11,12 @@ from pathlib import Path
 from app.core.errors import AppError, ErrorCode
 from app.core.settings import (
     ChunkingReportSettings,
+    ChunkingSettings,
     EnvSettings,
     IndexBuilderSettings,
     IngestionReportSettings,
+    IngestionSettings,
+    IndexingSettings,
     ProjectSettings,
     VectorRepositorySettings,
 )
@@ -121,8 +124,12 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
         report_dir = Path(".tmp_tests") / f"ingestion_reports_{uuid.uuid4().hex}"
         chunking_report_dir = Path(".tmp_tests") / f"chunking_reports_{uuid.uuid4().hex}"
         project_settings = ProjectSettings(
-            ingestion_report=IngestionReportSettings(output_dir=report_dir),
-            chunking_report=ChunkingReportSettings(output_dir=chunking_report_dir),
+            ingestion=IngestionSettings(
+                report=IngestionReportSettings(output_dir=report_dir),
+                chunking=ChunkingSettings(
+                    report=ChunkingReportSettings(output_dir=chunking_report_dir)
+                ),
+            )
         )
 
         self.assertFalse(report_dir.exists())
@@ -157,18 +164,24 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
         report_dir = Path(".tmp_tests") / f"ingestion_reports_{uuid.uuid4().hex}"
         chunking_report_dir = Path(".tmp_tests") / f"chunking_reports_{uuid.uuid4().hex}"
         project_settings = ProjectSettings(
-            vector_repository=VectorRepositorySettings(
-                type="local_json",
-                index_dir=index_dir,
-                collection_name="papers_test",
-                persist=True,
+            indexing=IndexingSettings(
+                vector_repository=VectorRepositorySettings(
+                    type="local_json",
+                    index_dir=index_dir,
+                    collection_name="papers_test",
+                    persist=True,
+                ),
+                builder=IndexBuilderSettings(
+                    manifest_filename="manifest.json",
+                    build_report_filename="index_build_report.json",
+                ),
             ),
-            index_builder=IndexBuilderSettings(
-                manifest_filename="manifest.json",
-                build_report_filename="index_build_report.json",
+            ingestion=IngestionSettings(
+                report=IngestionReportSettings(output_dir=report_dir),
+                chunking=ChunkingSettings(
+                    report=ChunkingReportSettings(output_dir=chunking_report_dir)
+                ),
             ),
-            ingestion_report=IngestionReportSettings(output_dir=report_dir),
-            chunking_report=ChunkingReportSettings(output_dir=chunking_report_dir),
         )
 
         try:
@@ -204,18 +217,24 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
         report_dir = Path(".tmp_tests") / f"failed_ingestion_reports_{uuid.uuid4().hex}"
         chunking_report_dir = Path(".tmp_tests") / f"failed_chunking_reports_{uuid.uuid4().hex}"
         project_settings = ProjectSettings(
-            vector_repository=VectorRepositorySettings(
-                type="local_json",
-                index_dir=index_dir,
-                collection_name="papers_test",
-                persist=True,
+            indexing=IndexingSettings(
+                vector_repository=VectorRepositorySettings(
+                    type="local_json",
+                    index_dir=index_dir,
+                    collection_name="papers_test",
+                    persist=True,
+                ),
+                builder=IndexBuilderSettings(
+                    manifest_filename="manifest.json",
+                    build_report_filename="index_build_report.json",
+                ),
             ),
-            index_builder=IndexBuilderSettings(
-                manifest_filename="manifest.json",
-                build_report_filename="index_build_report.json",
+            ingestion=IngestionSettings(
+                report=IngestionReportSettings(output_dir=report_dir),
+                chunking=ChunkingSettings(
+                    report=ChunkingReportSettings(output_dir=chunking_report_dir)
+                ),
             ),
-            ingestion_report=IngestionReportSettings(output_dir=report_dir),
-            chunking_report=ChunkingReportSettings(output_dir=chunking_report_dir),
         )
 
         try:

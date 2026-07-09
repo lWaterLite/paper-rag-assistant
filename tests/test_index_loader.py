@@ -9,7 +9,12 @@ import uuid
 from pathlib import Path
 
 from app.core.errors import AppError, ErrorCode
-from app.core.settings import EnvSettings, ProjectSettings, VectorRepositorySettings
+from app.core.settings import (
+    EnvSettings,
+    IndexingSettings,
+    ProjectSettings,
+    VectorRepositorySettings,
+)
 from app.factory import ApplicationFactory
 from app.retrieval.retrievers import VectorRetriever
 
@@ -20,11 +25,13 @@ class IndexLoaderTest(unittest.TestCase):
     def test_build_rag_index_from_storage_loads_local_json_index(self) -> None:
         index_dir = Path(".tmp_tests") / f"load_index_{uuid.uuid4().hex}"
         project_settings = ProjectSettings(
-            vector_repository=VectorRepositorySettings(
-                type="local_json",
-                index_dir=index_dir,
-                collection_name="papers_test",
-                persist=True,
+            indexing=IndexingSettings(
+                vector_repository=VectorRepositorySettings(
+                    type="local_json",
+                    index_dir=index_dir,
+                    collection_name="papers_test",
+                    persist=True,
+                )
             )
         )
         try:
@@ -52,11 +59,13 @@ class IndexLoaderTest(unittest.TestCase):
     def test_build_rag_index_from_storage_rejects_manifest_vector_count_mismatch(self) -> None:
         index_dir = Path(".tmp_tests") / f"broken_index_{uuid.uuid4().hex}"
         project_settings = ProjectSettings(
-            vector_repository=VectorRepositorySettings(
-                type="local_json",
-                index_dir=index_dir,
-                collection_name="papers_test",
-                persist=True,
+            indexing=IndexingSettings(
+                vector_repository=VectorRepositorySettings(
+                    type="local_json",
+                    index_dir=index_dir,
+                    collection_name="papers_test",
+                    persist=True,
+                )
             )
         )
         try:
@@ -89,11 +98,14 @@ class IndexLoaderTest(unittest.TestCase):
 
     def test_build_rag_index_from_storage_rejects_non_persistent_local_json_repository(self) -> None:
         project_settings = ProjectSettings(
-            vector_repository=VectorRepositorySettings(
-                type="local_json",
-                index_dir=Path(".tmp_tests") / f"non_persistent_index_{uuid.uuid4().hex}",
-                collection_name="papers_test",
-                persist=False,
+            indexing=IndexingSettings(
+                vector_repository=VectorRepositorySettings(
+                    type="local_json",
+                    index_dir=Path(".tmp_tests")
+                    / f"non_persistent_index_{uuid.uuid4().hex}",
+                    collection_name="papers_test",
+                    persist=False,
+                )
             )
         )
 

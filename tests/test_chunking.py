@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import cast
 
 from app.core.models import ParsedDocument
-from app.core.settings import ChunkingSettings, ProjectSettings
+from app.core.settings import ChunkingSettings, IngestionSettings, ProjectSettings
 from app.factory import ApplicationFactory
 from app.ingest.chunking.registry import ChunkerRegistry, build_default_chunker_registry
 from app.ingest.chunking.strategies import (
@@ -72,7 +72,11 @@ class ChunkingTest(unittest.TestCase):
     def test_factory_uses_injected_chunker_registry(self) -> None:
         registry = ChunkerRegistry()
         registry.register("custom_section", CustomSectionAwareChunker)
-        project_settings = ProjectSettings(chunking=ChunkingSettings(strategy="custom_section"))
+        project_settings = ProjectSettings(
+            ingestion=IngestionSettings(
+                chunking=ChunkingSettings(strategy="custom_section")
+            )
+        )
 
         chunker = ApplicationFactory(
             project_settings=project_settings,

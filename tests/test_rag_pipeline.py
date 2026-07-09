@@ -30,8 +30,14 @@ class RagPipelineTest(unittest.TestCase):
         self.assertEqual(result.manifest.document_count, result.document_count)
         self.assertEqual(result.manifest.chunk_count, result.chunk_count)
         self.assertEqual(result.manifest.vector_count, result.vector_count)
-        self.assertEqual(result.manifest.chunk_size, project_settings.chunking.chunk_size)
-        self.assertEqual(result.manifest.chunk_overlap, project_settings.chunking.chunk_overlap)
+        self.assertEqual(
+            result.manifest.chunk_size,
+            project_settings.ingestion.chunking.chunk_size,
+        )
+        self.assertEqual(
+            result.manifest.chunk_overlap,
+            project_settings.ingestion.chunking.chunk_overlap,
+        )
         self.assertEqual(result.manifest.embedding_provider, "mock")
         self.assertGreater(len(result.manifest.document_versions), 0)
 
