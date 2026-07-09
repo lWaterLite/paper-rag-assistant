@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import unittest
+from collections.abc import Iterable, Sequence
 
 from app.core.models import DocumentChunk
 from app.ingest.chunking.collection import InMemoryChunkCollection
-from app.retrieval.retrievers import BM25Retriever
+from app.retrieval.configs import BM25Config
+from app.retrieval.retrievers import BM25Index, BM25Retriever
+from app.retrieval.tokenizers import RegexTokenizer, Tokenizer
 
 
 def build_chunk(chunk_id: str, text: str, section: str | None = None) -> DocumentChunk:
@@ -25,6 +28,18 @@ def build_chunk(chunk_id: str, text: str, section: str | None = None) -> Documen
     )
 
 
+def build_retriever(
+    chunks: Iterable[DocumentChunk],
+    tokenizer: Tokenizer | None = None,
+) -> BM25Retriever:
+    index = BM25Index.from_chunks(
+        chunks,
+        config=BM25Config(),
+        tokenizer=tokenizer or RegexTokenizer(),
+    )
+    return BM25Retriever(index)
+
+
 class BM25RetrieverTest(unittest.TestCase):
     """验证 BM25 关键词检索。"""
 
@@ -33,7 +48,9 @@ class BM25RetrieverTest(unittest.TestCase):
             build_chunk("a", "RAG evaluation includes faithfulness.", "Evaluation"),
             build_chunk("b", "Vector databases store embedding vectors.", "Indexing"),
         ]
-        results = BM25Retriever(chunks).retrieve("faithfulness evaluation", top_k=2)
+        results = build_retriever(chunks).retrieve(
+            "faithfulness evaluation", top_k=2
+        )
 
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0].chunk_id, "a")
@@ -43,7 +60,7 @@ class BM25RetrieverTest(unittest.TestCase):
 
     def test_retrieve_preserves_chunk_metadata(self) -> None:
         chunk = build_chunk("a", "RAG evaluation includes faithfulness.", "Evaluation")
-        result = BM25Retriever([chunk]).retrieve("faithfulness", top_k=1)[0]
+        result = build_retriever([chunk]).retrieve("faithfulness", top_k=1)[0]
 
         self.assertEqual(result.doc_id, chunk.doc_id)
         self.assertEqual(result.content_hash, chunk.content_hash)
@@ -59,27 +76,49 @@ class BM25RetrieverTest(unittest.TestCase):
             build_chunk("b", "RAG evaluation relevance."),
             build_chunk("c", "RAG evaluation precision."),
         ]
-        results = BM25Retriever(chunks).retrieve("RAG evaluation", top_k=2)
+        results = build_retriever(chunks).retrieve("RAG evaluation", top_k=2)
 
         self.assertEqual(len(results), 2)
 
     def test_retrieve_returns_empty_for_empty_query(self) -> None:
         chunks = [build_chunk("a", "RAG evaluation faithfulness.")]
 
-        self.assertEqual(BM25Retriever(chunks).retrieve("", top_k=3), [])
+        self.assertEqual(build_retriever(chunks).retrieve("", top_k=3), [])
 
     def test_retrieve_returns_empty_for_non_positive_top_k(self) -> None:
         chunks = [build_chunk("a", "RAG evaluation faithfulness.")]
 
-        self.assertEqual(BM25Retriever(chunks).retrieve("RAG", top_k=0), [])
+        self.assertEqual(build_retriever(chunks).retrieve("RAG", top_k=0), [])
 
     def test_repository_exposes_iterable_chunks_for_retriever(self) -> None:
         collection = InMemoryChunkCollection()
         collection.add_many([build_chunk("a", "RAG evaluation faithfulness.")])
 
-        results = BM25Retriever(collection.iter_chunks()).retrieve("faithfulness", top_k=1)
+        results = build_retriever(collection.iter_chunks()).retrieve(
+            "faithfulness", top_k=1
+        )
 
         self.assertEqual(results[0].chunk_id, "a")
+
+    def test_index_and_query_share_injected_tokenizer(self) -> None:
+        class RecordingTokenizer:
+            def __init__(self) -> None:
+                self.inputs: list[str] = []
+
+            def tokenize(self, text: str) -> Sequence[str]:
+                self.inputs.append(text)
+                return text.lower().split()
+
+        tokenizer = RecordingTokenizer()
+        retriever = build_retriever(
+            [build_chunk("a", "shared tokenizer")],
+            tokenizer=tokenizer,
+        )
+
+        results = retriever.retrieve("shared", top_k=1)
+
+        self.assertEqual(results[0].chunk_id, "a")
+        self.assertEqual(tokenizer.inputs, ["shared tokenizer", "shared"])
 
 
 if __name__ == "__main__":

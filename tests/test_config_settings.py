@@ -25,6 +25,7 @@ from app.core.settings import (
     PdfCleanerSettings,
     ProjectSettings,
     RetrievalSettings,
+    TokenizerSettings,
     VectorRepositorySettings,
 )
 from app.core.errors import AppError, ErrorCode
@@ -173,6 +174,9 @@ fail_on_empty_chunk = false
 bm25_k1 = 1.8
 bm25_b = 0.65
 deduplicate_by_chunk_id = false
+
+[retrieval.tokenizer]
+strategy = "regex"
 """.strip(),
                 encoding="utf-8",
             )
@@ -205,6 +209,7 @@ deduplicate_by_chunk_id = false
             self.assertEqual(project_settings.retrieval.bm25_k1, 1.8)
             self.assertEqual(project_settings.retrieval.bm25_b, 0.65)
             self.assertFalse(project_settings.retrieval.deduplicate_by_chunk_id)
+            self.assertEqual(project_settings.retrieval.tokenizer.strategy, "regex")
         finally:
             if config_path.parent.exists():
                 shutil.rmtree(config_path.parent, ignore_errors=True)
@@ -269,6 +274,17 @@ deduplicate_by_chunk_id = false
             RetrievalSettings(bm25_b=1.5)
 
         self.assertIn("bm25_b", str(context.exception))
+
+    def test_tokenizer_settings_normalizes_strategy(self) -> None:
+        settings = TokenizerSettings(strategy=" custom ")
+
+        self.assertEqual(settings.strategy, "custom")
+
+    def test_tokenizer_settings_rejects_blank_strategy(self) -> None:
+        with self.assertRaises(ValidationError) as context:
+            TokenizerSettings(strategy=" ")
+
+        self.assertIn("strategy", str(context.exception))
 
 
 if __name__ == "__main__":
