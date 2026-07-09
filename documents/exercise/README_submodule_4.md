@@ -111,7 +111,6 @@ dimension = 16
 batch_size = 32
 timeout_seconds = 30.0
 max_retries = 2
-api_key_env_name = "OPENAI_API_KEY"
 
 [indexing.vector_repository]
 type = "local_json"
@@ -129,7 +128,7 @@ fail_on_empty_chunk = true
 
 这里仍然遵守之前讨论过的配置原则：
 
-1. `.env` 保存敏感、环境相关或部署覆盖项。
+1. `.env` 只保存 API key、令牌等敏感项。
 2. `settings.toml` 保存结构化、非敏感、会影响工程行为的配置。
 3. 功能类不直接读取 `.env` 或 TOML。
 4. factory 负责把外部 `Settings` 转换成功能类使用的 `Config`。
@@ -209,7 +208,6 @@ dimension
 batch_size
 timeout_seconds
 max_retries
-api_key_env_name
 ```
 
 它会校验：
@@ -219,9 +217,8 @@ api_key_env_name
 3. `batch_size` 必须大于 0。
 4. `timeout_seconds` 必须大于 0。
 5. `max_retries` 必须大于等于 0。
-6. `api_key_env_name` 不能为空。
-
-这里的 `api_key_env_name` 不是 API key 本身，而是环境变量名。这样 manifest 或配置文件可以记录“应该从哪个环境变量读 key”，但不会泄露真实 key。
+API key 不属于 `EmbeddingConfig`，而是由 `EnvSettings` 读取后在 factory
+组装阶段显式注入 `OpenAIEmbeddingClient`。
 
 ### `VectorRepositoryConfig`
 
@@ -327,7 +324,7 @@ mock embedding 用文本 hash 生成稳定向量：
 
 1. 只有配置选择 `provider = "openai"` 时才会被构造。
 2. 只有构造它时才懒加载 `openai` SDK。
-3. API key 从 `api_key_env_name` 指向的环境变量读取。
+3. API key 由 factory 从 `EnvSettings.openai_api_key` 显式注入。
 4. 不会把 API key 写入 TOML、manifest、report 或日志。
 5. 会校验返回向量数量和维度。
 

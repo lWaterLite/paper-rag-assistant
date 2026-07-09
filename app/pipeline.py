@@ -6,9 +6,9 @@
 from __future__ import annotations
 
 import time
+from dataclasses import dataclass
 from typing import Any, NoReturn
 
-from app.core.settings import EnvSettings
 from app.core.errors import AppError, ErrorCode
 from app.core.models import RagAnswer, RagTrace
 from app.generation.answer_generator import AnswerGenerator
@@ -16,18 +16,29 @@ from app.retrieval.context_packer import ContextPacker
 from app.retrieval.retrievers import Retriever
 
 
+@dataclass(frozen=True, slots=True)
+class RagPipelineConfig:
+    """在线 RAG pipeline 的运行时配置。"""
+
+    top_k: int = 3
+
+    def __post_init__(self) -> None:
+        if self.top_k <= 0:
+            raise ValueError("RAG pipeline top_k 必须大于 0")
+
+
 class RagPipeline:
     """在线 RAG 问答 pipeline。"""
 
     def __init__(
         self,
-        settings: EnvSettings,
+        config: RagPipelineConfig,
         *,
         retriever: Retriever,
         context_packer: ContextPacker,
         answer_generator: AnswerGenerator,
     ) -> None:
-        self._settings = settings
+        self._config = config
         self._retriever = retriever
         self._context_packer = context_packer
         self._answer_generator = answer_generator
@@ -40,7 +51,7 @@ class RagPipeline:
         started = time.perf_counter()
         try:
             retrieved_chunks = self._retriever.retrieve(
-                question, top_k=self._settings.top_k
+                question, top_k=self._config.top_k
             )
         except Exception as exc:
             self._record_failure_and_raise(
@@ -49,7 +60,7 @@ class RagPipeline:
                 started_at=started,
                 exc=exc,
                 default_code=ErrorCode.RETRIEVAL_FAILED,
-                detail={"query": question, "top_k": self._settings.top_k},
+                detail={"query": question, "top_k": self._config.top_k},
             )
         else:
             trace.record_stage(
@@ -58,7 +69,7 @@ class RagPipeline:
                 started,
                 {
                     "query": question,
-                    "top_k": self._settings.top_k,
+                    "top_k": self._config.top_k,
                     "returned": len(retrieved_chunks),
                 },
             )

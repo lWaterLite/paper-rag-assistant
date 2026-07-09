@@ -8,6 +8,17 @@ from typing import Protocol
 from app.core.models import Citation, RetrievedChunk
 
 
+@dataclass(frozen=True, slots=True)
+class ContextPackerConfig:
+    """上下文组织器运行时配置。"""
+
+    max_context_chars: int = 1800
+
+    def __post_init__(self) -> None:
+        if self.max_context_chars <= 0:
+            raise ValueError("max_context_chars 必须大于 0")
+
+
 @dataclass(frozen=True)
 class DroppedChunk:
     """没有进入最终上下文的 chunk。"""
@@ -48,8 +59,8 @@ class ContextPacker(Protocol):
 class SimpleContextPacker:
     """将检索结果转换成带 citation id 的上下文。"""
 
-    def __init__(self, max_context_chars: int) -> None:
-        self._max_context_chars = max_context_chars
+    def __init__(self, config: ContextPackerConfig) -> None:
+        self._config = config
 
     def pack(self, chunks: list[RetrievedChunk]) -> PackedContext:
         context_parts: list[str] = []
@@ -66,7 +77,7 @@ class SimpleContextPacker:
             separator_length = 2 if context_parts else 0
             prefix = f"[{citation_id}] "
             remaining_chars = (
-                self._max_context_chars - current_length - separator_length
+                self._config.max_context_chars - current_length - separator_length
             )
             candidate_text = self._fit_text_to_budget(
                 candidate.text, len(prefix), remaining_chars

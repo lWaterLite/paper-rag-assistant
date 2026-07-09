@@ -51,7 +51,8 @@ LocalDocumentLoader
 
 我没有为你安装依赖，也没有修改虚拟环境。
 
-当前练习已经使用 `pydantic` 和 `pydantic-EnvSettings` 来管理项目配置。它们已经写入 `pyproject.toml`，但你需要自行同步或安装依赖。
+当前项目使用 `pydantic` 和 `pydantic-settings` 管理配置。它们已经写入
+`pyproject.toml`，但你需要自行同步或安装依赖。
 
 如果你使用 uv，可以运行：
 
@@ -62,38 +63,34 @@ uv sync
 如果你使用 pip，可以运行：
 
 ```powershell
-python -m pip install "pydantic>=2.7" "pydantic-EnvSettings>=2.2"
+python -m pip install "pydantic>=2.7" "pydantic-settings>=2.2"
 ```
 
 这两个库的作用：
 
 - `pydantic`：负责类型转换、字段约束和跨字段校验。
-- `pydantic-EnvSettings`：负责从环境变量、`.env` 文件等来源读取配置。
+- `pydantic-settings`：负责从环境变量、`.env` 文件等来源读取敏感配置。
 
-如果你后续要把它升级成真实工程，可以自行考虑这些配置：
+当前非敏感工程配置统一放在 `settings.toml`：
 
-```text
-RAG_CHUNK_SIZE=500
-RAG_CHUNK_OVERLAP=80
-RAG_TOP_K=3
-RAG_MAX_CONTEXT_CHARS=1800
-RAG_MOCK_EMBEDDING_DIMENSION=16
-RAG_REQUIRE_CITATION=true
+```toml
+[ingestion.chunking]
+chunk_size = 600
+chunk_overlap = 100
+
+[retrieval]
+strategy = "vector"
+top_k = 3
+
+[retrieval.context_packing]
+max_context_chars = 1800
 ```
 
-如果后续接入真实能力，可能还需要：
+`.env` 只保存密钥、令牌等敏感信息：
 
-```text
-LLM_PROVIDER=openai-compatible
-LLM_MODEL=...
-LLM_API_KEY=...
-EMBEDDING_PROVIDER=openai-compatible
-EMBEDDING_MODEL=...
-EMBEDDING_API_KEY=...
-VECTOR_STORE=faiss 或 chroma 或 qdrant
+```dotenv
+OPENAI_API_KEY=replace-with-your-real-key
 ```
-
-这些配置本次不会自动写入 `.env`，你可以根据需要自行创建。
 
 ---
 

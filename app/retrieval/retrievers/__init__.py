@@ -12,14 +12,19 @@ from app.retrieval.retrievers.bm25 import (
     BM25Retriever,
     BM25SearchHit,
 )
+from app.retrieval.retrievers.hybrid import HybridRetrievalSource, HybridRetriever
 from app.retrieval.retrievers.result_builder import RetrievedChunkBuilder
+from app.retrieval.retrievers.registry import RetrieverRegistry
 from app.retrieval.retrievers.vector import VectorRetriever
 
 __all__ = [
     "BM25Index",
     "BM25Retriever",
     "BM25SearchHit",
+    "HybridRetrievalSource",
+    "HybridRetriever",
     "RetrievedChunkBuilder",
     "Retriever",
+    "RetrieverRegistry",
     "VectorRetriever",
 ]

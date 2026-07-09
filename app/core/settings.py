@@ -1,6 +1,6 @@
 """应用配置。
 
-EnvSettings 负责读取 .env 和环境变量，适合环境相关、敏感或部署覆盖项。
+EnvSettings 只负责读取 .env 和环境变量中的敏感配置。
 ProjectSettings 负责读取 settings.toml，适合结构化工程配置。
 """
 
@@ -10,65 +10,49 @@ import tomllib
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, Field, ValidationError, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    SecretStr,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.errors import AppError, ErrorCode
 
 
 class EnvSettings(BaseSettings):
-    """RAG pipeline 的基础配置。
-
-    这里故意只保留子模块 1 需要理解的配置项，避免一开始就陷入外部模型和数据库细节。
-    """
+    """从环境变量读取的敏感配置。"""
 
     model_config = SettingsConfigDict(
-        env_prefix="RAG_",
         env_file=".env",
         env_file_encoding="utf-8",
-        extra="ignore",
+        extra="forbid",
         validate_default=True,
     )
 
-    chunk_size: int = Field(default=500, gt=0, description="每个 chunk 的目标字符长度")
-    chunk_overlap: int = Field(default=80, ge=0, description="相邻 chunk 的重叠字符数")
-    top_k: int = Field(default=3, gt=0, description="检索阶段返回的候选 chunk 数量")
-    max_context_chars: int = Field(
-        default=1800, gt=0, description="进入生成阶段的最大上下文字符数"
+    openai_api_key: SecretStr | None = Field(
+        default=None,
+        validation_alias="OPENAI_API_KEY",
+        description="OpenAI API 密钥",
     )
-    mock_embedding_dimension: int = Field(
-        default=16, gt=0, description="mock embedding 的向量维度"
-    )
-    require_citation: bool = Field(default=True, description="回答是否要求包含引用")
-    retrieval_strategy: Literal["vector", "bm25", "hybrid"] = Field(
-        default="vector", description="检索策略"
-    )
-    index_storage_path: Path = Field(
-        default=Path("data/indexes"), description="索引持久化目录"
-    )
-    debug_trace: bool = Field(default=False, description="是否在响应中返回完整 trace")
 
-    @model_validator(mode="after")
-    def validate_chunk_window(self) -> "EnvSettings":
-        """校验多个配置项之间的关系。
+    @field_validator("openai_api_key", mode="before")
+    @classmethod
+    def normalize_optional_secret(cls, value: object) -> object:
+        """把空字符串视为未配置密钥。"""
 
-        Field 适合校验单个字段，例如大于 0。
-        model_validator 适合校验跨字段约束，例如 overlap 必须小于 chunk_size。
-        """
-
-        if self.chunk_overlap >= self.chunk_size:
-            raise ValueError(
-                f"chunk_overlap 必须小于 chunk_size，当前 chunk_overlap={self.chunk_overlap}，"
-                f"chunk_size={self.chunk_size}"
-            )
-        return self
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
     @classmethod
     def from_env(cls) -> "EnvSettings":
         """从环境变量读取配置。
 
-        业务入口使用这个方法，可以把 pydantic 的 ValidationError 转换成项目统一错误。
-        测试或内部代码也可以直接使用 EnvSettings(...)，直接获得 pydantic 的标准校验行为。
+        业务入口使用这个方法，把 pydantic 的 ValidationError 转换成项目统一错误。
         """
         try:
             return cls()
@@ -163,7 +147,7 @@ class EmbeddingSettings(BaseModel):
     """Embedding 模型的结构化配置。
 
     provider、model、dimension 这类配置会影响索引版本，因此放在 TOML 中统一记录。
-    API key 不放在这里，只记录应读取哪个环境变量。
+    API key 不放在这里，由 EnvSettings 从环境变量读取。
     """
 
     provider: Literal["mock", "openai"] = Field(
@@ -178,22 +162,14 @@ class EmbeddingSettings(BaseModel):
         default=30.0, gt=0, description="embedding 请求超时时间"
     )
     max_retries: int = Field(default=2, ge=0, description="embedding 最大重试次数")
-    api_key_env_name: str = Field(
-        default="OPENAI_API_KEY",
-        min_length=1,
-        description="真实 provider 的 API key 环境变量名",
-    )
 
     @model_validator(mode="after")
     def validate_text_fields(self) -> "EmbeddingSettings":
         """清理并校验字符串字段。"""
 
         self.model = self.model.strip()
-        self.api_key_env_name = self.api_key_env_name.strip()
         if not self.model:
             raise ValueError("model 不能为空")
-        if not self.api_key_env_name:
-            raise ValueError("api_key_env_name 不能为空")
         return self
 
 
@@ -279,14 +255,56 @@ class BM25Settings(BaseModel):
     b: float = Field(default=0.75, ge=0, le=1, description="文档长度归一化参数")
 
 
+class HybridRetrievalSettings(BaseModel):
+    """Hybrid Retriever 与 RRF 融合的结构化配置。"""
+
+    candidate_multiplier: int = Field(
+        default=3,
+        ge=1,
+        description="每个召回源相对最终 top_k 的候选集扩张倍数",
+    )
+    rrf_rank_constant: int = Field(
+        default=60,
+        gt=0,
+        description="RRF 排名常数，控制靠前排名的影响强度",
+    )
+    vector_weight: float = Field(default=1.0, gt=0, description="向量召回权重")
+    bm25_weight: float = Field(default=1.0, gt=0, description="BM25 召回权重")
+
+
+class ContextPackingSettings(BaseModel):
+    """检索结果进入生成阶段前的上下文组织配置。"""
+
+    max_context_chars: int = Field(
+        default=1800,
+        gt=0,
+        description="进入生成阶段的最大上下文字符数",
+    )
+
+
 class RetrievalSettings(BaseModel):
     """检索子系统结构化配置。"""
 
+    strategy: str = Field(default="vector", min_length=1, description="默认检索策略")
+    top_k: int = Field(default=3, gt=0, description="默认返回的候选 chunk 数量")
     tokenizer: TokenizerSettings = Field(default_factory=TokenizerSettings)
     bm25: BM25Settings = Field(default_factory=BM25Settings)
+    hybrid: HybridRetrievalSettings = Field(default_factory=HybridRetrievalSettings)
+    context_packing: ContextPackingSettings = Field(
+        default_factory=ContextPackingSettings
+    )
     deduplicate_by_chunk_id: bool = Field(
         default=True, description="检索结果是否按 chunk_id 去重"
     )
+
+    @model_validator(mode="after")
+    def validate_strategy(self) -> "RetrievalSettings":
+        """清理策略名称；具体合法性由 RetrieverRegistry 校验。"""
+
+        self.strategy = self.strategy.strip()
+        if not self.strategy:
+            raise ValueError("strategy 不能为空")
+        return self
 
 
 class CleaningSettings(BaseModel):

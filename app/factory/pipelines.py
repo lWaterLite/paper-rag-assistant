@@ -10,7 +10,7 @@ from app.generation.answer_generator import AnswerGenerator, MockAnswerGenerator
 from app.indexing.index_builder import RagIndex
 from app.pipeline import RagPipeline
 from app.retrieval.context_packer import ContextPacker, SimpleContextPacker
-from app.retrieval.retrievers import Retriever
+from app.retrieval.retrievers import Retriever, RetrieverRegistry
 
 
 @dataclass(slots=True)
@@ -25,19 +25,23 @@ class PipelineFactory:
         index: RagIndex,
         *,
         retriever: Retriever | None = None,
+        retriever_registry: RetrieverRegistry | None = None,
         context_packer: ContextPacker | None = None,
         answer_generator: AnswerGenerator | None = None,
     ) -> RagPipeline:
         """创建在线 RAG 问答 pipeline。"""
 
         return RagPipeline(
-            settings=self.configs.env_settings,
+            config=self.configs.build_rag_pipeline_config(),
             retriever=retriever
             if retriever is not None
-            else self.retrieval.build_retriever(index),
+            else self.retrieval.build_retriever(
+                index,
+                registry=retriever_registry,
+            ),
             context_packer=context_packer
             if context_packer is not None
-            else SimpleContextPacker(self.configs.env_settings.max_context_chars),
+            else SimpleContextPacker(self.configs.build_context_packer_config()),
             answer_generator=answer_generator
             if answer_generator is not None
             else MockAnswerGenerator(),

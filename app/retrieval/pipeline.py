@@ -5,12 +5,12 @@ from __future__ import annotations
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
-from typing import Mapping, Protocol
+from typing import Protocol
 
 from app.core.errors import AppError, ErrorCode
 from app.core.models import RagTrace, RetrievedChunk
 from app.retrieval.configs import RetrievalConfig, RetrievalStrategy
-from app.retrieval.retrievers.base import Retriever
+from app.retrieval.retrievers.registry import RetrieverRegistry
 
 
 @dataclass(frozen=True)
@@ -92,11 +92,11 @@ class RetrievalPipeline:
     def __init__(
         self,
         *,
-        retrievers: Mapping[str, Retriever],
+        registry: RetrieverRegistry,
         config: RetrievalConfig,
         result_stages: Sequence[RetrievalResultStage] | None = None,
     ) -> None:
-        self._retrievers = dict(retrievers)
+        self._registry = registry
         self._config = config
         self._result_stages = (
             list(result_stages)
@@ -119,11 +119,13 @@ class RetrievalPipeline:
 
         resolved_top_k = self._resolve_top_k(top_k)
         resolved_retriever = retriever or self._config.strategy
-        retriever_impl = self._retrievers.get(resolved_retriever)
-        if retriever_impl is None:
+        try:
+            retriever_impl = self._registry.resolve(resolved_retriever)
+        except ValueError as exc:
             raise AppError(
-                ErrorCode.INVALID_CONFIG, f"不支持的检索策略：{resolved_retriever}"
-            )
+                ErrorCode.INVALID_CONFIG,
+                str(exc),
+            ) from exc
 
         context = RetrievalPipelineContext(
             query=cleaned_query,
@@ -185,7 +187,10 @@ class RetrievalPipeline:
     def _resolve_top_k(self, top_k: int | None) -> int:
         """解析本次请求使用的 top_k。"""
 
-        resolved = self._config.top_k if top_k is None else top_k
+        if top_k is None:
+            resolved = self._config.top_k
+        else:
+            resolved = top_k
         if resolved <= 0:
             raise AppError(
                 ErrorCode.INVALID_CONFIG, f"top_k 必须大于 0，当前 top_k={resolved}"

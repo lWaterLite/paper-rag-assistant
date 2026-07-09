@@ -25,7 +25,7 @@ from app.repositories.chunk_repository import ChunkRepository
 from app.repositories.document_repository import DocumentRepository
 from app.repositories.vector_repository import VectorRepository
 from app.retrieval.context_packer import ContextPacker
-from app.retrieval.retrievers import Retriever
+from app.retrieval.retrievers import Retriever, RetrieverRegistry
 from app.retrieval.service import SearchService
 from app.retrieval.tokenizers import TokenizerRegistry
 
@@ -110,16 +110,25 @@ class ApplicationFactory:
 
         return self.indexing.build_rag_index_from_storage()
 
-    def build_search_service(self, index: RagIndex) -> SearchService:
+    def build_search_service(
+        self,
+        index: RagIndex,
+        *,
+        retriever_registry: RetrieverRegistry | None = None,
+    ) -> SearchService:
         """创建只执行检索的 SearchService。"""
 
-        return self.retrieval.build_search_service(index)
+        return self.retrieval.build_search_service(
+            index,
+            registry=retriever_registry,
+        )
 
     def build_rag_pipeline(
         self,
         index: RagIndex,
         *,
         retriever: Retriever | None = None,
+        retriever_registry: RetrieverRegistry | None = None,
         context_packer: ContextPacker | None = None,
         answer_generator: AnswerGenerator | None = None,
     ) -> RagPipeline:
@@ -128,6 +137,7 @@ class ApplicationFactory:
         return self.pipelines.build_rag_pipeline(
             index,
             retriever=retriever,
+            retriever_registry=retriever_registry,
             context_packer=context_packer,
             answer_generator=answer_generator,
         )

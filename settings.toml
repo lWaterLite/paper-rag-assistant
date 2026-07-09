@@ -50,7 +50,6 @@ dimension = 16
 batch_size = 32
 timeout_seconds = 30.0
 max_retries = 2
-api_key_env_name = "OPENAI_API_KEY"
 
 [indexing.vector_repository]
 type = "local_json"
@@ -71,6 +70,8 @@ fail_on_empty_chunk = true
 # =============================================================================
 
 [retrieval]
+strategy = "vector"
+top_k = 3
 deduplicate_by_chunk_id = true
 
 [retrieval.tokenizer]
@@ -79,3 +80,12 @@ strategy = "regex"
 [retrieval.bm25]
 k1 = 1.5
 b = 0.75
+
+[retrieval.hybrid]
+candidate_multiplier = 3
+rrf_rank_constant = 60
+vector_weight = 1.0
+bm25_weight = 1.0
+
+[retrieval.context_packing]
+max_context_chars = 1800

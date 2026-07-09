@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import hashlib
 import math
-import os
 from typing import Protocol
 
 from app.core.errors import AppError, ErrorCode
@@ -74,16 +73,15 @@ class OpenAIEmbeddingClient:
     """OpenAI embedding 客户端。
 
     这个类使用懒导入，只有当配置选择 openai provider 时才需要安装 openai SDK。
-    API key 通过配置中的 api_key_env_name 指向环境变量，避免把密钥写入代码或 TOML。
+    API key 由组合根从 EnvSettings 显式注入，客户端不自行读取全局环境。
     """
 
     def __init__(self, config: EmbeddingConfig, *, api_key: str | None = None) -> None:
         self._config = config
-        resolved_api_key = api_key or os.environ.get(config.api_key_env_name)
-        if not resolved_api_key:
+        if not api_key:
             raise AppError(
                 ErrorCode.INVALID_CONFIG,
-                f"缺少 OpenAI embedding API key，请设置环境变量：{config.api_key_env_name}",
+                "缺少 OpenAI embedding API key，请在 .env 中配置 OPENAI_API_KEY",
             )
 
         try:
@@ -95,7 +93,7 @@ class OpenAIEmbeddingClient:
             ) from exc
 
         self._client = OpenAI(
-            api_key=resolved_api_key,
+            api_key=api_key,
             timeout=config.timeout_seconds,
             max_retries=config.max_retries,
         )

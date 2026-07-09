@@ -7,7 +7,16 @@ from dataclasses import dataclass, field
 from app.core.errors import AppError, ErrorCode
 from app.factory.configs import ConfigFactory
 from app.indexing.index_builder import RagIndex
-from app.retrieval.retrievers import BM25Index, BM25Retriever, Retriever, VectorRetriever
+from app.retrieval.retrievers import (
+    BM25Index,
+    BM25Retriever,
+    HybridRetrievalSource,
+    HybridRetriever,
+    Retriever,
+    RetrieverRegistry,
+    VectorRetriever,
+)
+from app.retrieval.retrievers.fusion import ReciprocalRankFusion
 from app.retrieval.service import SearchService
 from app.retrieval.tokenizers import (
     Tokenizer,
@@ -53,26 +62,76 @@ class RetrievalFactory:
             self.configs.build_tokenizer_config()
         )
 
-    def build_retriever(self, index: RagIndex) -> Retriever:
-        """根据检索策略创建在线问答默认检索器。"""
+    def build_hybrid_retriever(
+        self,
+        *,
+        vector_retriever: Retriever,
+        bm25_retriever: Retriever,
+    ) -> HybridRetriever:
+        """使用现有的向量和 BM25 检索器创建 hybrid 检索器。"""
 
-        retrieval_config = self.configs.build_retrieval_config()
-        if retrieval_config.strategy == "vector":
-            return self.build_vector_retriever(index)
-        if retrieval_config.strategy == "bm25":
-            return self.build_bm25_retriever(index)
-        raise AppError(
-            ErrorCode.INVALID_CONFIG,
-            "hybrid 检索将在后续子模块实现，当前请使用 vector 或 bm25",
+        config = self.configs.build_hybrid_retrieval_config()
+        return HybridRetriever(
+            sources=(
+                HybridRetrievalSource(
+                    name="vector",
+                    retriever=vector_retriever,
+                    weight=config.vector_weight,
+                ),
+                HybridRetrievalSource(
+                    name="bm25",
+                    retriever=bm25_retriever,
+                    weight=config.bm25_weight,
+                ),
+            ),
+            fusion_strategy=ReciprocalRankFusion(
+                rank_constant=config.rrf_rank_constant
+            ),
+            config=config,
         )
 
-    def build_search_service(self, index: RagIndex) -> SearchService:
+    def build_retriever_registry(self, index: RagIndex) -> RetrieverRegistry:
+        """为一个 RagIndex 创建内置检索策略的惰性注册表。"""
+
+        registry = RetrieverRegistry()
+        registry.register("vector", lambda: self.build_vector_retriever(index))
+        registry.register("bm25", lambda: self.build_bm25_retriever(index))
+        registry.register(
+            "hybrid",
+            lambda: self.build_hybrid_retriever(
+                vector_retriever=registry.resolve("vector"),
+                bm25_retriever=registry.resolve("bm25"),
+            ),
+        )
+        return registry
+
+    def build_retriever(
+        self,
+        index: RagIndex,
+        *,
+        registry: RetrieverRegistry | None = None,
+    ) -> Retriever:
+        """根据检索策略创建在线问答默认检索器。"""
+
+        active_registry = registry or self.build_retriever_registry(index)
+        strategy = self.configs.build_retrieval_config().strategy
+        try:
+            return active_registry.resolve(strategy)
+        except ValueError as exc:
+            raise AppError(
+                ErrorCode.INVALID_CONFIG,
+                str(exc),
+            ) from exc
+
+    def build_search_service(
+        self,
+        index: RagIndex,
+        *,
+        registry: RetrieverRegistry | None = None,
+    ) -> SearchService:
         """创建只执行检索的 SearchService。"""
 
         return SearchService(
-            retrievers={
-                "vector": self.build_vector_retriever(index),
-                "bm25": self.build_bm25_retriever(index),
-            },
+            registry=registry or self.build_retriever_registry(index),
             config=self.configs.build_retrieval_config(),
         )

@@ -78,6 +78,13 @@ class SearchRequest(ApiModel):
 
         return _ensure_not_blank(value, "query")
 
+    @field_validator("retriever")
+    @classmethod
+    def validate_retriever(cls, value: str | None) -> str | None:
+        """检索策略名称可扩展，但不能为空白字符串。"""
+
+        return None if value is None else _ensure_not_blank(value, "retriever")
+
 
 class DocumentIngestRequest(ApiModel):
     """POST /documents/ingest 的请求体。"""
@@ -108,6 +115,14 @@ class CitationResponse(ApiModel):
     section: str | None = None
 
 
+class RetrievalSignalResponse(ApiModel):
+    """单个召回源对检索结果提供的证据。"""
+
+    retriever: str
+    rank: int
+    score: float
+
+
 class RetrievedChunkResponse(ApiModel):
     """API 返回的检索片段。"""
 
@@ -125,6 +140,7 @@ class RetrievedChunkResponse(ApiModel):
     page_start: int | None = None
     page_end: int | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+    retrieval_signals: list[RetrievalSignalResponse] = Field(default_factory=list)
 
 
 class TraceStageResponse(ApiModel):
@@ -255,6 +271,14 @@ def retrieved_chunk_to_response(chunk: RetrievedChunk) -> RetrievedChunkResponse
         page_start=chunk.page_start,
         page_end=chunk.page_end,
         metadata=chunk.metadata,
+        retrieval_signals=[
+            RetrievalSignalResponse(
+                retriever=signal.retriever,
+                rank=signal.rank,
+                score=signal.score,
+            )
+            for signal in chunk.retrieval_signals
+        ],
     )
 
 
@@ -314,6 +338,7 @@ __all__ = [
     "DocumentSummaryResponse",
     "ErrorResponse",
     "HealthResponse",
+    "RetrievalSignalResponse",
     "RetrievedChunkResponse",
     "SearchRequest",
     "SearchResponse",

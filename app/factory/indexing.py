@@ -55,7 +55,11 @@ class IndexingFactory:
         if config.provider == "mock":
             return MockEmbeddingClient(config)
         if config.provider == "openai":
-            return OpenAIEmbeddingClient(config)
+            secret = self.configs.env_settings.openai_api_key
+            return OpenAIEmbeddingClient(
+                config,
+                api_key=secret.get_secret_value() if secret is not None else None,
+            )
         raise ValueError(f"不支持的 embedding provider：{config.provider}")
 
     def build_embedding_cache(self) -> EmbeddingCache:

@@ -15,7 +15,13 @@ from app.ingest.chunking.strategies import ChunkerConfig
 from app.ingest.cleaners import PdfTextCleanerConfig
 from app.ingest.loaders import LocalDocumentLoaderConfig
 from app.ingest.pipeline import IngestionReportConfig
-from app.retrieval.configs import BM25Config, RetrievalConfig
+from app.pipeline import RagPipelineConfig
+from app.retrieval.context_packer import ContextPackerConfig
+from app.retrieval.configs import (
+    BM25Config,
+    HybridRetrievalConfig,
+    RetrievalConfig,
+)
 from app.retrieval.tokenizers import TokenizerConfig
 
 
@@ -90,7 +96,6 @@ class ConfigFactory:
             batch_size=settings.batch_size,
             timeout_seconds=settings.timeout_seconds,
             max_retries=settings.max_retries,
-            api_key_env_name=settings.api_key_env_name,
         )
 
     def build_vector_repository_config(self) -> VectorRepositoryConfig:
@@ -117,12 +122,12 @@ class ConfigFactory:
         )
 
     def build_retrieval_config(self) -> RetrievalConfig:
-        """从 EnvSettings 和 ProjectSettings 转换成检索运行时配置。"""
+        """从 ProjectSettings 转换成检索运行时配置。"""
 
         settings = self.project_settings.retrieval
         return RetrievalConfig(
-            strategy=self.env_settings.retrieval_strategy,
-            top_k=self.env_settings.top_k,
+            strategy=settings.strategy,
+            top_k=settings.top_k,
             bm25=BM25Config(
                 k1=settings.bm25.k1,
                 b=settings.bm25.b,
@@ -136,3 +141,25 @@ class ConfigFactory:
         return TokenizerConfig(
             strategy=self.project_settings.retrieval.tokenizer.strategy,
         )
+
+    def build_hybrid_retrieval_config(self) -> HybridRetrievalConfig:
+        """从 ProjectSettings 转换成 hybrid retrieval 运行时配置。"""
+
+        settings = self.project_settings.retrieval.hybrid
+        return HybridRetrievalConfig(
+            candidate_multiplier=settings.candidate_multiplier,
+            rrf_rank_constant=settings.rrf_rank_constant,
+            vector_weight=settings.vector_weight,
+            bm25_weight=settings.bm25_weight,
+        )
+
+    def build_context_packer_config(self) -> ContextPackerConfig:
+        """从 ProjectSettings 转换成上下文组织器运行时配置。"""
+
+        settings = self.project_settings.retrieval.context_packing
+        return ContextPackerConfig(max_context_chars=settings.max_context_chars)
+
+    def build_rag_pipeline_config(self) -> RagPipelineConfig:
+        """从 ProjectSettings 转换成在线 RAG pipeline 配置。"""
+
+        return RagPipelineConfig(top_k=self.project_settings.retrieval.top_k)

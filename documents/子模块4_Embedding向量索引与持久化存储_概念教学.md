@@ -1476,10 +1476,10 @@ dimension
 batch_size
 timeout_seconds
 max_retries
-api_key_env_name
 ```
 
-其中 API key 不应该写进普通 toml 配置，可以通过 `.env` 或系统环境变量读取。
+API key 不写入 TOML 或 `EmbeddingConfig`。它由 `EnvSettings` 从 `.env` 或系统
+环境变量读取，再由 factory 显式注入真实 embedding client。
 
 ### 18.2 EmbeddingConfig
 
@@ -2290,4 +2290,3 @@ citation validation
 - 离线索引和在线检索要分离。
 
 完成这一部分后，你就真正具备了从“文档已经切好”走向“系统可以按语义检索知识”的能力。
-

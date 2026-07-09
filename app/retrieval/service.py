@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Mapping
-
 from app.retrieval.configs import RetrievalConfig, RetrievalStrategy
 from app.retrieval.pipeline import RetrievalPipeline, RetrievalPipelineResult
-from app.retrieval.retrievers.base import Retriever
+from app.retrieval.retrievers.registry import RetrieverRegistry
 
 
 SearchResult = RetrievalPipelineResult
@@ -21,10 +19,10 @@ class SearchService:
     def __init__(
         self,
         *,
-        retrievers: Mapping[str, Retriever],
+        registry: RetrieverRegistry,
         config: RetrievalConfig,
     ) -> None:
-        self._pipeline = RetrievalPipeline(retrievers=retrievers, config=config)
+        self._pipeline = RetrievalPipeline(registry=registry, config=config)
 
     def search(
         self,

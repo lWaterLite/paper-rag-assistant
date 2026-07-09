@@ -26,7 +26,6 @@ class EmbeddingConfig:
     batch_size: int = 32
     timeout_seconds: float = 30.0
     max_retries: int = 2
-    api_key_env_name: str = "OPENAI_API_KEY"
 
     def __post_init__(self) -> None:
         if not self.model.strip():
@@ -39,8 +38,6 @@ class EmbeddingConfig:
             raise ValueError("embedding timeout_seconds 必须大于 0")
         if self.max_retries < 0:
             raise ValueError("embedding max_retries 必须大于等于 0")
-        if not self.api_key_env_name.strip():
-            raise ValueError("embedding api_key_env_name 不能为空")
 
 
 @dataclass(frozen=True)

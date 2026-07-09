@@ -181,7 +181,7 @@ rerank
 ```text
 RagPipeline
   -> Retriever 协议
-  -> VectorRetriever / BM25Retriever / 未来 HybridRetriever
+  -> VectorRetriever / BM25Retriever / HybridRetriever
 ```
 
 `RagPipeline` 不应该知道 BM25 公式，也不应该知道向量库怎么搜索。它只需要一个能返回 `RetrievedChunk[]` 的检索器。
@@ -467,14 +467,15 @@ MetadataFilterStage
 
 ### 为什么去重是 pipeline 阶段
 
-虽然当前 vector 和 BM25 是单检索器检索，但后续 hybrid retrieval 很容易出现：
+HybridRetriever 会在融合时主动聚合同一个 `chunk_id` 的多路证据：
 
 ```text
 VectorRetriever 命中 chunk_a
 BM25Retriever 也命中 chunk_a
 ```
 
-如果不去重，后续 context packing 会浪费上下文窗口。
+融合内部的聚合用于计算 RRF 分数；pipeline 中的去重阶段则负责拦截具体检索器或
+后续扩展意外产生的重复结果，避免 context packing 浪费上下文窗口。
 
 把去重放在 pipeline 中，意味着无论请求来自 API、CLI 还是后续问答流程，都会共享同一套后处理规则。
 
@@ -578,7 +579,11 @@ factory = ApplicationFactory(env_settings=env_settings, project_settings=project
 EnvSettings
 ProjectSettings
 ChunkerRegistry
+TokenizerRegistry
 ```
+
+`EnvSettings` 只包含 API key 等敏感信息；所有检索行为配置来自
+`ProjectSettings`。
 
 并把对象组装拆到几个更小的工厂中：
 
@@ -593,7 +598,7 @@ IndexingFactory
   embedding / repository / collection / index builder
 
 RetrievalFactory
-  vector retriever / BM25 retriever / search service
+  RetrieverRegistry / vector / BM25 / hybrid / search service
 
 PipelineFactory
   RAG pipeline
@@ -618,7 +623,7 @@ rag_pipeline = factory.build_rag_pipeline(index)
 现在默认问答 pipeline 不再固定使用向量检索，而是根据：
 
 ```text
-EnvSettings.retrieval_strategy
+ProjectSettings.retrieval.strategy
 ```
 
 选择：
@@ -626,38 +631,34 @@ EnvSettings.retrieval_strategy
 ```text
 vector
 bm25
+hybrid
 ```
 
-如果选择 `hybrid`，当前会清晰报错：
-
-```text
-hybrid 检索将在后续子模块实现
-```
-
-这比静默 fallback 到 vector 更好。
+策略选择不再由 factory 使用 `if` 判断。`RetrieverRegistry` 保存策略 provider，
+根据配置惰性解析检索器；选择 `hybrid` 时，它会从同一个 registry 解析并共享
+vector 与 BM25 实例。
 
 ### 配置流向
 
 配置流向如下：
 
 ```text
-.env
-  -> EnvSettings.retrieval_strategy
-  -> RetrievalConfig.strategy
-
 settings.toml
   -> ProjectSettings.retrieval
-  -> BM25Config
+  -> RetrievalConfig
+  -> RetrieverRegistry.resolve(strategy)
+
+.env
+  -> EnvSettings
+  -> 只提供 OpenAI API key 等敏感依赖
 ```
 
 也就是说：
 
 ```text
-检索策略、top_k
-  偏运行时请求/环境行为，放在 EnvSettings
-
-BM25 k1/b、去重策略
-  偏工程结构化配置，放在 settings.toml
+strategy、top_k、BM25、hybrid、tokenizer、context_packing
+  都属于可审查、可版本化的工程行为配置
+  统一放在 settings.toml 的 [retrieval] 配置树
 ```
 
 ---
@@ -752,17 +753,17 @@ python -m app.main search "faithfulness evaluation" --use-existing-index --retri
 
 切换问答 pipeline 默认检索器：
 
-```bash
-RAG_RETRIEVAL_STRATEGY=bm25 python -m app.main ask "faithfulness evaluation" --source data/raw/papers
+```toml
+# settings.toml
+[retrieval]
+strategy = "bm25"
 ```
 
-Windows PowerShell 可以使用：
+然后运行：
 
-```powershell
-$env:RAG_RETRIEVAL_STRATEGY = "bm25"
+```bash
 python -m app.main ask "faithfulness evaluation" --source data/raw/papers
 ```
-
 ---
 
 ## 17. 如何运行测试
@@ -800,7 +801,6 @@ search CLI
 暂未实现：
 
 ```text
-hybrid retrieval
 score normalization
 rerank
 query rewrite
@@ -843,52 +843,154 @@ TokenizerRegistry
 
 ## 20. 练习 2：设计 Hybrid Retrieval 的接口位置
 
-当前代码还没有实现 hybrid retrieval，但检索主链路已经重构为：
+本练习已经实现完整的 baseline hybrid retrieval。它不是在 pipeline 中加入特殊
+分支，而是把 `HybridRetriever` 实现为一个普通的 `Retriever`：
 
 ```text
 SearchService
   -> RetrievalPipeline
-      -> 根据 retriever 名称从 Mapping[str, Retriever] 选择实现
-      -> Retriever.retrieve(...)
+      -> RetrieverRegistry.resolve("hybrid")
+          -> 惰性 provider 创建 HybridRetriever
+          -> VectorRetriever.retrieve(candidate_k)
+          -> BM25Retriever.retrieve(candidate_k)
+          -> ReciprocalRankFusion.fuse(...)
+          -> 输出 retriever="hybrid" 的 RetrievedChunk
       -> RetrievalResultStage 后处理链
           -> ChunkIdDeduplicationStage
           -> TopKLimitStage
 ```
 
-相关扩展位置如下：
+### 20.1 代码结构
 
 ```text
 app/retrieval/retrievers/base.py
   Retriever 协议
 
-app/retrieval/retrievers/
-  VectorRetriever
-  BM25Retriever
-  未来的 HybridRetriever
+app/retrieval/retrievers/hybrid.py
+  HybridRetrievalSource
+  HybridRetriever
+
+app/retrieval/retrievers/fusion/base.py
+  RankedResultSet
+  FusedRetrievalHit
+  FusionStrategy Protocol
+
+app/retrieval/retrievers/fusion/rrf.py
+  ReciprocalRankFusion
 
 app/retrieval/pipeline.py
-  持有 retriever 名称到实现的映射
+  依赖 RetrieverRegistry 解析策略
   统一执行结果后处理阶段
 
-app/factory/retrieval.py
-  创建具体 retriever
-  把可用策略组装后交给 SearchService
+app/retrieval/retrievers/registry.py
+  维护策略名到 provider 的映射
+  惰性创建并缓存 Retriever
+  检测重复注册和 provider 循环依赖
 
-RetrievalConfig.strategy
-  当前类型已经允许 "hybrid"
-  但 factory 尚未创建并注册对应实现
+app/factory/retrieval.py
+  向 registry 注册 vector、BM25 和 hybrid provider
+  provider 闭包负责持有当前 RagIndex
+
+app/core/models.py
+  RetrievalSignal
+  保存 vector、BM25 各自的原始 rank 和 score
 ```
 
-请你在这套现有结构中设计 `HybridRetriever` 应该依赖什么，以及它应当如何由
-`RetrievalFactory` 创建并加入 `RetrievalPipeline` 使用的检索器映射。
+### 20.2 为什么依赖 Retriever 协议
 
-建议思考：
+`HybridRetrievalSource.retriever` 的类型是 `Retriever`，而不是
+`VectorRetriever | BM25Retriever`。`vector` 和 `bm25` 只作为召回源的角色名称：
 
-1. 它是否应该同时依赖 `VectorRetriever` 和 `BM25Retriever`？
-2. 它是否应该先分别取 top-k，再做合并？
-3. 分数不能直接比较时，应使用什么融合策略？
-4. 来源结果的去重应在 `HybridRetriever` 融合时完成，还是交给 pipeline 的结果阶段？
-5. 它返回的 `retriever` 字段应该是 `hybrid`，还是保留原始来源？
+```text
+HybridRetrievalSource
+  name
+  retriever: Retriever
+  weight
+```
+
+因此未来可以把本地 vector 替换成远程向量服务，把内存 BM25 替换成
+Elasticsearch，而不需要修改 `HybridRetriever`。
+
+### 20.3 候选集扩张
+
+Hybrid 最终需要返回 `top_k`，但每一路先召回：
+
+```text
+candidate_k = top_k * candidate_multiplier
+```
+
+默认倍数是 3。这样单路排名稍低、但同时被两路召回的 chunk 仍有机会通过融合进入
+最终结果。这个参数来自：
+
+```text
+settings.toml
+  [retrieval.hybrid]
+      -> HybridRetrievalSettings
+          -> ConfigFactory
+              -> HybridRetrievalConfig
+```
+
+### 20.4 为什么使用加权 RRF
+
+向量相似度和 BM25 分数不在同一量纲，不能直接相加。本项目使用：
+
+```text
+source_weight / (rrf_rank_constant + rank)
+```
+
+同一个 chunk 在多个召回源中的贡献会累加。RRF 只使用排名决定融合贡献，原始 score
+只作为 `RetrievalSignal` 保留，便于调试和评估。
+
+`FusionStrategy` 被单独抽象出来，因此未来可以新增其他融合算法，而不修改
+`HybridRetriever` 的召回编排。
+
+### 20.5 去重和证据保留
+
+RRF 必须在融合过程中按 `chunk_id` 聚合结果，因为同一 chunk 被两路命中是重要的
+正向信号。pipeline 中的 `ChunkIdDeduplicationStage` 仍作为通用安全保障，但它不负责
+融合。
+
+最终结果使用：
+
+```text
+retriever = "hybrid"
+score = RRF 融合分数
+retrieval_signals =
+  - retriever="vector", rank=..., score=...
+  - retriever="bm25", rank=..., score=...
+```
+
+运行时检索证据没有写入文档 `metadata`，从而保持“文档元数据”和“查询时检索信息”
+之间的边界。
+
+### 20.6 Factory 如何避免重复构建
+
+`RetrievalFactory.build_retriever_registry()` 只注册 provider，不立即构建检索器：
+
+```text
+vector -> provider(build_vector_retriever)
+bm25   -> provider(build_bm25_retriever)
+hybrid -> provider(
+            registry.resolve("vector"),
+            registry.resolve("bm25")
+          )
+```
+
+registry 第一次解析某个策略时才调用 provider，并缓存结果：
+
+```text
+strategy = "vector"
+  只创建 VectorRetriever
+
+strategy = "hybrid"
+  创建并缓存 VectorRetriever
+  创建并缓存 BM25Retriever
+  用这两个实例创建并缓存 HybridRetriever
+```
+
+外部策略可以在同一个 registry 中注册新的 provider，然后把 registry 显式传给
+`build_retriever()`、`build_search_service()` 或 `build_rag_pipeline()`。策略合法性
+由 registry 统一校验，Settings 和 factory 不需要增加新的 `Literal` 或 `if` 分支。
 
 这个练习的重点是检索策略组合，不是立刻实现复杂排序算法。
 

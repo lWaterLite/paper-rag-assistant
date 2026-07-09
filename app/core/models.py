@@ -128,6 +128,15 @@ class DocumentChunk:
 
 
 @dataclass(frozen=True)
+class RetrievalSignal:
+    """单个召回源对某个 chunk 提供的检索证据。"""
+
+    retriever: str
+    rank: int
+    score: float
+
+
+@dataclass(frozen=True)
 class RetrievedChunk:
     """检索结果。
 
@@ -149,6 +158,7 @@ class RetrievedChunk:
     page_start: int | None = None
     page_end: int | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    retrieval_signals: tuple[RetrievalSignal, ...] = ()
 
 
 @dataclass(frozen=True)
