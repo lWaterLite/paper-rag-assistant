@@ -18,6 +18,10 @@ from app.retrieval.comparison import (
 from app.retrieval.configs import RetrievalConfig, RetrievalStrategy
 from app.retrieval.reporting import (
     RetrievalExecutionReport,
+    RetrievalComparisonExecutionReport,
+    RetrievalComparisonOverlapReport,
+    RetrievalComparisonReporter,
+    RetrievalComparisonStrategyReport,
     RetrievalReportWriteResult,
     RetrievalReporter,
     RetrievalStageObservation,
@@ -419,9 +423,11 @@ class RetrievalComparisonPipeline:
         *,
         search_pipeline: RetrievalPipeline,
         config: RetrievalConfig,
+        reporter: RetrievalComparisonReporter,
     ) -> None:
         self._search_pipeline = search_pipeline
         self._default_top_k = config.top_k
+        self._reporter = reporter
 
     def compare(
         self,
@@ -526,7 +532,7 @@ class RetrievalComparisonPipeline:
         else:
             trace.mark_success()
 
-        return RetrievalComparisonResult(
+        comparison_result = RetrievalComparisonResult(
             query=cleaned_query,
             top_k=active_top_k,
             retrievers=tuple(active_retrievers),
@@ -534,6 +540,103 @@ class RetrievalComparisonPipeline:
             strategy_results=tuple(strategy_results),
             overlaps=tuple(overlaps),
             trace=trace,
+        )
+        reporting_started = time.perf_counter()
+        report_write_result = self._write_comparison_report(comparison_result)
+        self._record_comparison_report_write(
+            trace,
+            report_write_result,
+            reporting_started,
+        )
+        if report_write_result.error_message and report_write_result.fatal:
+            trace.mark_failed(
+                "retrieval_comparison_reporting",
+                report_write_result.error_message,
+            )
+            raise AppError(
+                ErrorCode.RETRIEVAL_FAILED,
+                f"compare search 报告写入失败：{report_write_result.error_message}",
+                trace_id=trace.trace_id,
+                trace=trace,
+            )
+        return replace(comparison_result, report_path=report_write_result.path)
+
+    def _write_comparison_report(
+        self,
+        result: RetrievalComparisonResult,
+    ) -> RetrievalReportWriteResult:
+        """把 compare search 的父级状态交给聚合 reporter。"""
+
+        return self._reporter.write(
+            RetrievalComparisonExecutionReport(
+                query=result.query,
+                top_k=result.top_k,
+                retrievers=result.retrievers,
+                status=result.status,
+                strategy_results=tuple(
+                    RetrievalComparisonStrategyReport(
+                        retriever=item.retriever,
+                        status=item.status,
+                        returned_count=len(item.results),
+                        child_trace_id=(
+                            item.trace.trace_id if item.trace is not None else None
+                        ),
+                        child_trace_status=(
+                            item.trace.final_status if item.trace is not None else None
+                        ),
+                        child_latency_ms=(
+                            item.trace.latency_ms if item.trace is not None else None
+                        ),
+                        report_path=(
+                            item.report_path.as_posix()
+                            if item.report_path is not None
+                            else None
+                        ),
+                        error_code=item.error_code,
+                        error_message=item.error_message,
+                    )
+                    for item in result.strategy_results
+                ),
+                overlaps=tuple(
+                    RetrievalComparisonOverlapReport(
+                        chunk_id=overlap.chunk_id,
+                        retrievers=overlap.retrievers,
+                        ranks_by_retriever=overlap.ranks_by_retriever,
+                    )
+                    for overlap in result.overlaps
+                ),
+                runtime=self._reporter.runtime_snapshot,
+                trace=result.trace,
+            )
+        )
+
+    def _record_comparison_report_write(
+        self,
+        trace: RagTrace,
+        result: RetrievalReportWriteResult,
+        started: float,
+    ) -> None:
+        """把聚合报告写入结果记录到 compare search 父 trace。"""
+
+        if not self._reporter.enabled:
+            return
+        if result.error_message is not None:
+            trace.record_stage(
+                "retrieval_comparison_reporting",
+                "error",
+                started,
+                {"error_message": result.error_message, "fatal": result.fatal},
+            )
+            return
+        trace.record_stage(
+            "retrieval_comparison_reporting",
+            "success",
+            started,
+            {
+                "report_path": result.path.as_posix()
+                if result.path is not None
+                else None
+            },
         )
 
     def _resolve_top_k(self, top_k: int | None) -> int:

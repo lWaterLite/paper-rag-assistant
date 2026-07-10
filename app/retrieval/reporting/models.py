@@ -86,3 +86,46 @@ class RetrievalExecutionReport:
     def __post_init__(self) -> None:
         if not self.generated_at:
             object.__setattr__(self, "generated_at", datetime.now(UTC).isoformat())
+
+
+@dataclass(frozen=True, slots=True)
+class RetrievalComparisonStrategyReport:
+    """聚合报告中单个策略的执行摘要。"""
+
+    retriever: str
+    status: str
+    returned_count: int
+    child_trace_id: str | None
+    child_trace_status: str | None
+    child_latency_ms: float | None
+    report_path: str | None
+    error_code: str | None
+    error_message: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class RetrievalComparisonOverlapReport:
+    """聚合报告中多个策略共同命中的 chunk 摘要。"""
+
+    chunk_id: str
+    retrievers: tuple[str, ...]
+    ranks_by_retriever: dict[str, int]
+
+
+@dataclass(frozen=True, slots=True)
+class RetrievalComparisonExecutionReport:
+    """一次 compare search 的完整聚合报告数据。"""
+
+    query: str
+    top_k: int
+    retrievers: tuple[str, ...]
+    status: str
+    strategy_results: tuple[RetrievalComparisonStrategyReport, ...]
+    overlaps: tuple[RetrievalComparisonOverlapReport, ...]
+    runtime: RetrievalRuntimeSnapshot
+    trace: RagTrace
+    generated_at: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.generated_at:
+            object.__setattr__(self, "generated_at", datetime.now(UTC).isoformat())

@@ -261,6 +261,7 @@ class CompareSearchResponse(ApiModel):
     overlaps: list[ComparedChunkOverlapResponse] = Field(default_factory=list)
     trace_id: str
     latency_ms: float
+    report_path: str | None = None
     trace: TraceResponse | None = None
 
 
@@ -461,6 +462,9 @@ def compare_search_result_to_response(
         ],
         trace_id=result.trace.trace_id,
         latency_ms=result.trace.latency_ms,
+        report_path=(
+            result.report_path.as_posix() if result.report_path is not None else None
+        ),
         trace=trace_to_response(result.trace) if debug_trace else None,
     )
 

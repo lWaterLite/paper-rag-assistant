@@ -11,7 +11,7 @@ from app.retrieval.pipeline import (
     RetrievalPipeline,
     RetrievalPipelineResult,
 )
-from app.retrieval.reporting import RetrievalReporter
+from app.retrieval.reporting import RetrievalComparisonReporter, RetrievalReporter
 from app.retrieval.retrievers.registry import RetrieverRegistry
 
 
@@ -59,6 +59,7 @@ class CompareSearchService:
         registry: RetrieverRegistry,
         config: RetrievalConfig,
         reporter: RetrievalReporter,
+        comparison_reporter: RetrievalComparisonReporter,
     ) -> None:
         search_pipeline = RetrievalPipeline(
             registry=registry,
@@ -68,6 +69,7 @@ class CompareSearchService:
         self._pipeline = RetrievalComparisonPipeline(
             search_pipeline=search_pipeline,
             config=config,
+            reporter=comparison_reporter,
         )
 
     def compare(

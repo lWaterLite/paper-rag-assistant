@@ -18,6 +18,8 @@ from app.retrieval.retrievers import (
 )
 from app.retrieval.retrievers.fusion import ReciprocalRankFusion
 from app.retrieval.reporting import (
+    RetrievalComparisonReporter,
+    RetrievalComparisonReportWriter,
     RetrievalConfigSnapshot,
     RetrievalIndexSnapshot,
     RetrievalReporter,
@@ -120,7 +122,9 @@ class RetrievalFactory:
     ) -> Retriever:
         """根据检索策略创建在线问答默认检索器。"""
 
-        active_registry = registry or self.build_retriever_registry(index)
+        active_registry = (
+            registry if registry is not None else self.build_retriever_registry(index)
+        )
         strategy = self.configs.build_retrieval_config().strategy
         try:
             return active_registry.resolve(strategy)
@@ -138,7 +142,9 @@ class RetrievalFactory:
     ) -> SearchService:
         """创建只执行检索的 SearchService。"""
 
-        active_registry = registry or self.build_retriever_registry(index)
+        active_registry = (
+            registry if registry is not None else self.build_retriever_registry(index)
+        )
         return SearchService(
             registry=active_registry,
             config=self.configs.build_retrieval_config(),
@@ -153,11 +159,17 @@ class RetrievalFactory:
     ) -> CompareSearchService:
         """创建多策略检索比较服务。"""
 
-        active_registry = registry or self.build_retriever_registry(index)
+        active_registry = (
+            registry if registry is not None else self.build_retriever_registry(index)
+        )
         return CompareSearchService(
             registry=active_registry,
             config=self.configs.build_retrieval_config(),
             reporter=self.build_retrieval_reporter(index, active_registry),
+            comparison_reporter=self.build_retrieval_comparison_reporter(
+                index,
+                active_registry,
+            ),
         )
 
     def build_retrieval_reporter(
@@ -167,49 +179,67 @@ class RetrievalFactory:
     ) -> RetrievalReporter:
         """根据索引、配置和已注册策略创建 retrieval reporter。"""
 
-        manifest = index.manifest
-        retrieval_config = self.configs.build_retrieval_config()
-        hybrid_config = self.configs.build_hybrid_retrieval_config()
         reporter = RetrievalReporter(
             config=self.configs.build_retrieval_report_config(),
-            runtime_snapshot=RetrievalRuntimeSnapshot(
-                index=RetrievalIndexSnapshot(
-                    index_id=manifest.index_id,
-                    schema_version=manifest.schema_version,
-                    status=manifest.status,
-                    config_hash=manifest.config_hash,
-                    document_set_hash=manifest.document_set_hash,
-                    document_count=manifest.document_count,
-                    chunk_count=manifest.chunk_count,
-                    vector_count=manifest.vector_count,
-                    embedding_provider=manifest.embedding_provider,
-                    embedding_model=manifest.embedding_model,
-                    embedding_dimension=manifest.embedding_dimension,
-                    vector_repository_type=manifest.vector_repository_type,
-                    vector_collection_name=manifest.vector_collection_name,
-                    distance_metric=manifest.distance_metric,
-                ),
-                config=RetrievalConfigSnapshot(
-                    default_strategy=retrieval_config.strategy,
-                    default_top_k=retrieval_config.top_k,
-                    deduplicate_by_chunk_id=(
-                        retrieval_config.deduplicate_by_chunk_id
-                    ),
-                    tokenizer_strategy=(
-                        self.configs.build_tokenizer_config().strategy
-                    ),
-                    bm25_k1=retrieval_config.bm25.k1,
-                    bm25_b=retrieval_config.bm25.b,
-                    hybrid_candidate_multiplier=(
-                        hybrid_config.candidate_multiplier
-                    ),
-                    hybrid_rrf_rank_constant=hybrid_config.rrf_rank_constant,
-                    hybrid_vector_weight=hybrid_config.vector_weight,
-                    hybrid_bm25_weight=hybrid_config.bm25_weight,
-                    registered_strategies=registry.list_strategies(),
-                ),
-            ),
+            runtime_snapshot=self.build_retrieval_runtime_snapshot(index, registry),
             writer=RetrievalReportWriter(),
         )
         reporter.prepare_output_directory()
         return reporter
+
+    def build_retrieval_comparison_reporter(
+        self,
+        index: RagIndex,
+        registry: RetrieverRegistry,
+    ) -> RetrievalComparisonReporter:
+        """根据索引、配置和已注册策略创建 compare search 聚合报告组件。"""
+
+        reporter = RetrievalComparisonReporter(
+            config=self.configs.build_retrieval_report_config(),
+            runtime_snapshot=self.build_retrieval_runtime_snapshot(index, registry),
+            writer=RetrievalComparisonReportWriter(),
+        )
+        reporter.prepare_output_directory()
+        return reporter
+
+    def build_retrieval_runtime_snapshot(
+        self,
+        index: RagIndex,
+        registry: RetrieverRegistry,
+    ) -> RetrievalRuntimeSnapshot:
+        """构建单策略与比较报告共同使用的运行时快照。"""
+
+        manifest = index.manifest
+        retrieval_config = self.configs.build_retrieval_config()
+        hybrid_config = self.configs.build_hybrid_retrieval_config()
+        return RetrievalRuntimeSnapshot(
+            index=RetrievalIndexSnapshot(
+                index_id=manifest.index_id,
+                schema_version=manifest.schema_version,
+                status=manifest.status,
+                config_hash=manifest.config_hash,
+                document_set_hash=manifest.document_set_hash,
+                document_count=manifest.document_count,
+                chunk_count=manifest.chunk_count,
+                vector_count=manifest.vector_count,
+                embedding_provider=manifest.embedding_provider,
+                embedding_model=manifest.embedding_model,
+                embedding_dimension=manifest.embedding_dimension,
+                vector_repository_type=manifest.vector_repository_type,
+                vector_collection_name=manifest.vector_collection_name,
+                distance_metric=manifest.distance_metric,
+            ),
+            config=RetrievalConfigSnapshot(
+                default_strategy=retrieval_config.strategy,
+                default_top_k=retrieval_config.top_k,
+                deduplicate_by_chunk_id=retrieval_config.deduplicate_by_chunk_id,
+                tokenizer_strategy=self.configs.build_tokenizer_config().strategy,
+                bm25_k1=retrieval_config.bm25.k1,
+                bm25_b=retrieval_config.bm25.b,
+                hybrid_candidate_multiplier=hybrid_config.candidate_multiplier,
+                hybrid_rrf_rank_constant=hybrid_config.rrf_rank_constant,
+                hybrid_vector_weight=hybrid_config.vector_weight,
+                hybrid_bm25_weight=hybrid_config.bm25_weight,
+                registered_strategies=registry.list_strategies(),
+            ),
+        )

@@ -27,3 +27,11 @@ class RetrievalReportConfig:
         if not normalized_trace_id:
             raise ValueError("retrieval report trace_id 不能为空")
         return self.output_dir / f"retrieval_{normalized_trace_id}.json"
+
+    def comparison_output_path(self, trace_id: str) -> Path:
+        """根据 compare search 的父 trace_id 生成聚合报告路径。"""
+
+        normalized_trace_id = trace_id.strip()
+        if not normalized_trace_id:
+            raise ValueError("retrieval comparison report trace_id 不能为空")
+        return self.output_dir / f"retrieval_comparison_{normalized_trace_id}.json"

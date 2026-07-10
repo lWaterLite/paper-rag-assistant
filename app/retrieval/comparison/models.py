@@ -47,3 +47,4 @@ class RetrievalComparisonResult:
     strategy_results: tuple[ComparedStrategyResult, ...]
     overlaps: tuple[ComparedChunkOverlap, ...]
     trace: RagTrace
+    report_path: Path | None = None
