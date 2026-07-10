@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from app.api.routes import api_contract, planned_routes
 from app.api.schemas import (
     AskRequest,
+    CompareSearchRequest,
     SearchRequest,
     rag_answer_to_response,
     retrieved_chunk_to_response,
@@ -99,6 +100,24 @@ class ApiSchemaTest(unittest.TestCase):
         with self.assertRaises(ValidationError):
             SearchRequest(query="RAG", retriever=" ")
 
+    def test_compare_search_request_validates_retriever_list(self) -> None:
+        request = CompareSearchRequest(
+            query="  embedding  ",
+            retrievers=["vector", "bm25", "hybrid"],
+        )
+
+        self.assertEqual(request.query, "embedding")
+        self.assertEqual(request.retrievers, ["vector", "bm25", "hybrid"])
+
+        with self.assertRaises(ValidationError):
+            CompareSearchRequest(query="RAG", retrievers=[])
+
+        with self.assertRaises(ValidationError):
+            CompareSearchRequest(query="RAG", retrievers=["vector", "vector"])
+
+        with self.assertRaises(ValidationError):
+            CompareSearchRequest(query="RAG", retrievers=[" "])
+
     def test_retrieved_chunk_response_keeps_source_and_score(self) -> None:
         response = retrieved_chunk_to_response(build_retrieved_chunk())
 
@@ -163,6 +182,14 @@ class ApiSchemaTest(unittest.TestCase):
         self.assertEqual(routes[("POST", "/ask")]["response_model"], "AskResponse")
         self.assertEqual(routes[("POST", "/search")]["request_model"], "SearchRequest")
         self.assertEqual(routes[("POST", "/search")]["response_model"], "SearchResponse")
+        self.assertEqual(
+            routes[("POST", "/search/compare")]["request_model"],
+            "CompareSearchRequest",
+        )
+        self.assertEqual(
+            routes[("POST", "/search/compare")]["response_model"],
+            "CompareSearchResponse",
+        )
         self.assertEqual(routes[("GET", "/health")]["response_model"], "HealthResponse")
 
     def test_api_contract_declares_error_response(self) -> None:
