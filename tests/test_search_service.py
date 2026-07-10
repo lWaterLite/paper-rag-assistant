@@ -10,6 +10,7 @@ from app.core.errors import AppError, ErrorCode
 from app.core.models import RetrievedChunk
 from app.retrieval.configs import RetrievalConfig
 from app.retrieval.retrievers import RetrieverRegistry
+from app.retrieval.reporting import RetrievalReporter
 from app.retrieval.service import SearchService
 
 
@@ -73,6 +74,7 @@ class SearchServiceTest(unittest.TestCase):
                 ),
             ),
             config=RetrievalConfig(strategy="vector", top_k=3, deduplicate_by_chunk_id=True),
+            reporter=RetrievalReporter.disabled(),
         )
 
         result = service.search("  RAG citation  ")
@@ -96,6 +98,7 @@ class SearchServiceTest(unittest.TestCase):
                 ),
             ),
             config=RetrievalConfig(strategy="vector", top_k=1),
+            reporter=RetrievalReporter.disabled(),
         )
 
         result = service.search("faithfulness", retriever="bm25")
@@ -107,6 +110,7 @@ class SearchServiceTest(unittest.TestCase):
         service = SearchService(
             registry=build_registry(vector=StaticRetriever("vector", [])),
             config=RetrievalConfig(strategy="vector", top_k=1),
+            reporter=RetrievalReporter.disabled(),
         )
 
         with self.assertRaises(AppError) as context:
@@ -124,6 +128,7 @@ class SearchServiceTest(unittest.TestCase):
                 )
             ),
             config=RetrievalConfig(strategy="bm25", top_k=1),
+            reporter=RetrievalReporter.disabled(),
         )
 
         response = handle_search_request(

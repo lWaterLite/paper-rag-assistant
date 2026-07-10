@@ -27,6 +27,7 @@ from app.core.settings import (
     IngestionReportSettings,
     PdfCleanerSettings,
     ProjectSettings,
+    RetrievalReportSettings,
     RetrievalSettings,
     TokenizerSettings,
     VectorRepositorySettings,
@@ -158,6 +159,13 @@ bm25_weight = 0.8
 
 [retrieval.context_packing]
 max_context_chars = 2400
+
+[retrieval.report]
+enabled = true
+output_dir = ".tmp_tests/retrieval-reports"
+include_result_text = true
+result_preview_chars = 80
+fail_on_write_error = true
 """.strip(),
                 encoding="utf-8",
             )
@@ -202,6 +210,17 @@ max_context_chars = 2400
                 project_settings.retrieval.context_packing.max_context_chars,
                 2400,
             )
+            self.assertTrue(project_settings.retrieval.report.enabled)
+            self.assertEqual(
+                project_settings.retrieval.report.output_dir,
+                Path(".tmp_tests/retrieval-reports"),
+            )
+            self.assertTrue(project_settings.retrieval.report.include_result_text)
+            self.assertEqual(
+                project_settings.retrieval.report.result_preview_chars,
+                80,
+            )
+            self.assertTrue(project_settings.retrieval.report.fail_on_write_error)
             self.assertFalse(project_settings.retrieval.deduplicate_by_chunk_id)
             self.assertEqual(project_settings.retrieval.tokenizer.strategy, "regex")
         finally:
@@ -287,6 +306,10 @@ max_context_chars = 2400
             HybridRetrievalSettings(rrf_rank_constant=0)
         with self.assertRaises(ValidationError):
             HybridRetrievalSettings(vector_weight=0)
+
+    def test_retrieval_report_settings_rejects_invalid_preview_size(self) -> None:
+        with self.assertRaises(ValidationError):
+            RetrievalReportSettings(result_preview_chars=0)
 
 
 if __name__ == "__main__":

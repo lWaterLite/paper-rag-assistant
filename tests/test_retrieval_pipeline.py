@@ -7,6 +7,7 @@ import unittest
 from app.core.models import RetrievedChunk
 from app.retrieval.configs import RetrievalConfig
 from app.retrieval.pipeline import RetrievalPipeline
+from app.retrieval.reporting import RetrievalReporter
 from app.retrieval.retrievers import RetrieverRegistry
 
 
@@ -68,6 +69,7 @@ class RetrievalPipelineTest(unittest.TestCase):
                 ),
             ),
             config=RetrievalConfig(strategy="vector", top_k=2, deduplicate_by_chunk_id=True),
+            reporter=RetrievalReporter.disabled(),
         )
 
         result = pipeline.search("RAG citation")
@@ -87,6 +89,7 @@ class RetrievalPipelineTest(unittest.TestCase):
                 ),
             ),
             config=RetrievalConfig(strategy="vector", top_k=2, deduplicate_by_chunk_id=False),
+            reporter=RetrievalReporter.disabled(),
         )
 
         result = pipeline.search("RAG citation")
