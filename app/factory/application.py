@@ -26,7 +26,7 @@ from app.repositories.document_repository import DocumentRepository
 from app.repositories.vector_repository import VectorRepository
 from app.retrieval.context_packer import ContextPacker
 from app.retrieval.retrievers import Retriever, RetrieverRegistry
-from app.retrieval.service import SearchService
+from app.retrieval.service import CompareSearchService, SearchService
 from app.retrieval.tokenizers import TokenizerRegistry
 
 
@@ -119,6 +119,19 @@ class ApplicationFactory:
         """创建只执行检索的 SearchService。"""
 
         return self.retrieval.build_search_service(
+            index,
+            registry=retriever_registry,
+        )
+
+    def build_compare_search_service(
+        self,
+        index: RagIndex,
+        *,
+        retriever_registry: RetrieverRegistry | None = None,
+    ) -> CompareSearchService:
+        """创建多策略检索比较服务。"""
+
+        return self.retrieval.build_compare_search_service(
             index,
             registry=retriever_registry,
         )

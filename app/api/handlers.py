@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from app.api.schemas import (
+    CompareSearchRequest,
+    CompareSearchResponse,
     SearchRequest,
     SearchResponse,
+    compare_search_result_to_response,
     retrieved_chunk_to_response,
     trace_to_response,
 )
-from app.retrieval.service import SearchService
+from app.retrieval.service import CompareSearchService, SearchService
 
 
 def handle_search_request(
@@ -32,4 +35,21 @@ def handle_search_request(
         retriever=result.retriever,
         latency_ms=result.trace.latency_ms,
         trace=trace_to_response(result.trace) if request.debug_trace else None,
+    )
+
+
+def handle_compare_search_request(
+    request: CompareSearchRequest,
+    compare_search_service: CompareSearchService,
+) -> CompareSearchResponse:
+    """处理 /search/compare 请求。"""
+
+    result = compare_search_service.compare(
+        request.query,
+        retrievers=request.retrievers,
+        top_k=request.top_k,
+    )
+    return compare_search_result_to_response(
+        result,
+        debug_trace=request.debug_trace,
     )

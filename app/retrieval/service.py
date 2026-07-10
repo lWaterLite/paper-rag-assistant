@@ -2,13 +2,21 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from app.retrieval.configs import RetrievalConfig, RetrievalStrategy
-from app.retrieval.pipeline import RetrievalPipeline, RetrievalPipelineResult
+from app.retrieval.comparison import RetrievalComparisonResult
+from app.retrieval.pipeline import (
+    RetrievalComparisonPipeline,
+    RetrievalPipeline,
+    RetrievalPipelineResult,
+)
 from app.retrieval.reporting import RetrievalReporter
 from app.retrieval.retrievers.registry import RetrieverRegistry
 
 
 SearchResult = RetrievalPipelineResult
+CompareSearchResult = RetrievalComparisonResult
 
 
 class SearchService:
@@ -40,3 +48,39 @@ class SearchService:
         """执行一次检索并返回可调试结果。"""
 
         return self._pipeline.search(query, top_k=top_k, retriever=retriever)
+
+
+class CompareSearchService:
+    """执行多策略检索比较的 retrieval 子系统服务。"""
+
+    def __init__(
+        self,
+        *,
+        registry: RetrieverRegistry,
+        config: RetrievalConfig,
+        reporter: RetrievalReporter,
+    ) -> None:
+        search_pipeline = RetrievalPipeline(
+            registry=registry,
+            config=config,
+            reporter=reporter,
+        )
+        self._pipeline = RetrievalComparisonPipeline(
+            search_pipeline=search_pipeline,
+            config=config,
+        )
+
+    def compare(
+        self,
+        query: str,
+        *,
+        retrievers: Sequence[RetrievalStrategy],
+        top_k: int | None = None,
+    ) -> CompareSearchResult:
+        """执行多策略检索比较。"""
+
+        return self._pipeline.compare(
+            query,
+            retrievers=retrievers,
+            top_k=top_k,
+        )

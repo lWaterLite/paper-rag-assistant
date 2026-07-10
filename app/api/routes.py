@@ -41,6 +41,13 @@ def planned_routes() -> list[dict[str, str]]:
         },
         {
             "method": "POST",
+            "path": "/search/compare",
+            "request_model": "CompareSearchRequest",
+            "response_model": "CompareSearchResponse",
+            "description": "并列比较多个检索策略的召回结果",
+        },
+        {
+            "method": "POST",
             "path": "/ask",
             "request_model": "AskRequest",
             "response_model": "AskResponse",

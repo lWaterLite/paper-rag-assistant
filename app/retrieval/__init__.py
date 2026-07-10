@@ -5,7 +5,16 @@ from app.retrieval.configs import (
     HybridRetrievalConfig,
     RetrievalConfig,
 )
-from app.retrieval.pipeline import RetrievalPipeline, RetrievalPipelineResult
+from app.retrieval.comparison import (
+    ComparedChunkOverlap,
+    ComparedStrategyResult,
+    RetrievalComparisonResult,
+)
+from app.retrieval.pipeline import (
+    RetrievalComparisonPipeline,
+    RetrievalPipeline,
+    RetrievalPipelineResult,
+)
 from app.retrieval.retrievers import (
     BM25Index,
     BM25Retriever,
@@ -14,7 +23,12 @@ from app.retrieval.retrievers import (
     RetrieverRegistry,
     VectorRetriever,
 )
-from app.retrieval.service import SearchResult, SearchService
+from app.retrieval.service import (
+    CompareSearchResult,
+    CompareSearchService,
+    SearchResult,
+    SearchService,
+)
 from app.retrieval.tokenizers import (
     RegexTokenizer,
     Tokenizer,
@@ -23,11 +37,17 @@ from app.retrieval.tokenizers import (
 )
 
 __all__ = [
+    "ComparedChunkOverlap",
+    "ComparedStrategyResult",
+    "CompareSearchResult",
+    "CompareSearchService",
     "BM25Config",
     "BM25Index",
     "BM25Retriever",
     "HybridRetrievalConfig",
     "HybridRetriever",
+    "RetrievalComparisonPipeline",
+    "RetrievalComparisonResult",
     "RetrievalPipeline",
     "RetrievalPipelineResult",
     "RetrievalConfig",

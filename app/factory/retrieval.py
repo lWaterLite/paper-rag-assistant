@@ -24,7 +24,7 @@ from app.retrieval.reporting import (
     RetrievalReportWriter,
     RetrievalRuntimeSnapshot,
 )
-from app.retrieval.service import SearchService
+from app.retrieval.service import CompareSearchService, SearchService
 from app.retrieval.tokenizers import (
     Tokenizer,
     TokenizerRegistry,
@@ -140,6 +140,21 @@ class RetrievalFactory:
 
         active_registry = registry or self.build_retriever_registry(index)
         return SearchService(
+            registry=active_registry,
+            config=self.configs.build_retrieval_config(),
+            reporter=self.build_retrieval_reporter(index, active_registry),
+        )
+
+    def build_compare_search_service(
+        self,
+        index: RagIndex,
+        *,
+        registry: RetrieverRegistry | None = None,
+    ) -> CompareSearchService:
+        """创建多策略检索比较服务。"""
+
+        active_registry = registry or self.build_retriever_registry(index)
+        return CompareSearchService(
             registry=active_registry,
             config=self.configs.build_retrieval_config(),
             reporter=self.build_retrieval_reporter(index, active_registry),

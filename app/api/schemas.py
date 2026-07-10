@@ -11,6 +11,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.models import Citation, RagAnswer, RagTrace, RetrievedChunk
+from app.retrieval.comparison import RetrievalComparisonResult
 from app.retrieval.configs import RetrievalStrategy
 
 
@@ -84,6 +85,47 @@ class SearchRequest(ApiModel):
         """检索策略名称可扩展，但不能为空白字符串。"""
 
         return None if value is None else _ensure_not_blank(value, "retriever")
+
+
+class CompareSearchRequest(ApiModel):
+    """POST /search/compare 的请求体。
+
+    retrievers 默认比较三个内置策略；后续注册外部策略后，也可以传入外部策略名。
+    """
+
+    query: str = Field(description="检索查询")
+    retrievers: list[RetrievalStrategy] = Field(
+        default_factory=lambda: ["vector", "bm25", "hybrid"],
+        min_length=1,
+        max_length=10,
+        description="本次需要并列比较的检索策略",
+    )
+    top_k: int | None = Field(
+        default=None, ge=1, le=50, description="每个策略返回的检索数量"
+    )
+    debug_trace: bool = Field(default=False, description="是否返回 compare trace 和子 trace")
+
+    @field_validator("query")
+    @classmethod
+    def validate_query(cls, value: str) -> str:
+        """查询不能为空白字符串。"""
+
+        return _ensure_not_blank(value, "query")
+
+    @field_validator("retrievers")
+    @classmethod
+    def validate_retrievers(cls, value: list[str]) -> list[str]:
+        """策略列表不能为空、不能包含空白项，也不允许重复。"""
+
+        cleaned_retrievers: list[str] = []
+        seen: set[str] = set()
+        for retriever in value:
+            cleaned = _ensure_not_blank(retriever, "retriever")
+            if cleaned in seen:
+                raise ValueError(f"retrievers 中存在重复策略：{cleaned}")
+            seen.add(cleaned)
+            cleaned_retrievers.append(cleaned)
+        return cleaned_retrievers
 
 
 class DocumentIngestRequest(ApiModel):
@@ -182,6 +224,42 @@ class SearchResponse(ApiModel):
     trace_id: str
     top_k: int
     retriever: RetrievalStrategy
+    latency_ms: float
+    trace: TraceResponse | None = None
+
+
+class ComparedChunkOverlapResponse(ApiModel):
+    """多个策略共同命中的 chunk。"""
+
+    chunk_id: str
+    retrievers: list[RetrievalStrategy]
+    ranks_by_retriever: dict[RetrievalStrategy, int]
+
+
+class ComparedStrategyResponse(ApiModel):
+    """某个策略在 compare search 中的执行结果。"""
+
+    retriever: RetrievalStrategy
+    status: Literal["success", "error"]
+    results: list[RetrievedChunkResponse] = Field(default_factory=list)
+    trace_id: str | None = None
+    latency_ms: float | None = None
+    report_path: str | None = None
+    error_code: str | None = None
+    error_message: str | None = None
+    trace: TraceResponse | None = None
+
+
+class CompareSearchResponse(ApiModel):
+    """POST /search/compare 的响应体。"""
+
+    query: str
+    top_k: int
+    retrievers: list[RetrievalStrategy]
+    status: Literal["success", "partial_error", "error"]
+    strategy_results: list[ComparedStrategyResponse] = Field(default_factory=list)
+    overlaps: list[ComparedChunkOverlapResponse] = Field(default_factory=list)
+    trace_id: str
     latency_ms: float
     trace: TraceResponse | None = None
 
@@ -328,9 +406,72 @@ def rag_answer_to_response(
     )
 
 
+def compare_search_result_to_response(
+    result: RetrievalComparisonResult,
+    *,
+    debug_trace: bool = False,
+) -> CompareSearchResponse:
+    """把 retrieval 层 compare search 结果转换成 API 响应。"""
+
+    return CompareSearchResponse(
+        query=result.query,
+        top_k=result.top_k,
+        retrievers=list(result.retrievers),
+        status=result.status,
+        strategy_results=[
+            ComparedStrategyResponse(
+                retriever=strategy_result.retriever,
+                status=strategy_result.status,
+                results=[
+                    retrieved_chunk_to_response(chunk)
+                    for chunk in strategy_result.results
+                ],
+                trace_id=(
+                    strategy_result.trace.trace_id
+                    if strategy_result.trace is not None
+                    else None
+                ),
+                latency_ms=(
+                    strategy_result.trace.latency_ms
+                    if strategy_result.trace is not None
+                    else None
+                ),
+                report_path=(
+                    strategy_result.report_path.as_posix()
+                    if strategy_result.report_path is not None
+                    else None
+                ),
+                error_code=strategy_result.error_code,
+                error_message=strategy_result.error_message,
+                trace=(
+                    trace_to_response(strategy_result.trace)
+                    if debug_trace and strategy_result.trace is not None
+                    else None
+                ),
+            )
+            for strategy_result in result.strategy_results
+        ],
+        overlaps=[
+            ComparedChunkOverlapResponse(
+                chunk_id=overlap.chunk_id,
+                retrievers=list(overlap.retrievers),
+                ranks_by_retriever=overlap.ranks_by_retriever,
+            )
+            for overlap in result.overlaps
+        ],
+        trace_id=result.trace.trace_id,
+        latency_ms=result.trace.latency_ms,
+        trace=trace_to_response(result.trace) if debug_trace else None,
+    )
+
+
 __all__ = [
     "AskRequest",
     "AskResponse",
+    "CompareSearchRequest",
+    "CompareSearchResponse",
+    "ComparedChunkOverlapResponse",
+    "ComparedStrategyResponse",
     "CitationResponse",
     "DocumentIngestRequest",
     "DocumentIngestResponse",
@@ -344,6 +485,7 @@ __all__ = [
     "SearchResponse",
     "TraceResponse",
     "TraceStageResponse",
+    "compare_search_result_to_response",
     "citation_to_response",
     "rag_answer_to_response",
     "retrieved_chunk_to_response",

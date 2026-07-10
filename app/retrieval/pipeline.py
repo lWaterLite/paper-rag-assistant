@@ -10,6 +10,11 @@ from typing import Protocol
 
 from app.core.errors import AppError, ErrorCode
 from app.core.models import RagTrace, RetrievedChunk
+from app.retrieval.comparison import (
+    ComparedChunkOverlap,
+    ComparedStrategyResult,
+    RetrievalComparisonResult,
+)
 from app.retrieval.configs import RetrievalConfig, RetrievalStrategy
 from app.retrieval.reporting import (
     RetrievalExecutionReport,
@@ -400,6 +405,209 @@ class RetrievalPipeline:
             stages.append(ChunkIdDeduplicationStage())
         stages.append(TopKLimitStage())
         return stages
+
+
+class RetrievalComparisonPipeline:
+    """编排多策略检索比较流程。
+
+    每个具体策略仍然复用单策略 RetrievalPipeline，比较流程只负责调度、
+    汇总各策略结果，并计算共同命中的 chunk。
+    """
+
+    def __init__(
+        self,
+        *,
+        search_pipeline: RetrievalPipeline,
+        config: RetrievalConfig,
+    ) -> None:
+        self._search_pipeline = search_pipeline
+        self._default_top_k = config.top_k
+
+    def compare(
+        self,
+        query: str,
+        *,
+        retrievers: Sequence[RetrievalStrategy],
+        top_k: int | None = None,
+    ) -> RetrievalComparisonResult:
+        """执行多策略检索比较。"""
+
+        trace = RagTrace()
+        started = time.perf_counter()
+        cleaned_query = query.strip()
+        if not cleaned_query:
+            raise AppError(ErrorCode.RETRIEVAL_FAILED, "检索 query 不能为空")
+
+        active_top_k = self._resolve_top_k(top_k)
+        active_retrievers = self._normalize_retrievers(retrievers)
+        strategy_results: list[ComparedStrategyResult] = []
+
+        for strategy in active_retrievers:
+            strategy_started = time.perf_counter()
+            try:
+                result = self._search_pipeline.search(
+                    cleaned_query,
+                    top_k=active_top_k,
+                    retriever=strategy,
+                )
+            except AppError as exc:
+                child_trace = exc.trace if isinstance(exc.trace, RagTrace) else None
+                strategy_results.append(
+                    ComparedStrategyResult(
+                        retriever=strategy,
+                        status="error",
+                        trace=child_trace,
+                        error_code=exc.code.value,
+                        error_message=exc.message,
+                    )
+                )
+                trace.record_stage(
+                    "compare_strategy",
+                    "error",
+                    strategy_started,
+                    {
+                        "retriever": strategy,
+                        "error_code": exc.code.value,
+                        "error_message": exc.message,
+                        "child_trace_id": (
+                            child_trace.trace_id if child_trace is not None else None
+                        ),
+                    },
+                )
+                continue
+
+            strategy_results.append(
+                ComparedStrategyResult(
+                    retriever=strategy,
+                    status="success",
+                    results=tuple(result.results),
+                    trace=result.trace,
+                    report_path=result.report_path,
+                )
+            )
+            trace.record_stage(
+                "compare_strategy",
+                "success",
+                strategy_started,
+                {
+                    "retriever": strategy,
+                    "returned_count": len(result.results),
+                    "child_trace_id": result.trace.trace_id,
+                    "report_path": (
+                        result.report_path.as_posix()
+                        if result.report_path is not None
+                        else None
+                    ),
+                },
+            )
+
+        status = self._resolve_status(strategy_results)
+        overlaps = self._build_overlaps(strategy_results)
+        trace.record_stage(
+            "retrieval_comparison",
+            "success" if status != "error" else "error",
+            started,
+            {
+                "query": cleaned_query,
+                "top_k": active_top_k,
+                "retrievers": list(active_retrievers),
+                "status": status,
+                "success_count": sum(
+                    result.status == "success" for result in strategy_results
+                ),
+                "failure_count": sum(
+                    result.status == "error" for result in strategy_results
+                ),
+                "overlap_count": len(overlaps),
+            },
+        )
+        if status == "error":
+            trace.mark_failed("retrieval_comparison", "所有检索策略都执行失败")
+        else:
+            trace.mark_success()
+
+        return RetrievalComparisonResult(
+            query=cleaned_query,
+            top_k=active_top_k,
+            retrievers=tuple(active_retrievers),
+            status=status,
+            strategy_results=tuple(strategy_results),
+            overlaps=tuple(overlaps),
+            trace=trace,
+        )
+
+    def _resolve_top_k(self, top_k: int | None) -> int:
+        """解析 compare search 使用的 top_k。"""
+
+        resolved = self._default_top_k if top_k is None else top_k
+        if resolved <= 0:
+            raise AppError(
+                ErrorCode.INVALID_CONFIG, f"top_k 必须大于 0，当前 top_k={resolved}"
+            )
+        return resolved
+
+    @staticmethod
+    def _normalize_retrievers(
+        retrievers: Sequence[RetrievalStrategy],
+    ) -> list[RetrievalStrategy]:
+        """清洗策略名称，并拒绝空值或重复项。"""
+
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for retriever in retrievers:
+            cleaned = retriever.strip()
+            if not cleaned:
+                raise AppError(ErrorCode.INVALID_CONFIG, "retriever 不能为空")
+            if cleaned in seen:
+                raise AppError(
+                    ErrorCode.INVALID_CONFIG,
+                    f"compare search 中存在重复 retriever：{cleaned}",
+                )
+            seen.add(cleaned)
+            normalized.append(cleaned)
+        if not normalized:
+            raise AppError(ErrorCode.INVALID_CONFIG, "compare search 至少需要一个 retriever")
+        return normalized
+
+    @staticmethod
+    def _resolve_status(
+        strategy_results: Sequence[ComparedStrategyResult],
+    ) -> str:
+        """根据各策略执行结果计算整体比较状态。"""
+
+        success_count = sum(result.status == "success" for result in strategy_results)
+        if success_count == len(strategy_results):
+            return "success"
+        if success_count == 0:
+            return "error"
+        return "partial_error"
+
+    @staticmethod
+    def _build_overlaps(
+        strategy_results: Sequence[ComparedStrategyResult],
+    ) -> list[ComparedChunkOverlap]:
+        """计算被多个成功策略共同命中的 chunk。"""
+
+        ranks_by_chunk: dict[str, dict[str, int]] = {}
+        for strategy_result in strategy_results:
+            if strategy_result.status != "success":
+                continue
+            for chunk in strategy_result.results:
+                strategy_ranks = ranks_by_chunk.setdefault(chunk.chunk_id, {})
+                strategy_ranks.setdefault(strategy_result.retriever, chunk.rank)
+
+        overlaps: list[ComparedChunkOverlap] = []
+        for chunk_id, ranks_by_retriever in ranks_by_chunk.items():
+            if len(ranks_by_retriever) < 2:
+                continue
+            overlaps.append(
+                ComparedChunkOverlap(
+                    chunk_id=chunk_id,
+                    retrievers=tuple(ranks_by_retriever),
+                    ranks_by_retriever=dict(ranks_by_retriever),
+                )
+            )
+        return overlaps
 
 
 def _elapsed_ms(started: float) -> float:

@@ -1171,7 +1171,7 @@ API schema 不依赖 `RetrievalExecutionReport`。`/search` 仍返回稳定的
 
 ## 22. 练习 4：让 `/search` 支持比较模式
 
-当前单次搜索调用链是：
+普通单次搜索调用链仍然保持单策略语义：
 
 ```text
 SearchRequest
@@ -1189,30 +1189,71 @@ handle_search_request(...)
 ```
 
 因此，当前一次请求只会选择一个 retriever。API schema、handler 和 retrieval
-pipeline 都只表达单策略结果。
+pipeline 都只表达单策略结果。比较模式没有修改这条主链路，而是新增了一条
+retrieval 子系统内部的多策略编排链路：
 
-你可以设计一个比较模式：
+```text
+CompareSearchRequest
+  query
+  top_k
+  retrievers
+  debug_trace
+
+handle_compare_search_request(...)
+  -> CompareSearchService.compare(...)
+      -> RetrievalComparisonPipeline.compare(...)
+          -> 多次复用 RetrievalPipeline.search(...)
+          -> 每个策略保留独立结果、trace、report_path
+          -> 计算共同命中的 chunk overlap
+  -> CompareSearchResponse
+```
+
+请求示例：
 
 ```json
 {
   "query": "faithfulness evaluation",
   "top_k": 5,
-  "compare": ["vector", "bm25"]
+  "retrievers": ["vector", "bm25", "hybrid"],
+  "debug_trace": true
 }
 ```
 
-响应中分别返回两个检索器的结果。
+响应中会分别返回每个 retriever 的执行结果。成功策略包含 `results`、
+`trace_id`、`latency_ms` 和 `report_path`；失败策略包含 `error_code` 和
+`error_message`。这让比较接口适合调试：某个策略失败时，其他策略的结果不会被丢弃。
 
-要求：
+本次实现的关键文件：
 
-1. 不要改变现有 `SearchRequest -> SearchResponse` 的单策略语义。
-2. 评估是否新增 `CompareSearchRequest`、`CompareSearchResponse` 和独立 handler。
-3. 比较模式应复用 `SearchService` 或 `RetrievalPipeline` 的现有单策略入口，不要在 API handler 中直接调用具体 retriever。
-4. 返回结构中要清楚区分每个 retriever 的结果、trace 与耗时。
-5. 不要直接比较 vector score 和 BM25 score。
-6. 比较模式只用于并列观察；如果要合并排序，应由练习 2 的 hybrid retrieval 负责。
+```text
+app/api/schemas.py
+  CompareSearchRequest / CompareSearchResponse
 
-这个练习重点是 API 契约设计。
+app/api/handlers.py
+  handle_compare_search_request
+
+app/retrieval/service.py
+  CompareSearchService
+
+app/retrieval/pipeline.py
+  RetrievalComparisonPipeline
+
+app/retrieval/comparison/models.py
+  ComparedStrategyResult / ComparedChunkOverlap / RetrievalComparisonResult
+```
+
+设计要点：
+
+1. `SearchService` 和 `RetrievalPipeline` 仍然只表达单策略检索。
+2. `CompareSearchService` 属于 retrieval 子系统边界服务，不放到更高层应用服务中。
+3. `RetrievalComparisonPipeline` 只做多策略调度和结果汇总，不直接调用具体 retriever。
+4. compare 不直接比较 vector score 和 BM25 score，只做并列展示和 overlap 分析。
+5. 多策略合并排序由 `hybrid` 负责；compare 只是观察工具。
+6. 每个子策略仍然会走 retrieval report，因此可观测性不会绕过原有机制。
+
+这个练习重点是理解：同一个 retrieval 子系统可以对外暴露多个用例，但每个用例
+应该有清晰的语义边界。`search` 是单策略检索，`compare search` 是多策略并列观察，
+`hybrid retrieval` 才是多策略融合排序。
 
 ---
 
