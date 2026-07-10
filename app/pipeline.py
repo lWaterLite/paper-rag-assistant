@@ -7,13 +7,26 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Any, NoReturn
+from typing import Any, NoReturn, Protocol
 
 from app.core.errors import AppError, ErrorCode
 from app.core.models import RagAnswer, RagTrace
 from app.generation.answer_generator import AnswerGenerator
 from app.retrieval.context_packer import ContextPacker
-from app.retrieval.retrievers import Retriever
+from app.retrieval.pipeline import RetrievalPipelineResult
+
+
+class RetrievalService(Protocol):
+    """RAG pipeline 需要的 retrieval 应用服务接口。"""
+
+    def search(
+        self,
+        query: str,
+        *,
+        top_k: int | None = None,
+        retriever: str | None = None,
+    ) -> RetrievalPipelineResult:
+        """执行统一 retrieval pipeline。"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,12 +47,12 @@ class RagPipeline:
         self,
         config: RagPipelineConfig,
         *,
-        retriever: Retriever,
+        retrieval_service: RetrievalService,
         context_packer: ContextPacker,
         answer_generator: AnswerGenerator,
     ) -> None:
         self._config = config
-        self._retriever = retriever
+        self._retrieval_service = retrieval_service
         self._context_packer = context_packer
         self._answer_generator = answer_generator
 
@@ -50,9 +63,11 @@ class RagPipeline:
 
         started = time.perf_counter()
         try:
-            retrieved_chunks = self._retriever.retrieve(
-                question, top_k=self._config.top_k
+            retrieval_result = self._retrieval_service.search(
+                question,
+                top_k=self._config.top_k,
             )
+            retrieved_chunks = retrieval_result.results
         except Exception as exc:
             self._record_failure_and_raise(
                 trace=trace,
@@ -60,7 +75,13 @@ class RagPipeline:
                 started_at=started,
                 exc=exc,
                 default_code=ErrorCode.RETRIEVAL_FAILED,
-                detail={"query": question, "top_k": self._config.top_k},
+                detail={
+                    "query": question,
+                    "top_k": self._config.top_k,
+                    "retrieval_trace_id": exc.trace_id
+                    if isinstance(exc, AppError)
+                    else None,
+                },
             )
         else:
             trace.record_stage(
@@ -71,6 +92,12 @@ class RagPipeline:
                     "query": question,
                     "top_k": self._config.top_k,
                     "returned": len(retrieved_chunks),
+                    "retrieval_trace_id": retrieval_result.trace.trace_id,
+                    "retrieval_report_path": (
+                        retrieval_result.report_path.as_posix()
+                        if retrieval_result.report_path is not None
+                        else None
+                    ),
                 },
             )
 

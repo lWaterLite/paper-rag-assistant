@@ -22,6 +22,7 @@ from app.retrieval.configs import (
     HybridRetrievalConfig,
     RetrievalConfig,
 )
+from app.retrieval.reporting import RetrievalReportConfig
 from app.retrieval.tokenizers import TokenizerConfig
 
 
@@ -163,3 +164,15 @@ class ConfigFactory:
         """从 ProjectSettings 转换成在线 RAG pipeline 配置。"""
 
         return RagPipelineConfig(top_k=self.project_settings.retrieval.top_k)
+
+    def build_retrieval_report_config(self) -> RetrievalReportConfig:
+        """从 ProjectSettings 转换成 retrieval 报告运行时配置。"""
+
+        settings = self.project_settings.retrieval.report
+        return RetrievalReportConfig(
+            enabled=settings.enabled,
+            output_dir=settings.output_dir,
+            include_result_text=settings.include_result_text,
+            result_preview_chars=settings.result_preview_chars,
+            fail_on_write_error=settings.fail_on_write_error,
+        )

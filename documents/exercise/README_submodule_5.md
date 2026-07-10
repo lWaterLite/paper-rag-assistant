@@ -684,8 +684,12 @@ query
 --source
 --use-existing-index
 --top-k
---retriever vector|bm25
+--retriever STRATEGY
 ```
+
+内置策略包括 `vector`、`bm25`、`hybrid`。如果后续在 `RetrieverRegistry`
+中注册了外部策略，也可以直接把对应名称传给 `--retriever`，由 registry
+在运行时负责合法性校验。
 
 这个命令只展示检索结果，不生成回答。
 
@@ -708,6 +712,7 @@ tests/test_bm25_retriever.py
 tests/test_config_settings.py
 tests/test_rag_pipeline.py
 tests/test_api_schemas.py
+tests/test_retrieval_reporting.py
 ```
 
 覆盖点包括：
@@ -722,6 +727,8 @@ tests/test_api_schemas.py
 8. API handler 能把 SearchRequest 映射成 SearchResponse。
 9. factory 能让 pipeline 使用配置指定的 BM25 retriever。
 10. TOML 中 `[retrieval]` 配置能被读取。
+11. Retrieval 成功和失败请求都能写入最终报告。
+12. RagPipeline 与 SearchService 复用同一报告组件。
 
 ---
 
@@ -771,7 +778,7 @@ python -m app.main ask "faithfulness evaluation" --source data/raw/papers
 运行子模块 5 相关测试：
 
 ```bash
-python -B -m unittest tests.test_bm25_retriever tests.test_search_service tests.test_api_schemas tests.test_config_settings tests.test_rag_pipeline
+python -B -m unittest tests.test_bm25_retriever tests.test_search_service tests.test_api_schemas tests.test_config_settings tests.test_rag_pipeline tests.test_retrieval_reporting
 ```
 
 运行全量测试：
@@ -792,6 +799,7 @@ python -B -m unittest discover -s tests
 VectorRetriever
 BM25Retriever
 SearchService
+Retrieval reporting
 /search handler
 search CLI
 配置接入
@@ -996,58 +1004,168 @@ strategy = "hybrid"
 
 ---
 
-## 21. 练习 3：设计 Search Debug Report
+## 21. 练习 3：Retrieval 子系统报告
 
-当前 trace 的实际生成与返回链路是：
+本练习已经实现 retrieval 子系统级报告，而不是只在 `/search` handler 外层记录
+请求。统一调用链现在是：
 
 ```text
-RetrievalPipeline.search(...)
-  -> 创建 RagTrace
-  -> 记录 retrieval 阶段状态、耗时和基础详情
-  -> 返回 RetrievalPipelineResult
+/search、search CLI
+  -> SearchService
+      -> RetrievalPipeline
 
-SearchService.search(...)
-  -> 返回同一个结果对象
+/ask、ask CLI、RagPipeline
+  -> SearchService
+      -> RetrievalPipeline
 
-handle_search_request(...)
-  -> 根据 SearchRequest.debug_trace
-  -> 决定是否把 RagTrace 转换为 API TraceResponse
+RetrievalPipeline
+  -> RetrieverRegistry.resolve(...)
+  -> Retriever.retrieve(...)
+  -> RetrievalResultStage[]
+  -> RetrievalReporter
+  -> RetrievalReportWriter
 ```
 
-现有 trace 适合观察一次请求是否成功，但其中只有 retrieval 阶段的基础信息。
-真实排查召回问题时，还需要候选数量变化、索引版本和检索配置快照等更详细的数据。
+因此，只要请求执行 retrieval，就会经过同一套统计、trace 和报告逻辑。
 
-你可以设计一个：
+### 21.1 报告软件包结构
 
 ```text
-SearchDebugReport
+app/retrieval/reporting/
+  config.py
+    RetrievalReportConfig
+
+  models.py
+    RetrievalIndexSnapshot
+    RetrievalConfigSnapshot
+    RetrievalRuntimeSnapshot
+    RetrievalStageObservation
+    RetrievalExecutionReport
+
+  writer.py
+    RetrievalReportWriter
+
+  reporter.py
+    RetrievalReporter
+    RetrievalReportWriteResult
 ```
 
-它可以记录：
+`models` 表达稳定领域数据，`writer` 只负责 JSON 序列化和文件写入，`reporter`
+负责启用策略、输出路径和写入失败策略。Pipeline 不知道 JSON 字段和文件命名细节。
+
+### 21.2 配置流向
 
 ```text
-query
-resolved_top_k
-retriever
+settings.toml [retrieval.report]
+  -> RetrievalReportSettings
+  -> ConfigFactory.build_retrieval_report_config()
+  -> RetrievalReportConfig
+  -> RetrievalReporter
+```
+
+默认真实配置为：
+
+```toml
+[retrieval.report]
+enabled = true
+output_dir = "logs/retrieval"
+include_result_text = false
+result_preview_chars = 160
+fail_on_write_error = false
+```
+
+`ProjectSettings()` 的代码默认值仍是 `enabled = false`，避免单元测试和无配置场景
+产生文件；项目入口读取 `settings.toml` 后会启用报告。
+
+### 21.3 运行时快照由 Factory 固化
+
+报告组件不会自行读取 Settings、manifest 或全局对象。`RetrievalFactory` 在组装
+SearchService 时构造 `RetrievalRuntimeSnapshot`：
+
+```text
+index
+  index_id、schema_version、status
+  config_hash、document_set_hash
+  document/chunk/vector count
+  embedding provider/model/dimension
+  vector repository、collection、distance metric
+
+config
+  default strategy、top_k、dedup
+  tokenizer strategy
+  BM25 k1/b
+  hybrid candidate multiplier、RRF、权重
+  registered retriever strategies
+```
+
+这样报告描述的是“本次运行真正依赖的对象快照”，而不是写报告时重新读取一份可能
+已经变化的外部配置。
+
+### 21.4 Pipeline 阶段统计
+
+`RetrievalPipeline` 在数据经过边界时记录：
+
+```text
+retriever_execution
+  input_count = 0
+  output_count = 原始候选数量
+
+ChunkIdDeduplicationStage
+  input_count
+  output_count
+
+TopKLimitStage
+  input_count
+  output_count
+```
+
+每个阶段还记录 `latency_ms`。因此报告能够稳定给出：
+
+```text
 candidate_count
 deduplicated_count
 returned_count
-index_id
-embedding_model
-bm25_k1
-bm25_b
-latency_ms
 ```
 
-要求：
+后处理阶段仍只负责数据转换，不写文件，也不依赖 reporter。
 
-1. 不要把 report 写入 retriever。
-2. 不要让 API schema 直接依赖内部 report 数据结构。
-3. 区分“由 pipeline 或独立组件组装 report”与“由 writer 持久化 report”这两个职责。
-4. 如果需要统计去重前后的数量，应让 pipeline 在各阶段边界收集数据，不要让后处理阶段直接写文件。
-5. `index_id`、embedding 配置和 BM25 配置应通过明确的运行时快照提供，不能让 report 组件自行读取全局 Settings。
+### 21.5 成功和失败报告
 
-这个练习重点是排障能力设计。
+成功请求返回的 `RetrievalPipelineResult.report_path` 指向：
+
+```text
+logs/retrieval/retrieval_<trace_id>.json
+```
+
+使用 trace id 命名可以避免并发请求互相覆盖。失败请求也会在抛出 `AppError` 前写入
+最终状态报告，其中包含错误码、错误消息、失败 trace 和已经完成的阶段统计。
+
+报告写入失败默认不会让检索失败，但会写入调用方可见的 trace。生产环境如果要求
+报告强一致，可以设置：
+
+```toml
+fail_on_write_error = true
+```
+
+### 21.6 Writer 不创建目录
+
+`RetrievalReportWriter.write()` 假设输出目录已经存在。目录由
+`RetrievalReporter.prepare_output_directory()` 在 Factory 组装流程阶段准备。
+
+这延续了 indexing 报告组件的约束：writer 负责内容和写入，不负责应用生命周期和
+目录初始化。
+
+### 21.7 报告内容与数据边界
+
+报告默认只保存结果身份、排名、分数、来源位置和 hybrid retrieval signals，不保存
+完整 chunk 文本，减少日志泄露和体积膨胀。只有显式启用 `include_result_text` 时，才会
+写入受 `result_preview_chars` 限制的文本预览。
+
+API schema 不依赖 `RetrievalExecutionReport`。`/search` 仍返回稳定的
+`SearchResponse`，内部报告可以独立演进。
+
+这个练习的重点是建立完整的 retrieval 可观测性边界：执行组件产生事实，Factory
+提供运行时上下文，reporter 协调策略，writer 持久化稳定格式。
 
 ---
 

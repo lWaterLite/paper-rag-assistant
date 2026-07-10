@@ -282,6 +282,29 @@ class ContextPackingSettings(BaseModel):
     )
 
 
+class RetrievalReportSettings(BaseModel):
+    """Retrieval 执行报告的结构化配置。"""
+
+    enabled: bool = Field(default=False, description="是否写入 retrieval JSON 报告")
+    output_dir: Path = Field(
+        default=Path("logs/retrieval"),
+        description="Retrieval 报告输出目录",
+    )
+    include_result_text: bool = Field(
+        default=False,
+        description="报告中是否包含检索文本预览",
+    )
+    result_preview_chars: int = Field(
+        default=160,
+        gt=0,
+        description="检索文本预览最大字符数",
+    )
+    fail_on_write_error: bool = Field(
+        default=False,
+        description="报告写入失败时是否让检索请求失败",
+    )
+
+
 class RetrievalSettings(BaseModel):
     """检索子系统结构化配置。"""
 
@@ -293,6 +316,7 @@ class RetrievalSettings(BaseModel):
     context_packing: ContextPackingSettings = Field(
         default_factory=ContextPackingSettings
     )
+    report: RetrievalReportSettings = Field(default_factory=RetrievalReportSettings)
     deduplicate_by_chunk_id: bool = Field(
         default=True, description="检索结果是否按 chunk_id 去重"
     )

@@ -5,7 +5,7 @@
 #       -> indexing（向量化、持久化、索引构建）
 #       -> retrieval（在线召回与结果处理）
 #
-# .env 仅保留密钥、部署环境覆盖项和少量应用入口参数。
+# .env 仅保留 API key、令牌等敏感配置。
 
 
 # =============================================================================
@@ -89,3 +89,10 @@ bm25_weight = 1.0
 
 [retrieval.context_packing]
 max_context_chars = 1800
+
+[retrieval.report]
+enabled = true
+output_dir = "logs/retrieval"
+include_result_text = false
+result_preview_chars = 160
+fail_on_write_error = false

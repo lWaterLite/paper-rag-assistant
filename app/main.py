@@ -117,6 +117,8 @@ def handle_search(args: argparse.Namespace) -> None:
     print(f"- top_k：{result.top_k}")
     print(f"- returned：{len(result.results)}")
     print(f"- latency_ms：{result.trace.latency_ms}")
+    if result.report_path is not None:
+        print(f"- retrieval_report：{result.report_path.as_posix()}")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -137,7 +139,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--top-k", type=int, default=None, help="本次检索返回数量"
     )
     search_parser.add_argument(
-        "--retriever", choices=["vector", "bm25"], default=None, help="本次检索策略"
+        "--retriever",
+        default=None,
+        metavar="STRATEGY",
+        help="本次检索策略，例如 vector、bm25、hybrid 或已注册的外部策略",
     )
     search_parser.set_defaults(handler=handle_search)
 

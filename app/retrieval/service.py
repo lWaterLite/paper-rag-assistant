@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from app.retrieval.configs import RetrievalConfig, RetrievalStrategy
 from app.retrieval.pipeline import RetrievalPipeline, RetrievalPipelineResult
+from app.retrieval.reporting import RetrievalReporter
 from app.retrieval.retrievers.registry import RetrieverRegistry
 
 
@@ -21,8 +22,13 @@ class SearchService:
         *,
         registry: RetrieverRegistry,
         config: RetrievalConfig,
+        reporter: RetrievalReporter,
     ) -> None:
-        self._pipeline = RetrievalPipeline(registry=registry, config=config)
+        self._pipeline = RetrievalPipeline(
+            registry=registry,
+            config=config,
+            reporter=reporter,
+        )
 
     def search(
         self,

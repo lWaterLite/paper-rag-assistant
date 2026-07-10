@@ -31,13 +31,21 @@ class PipelineFactory:
     ) -> RagPipeline:
         """创建在线 RAG 问答 pipeline。"""
 
+        if retriever is not None and retriever_registry is not None:
+            raise ValueError("retriever 与 retriever_registry 不能同时传入")
+
+        active_registry = retriever_registry
+        if retriever is not None:
+            configured_retriever = retriever
+            strategy = self.configs.build_retrieval_config().strategy
+            active_registry = RetrieverRegistry()
+            active_registry.register(strategy, lambda: configured_retriever)
+
         return RagPipeline(
             config=self.configs.build_rag_pipeline_config(),
-            retriever=retriever
-            if retriever is not None
-            else self.retrieval.build_retriever(
+            retrieval_service=self.retrieval.build_search_service(
                 index,
-                registry=retriever_registry,
+                registry=active_registry,
             ),
             context_packer=context_packer
             if context_packer is not None
