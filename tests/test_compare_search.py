@@ -3,12 +3,21 @@
 from __future__ import annotations
 
 import unittest
+import json
+import shutil
+import uuid
+from pathlib import Path
 
 from app.api.handlers import handle_compare_search_request
 from app.api.schemas import CompareSearchRequest
 from app.core.models import RetrievedChunk
 from app.retrieval.configs import RetrievalConfig
-from app.retrieval.reporting import RetrievalReporter
+from app.retrieval.reporting import (
+    RetrievalComparisonReporter,
+    RetrievalComparisonReportWriter,
+    RetrievalReportConfig,
+    RetrievalReporter,
+)
 from app.retrieval.retrievers import RetrieverRegistry
 from app.retrieval.service import CompareSearchService
 
@@ -57,13 +66,22 @@ def build_registry(**retrievers: StaticRetriever) -> RetrieverRegistry:
     return registry
 
 
-def build_service(registry: RetrieverRegistry) -> CompareSearchService:
+def build_service(
+    registry: RetrieverRegistry,
+    *,
+    comparison_reporter: RetrievalComparisonReporter | None = None,
+) -> CompareSearchService:
     """创建 compare search 服务。"""
 
     return CompareSearchService(
         registry=registry,
         config=RetrievalConfig(strategy="vector", top_k=2),
         reporter=RetrievalReporter.disabled(),
+        comparison_reporter=(
+            comparison_reporter
+            if comparison_reporter is not None
+            else RetrievalComparisonReporter.disabled()
+        ),
     )
 
 
@@ -154,6 +172,46 @@ class CompareSearchTest(unittest.TestCase):
         self.assertEqual(response.overlaps[0].retrievers, ["vector", "bm25"])
         self.assertIsNotNone(response.trace)
         self.assertIsNotNone(response.strategy_results[0].trace)
+
+    def test_compare_search_writes_parent_aggregate_report(self) -> None:
+        output_dir = Path(".tmp_tests") / f"comparison_{uuid.uuid4().hex}"
+        disabled_reporter = RetrievalReporter.disabled()
+        comparison_reporter = RetrievalComparisonReporter(
+            config=RetrievalReportConfig(enabled=True, output_dir=output_dir),
+            runtime_snapshot=disabled_reporter.runtime_snapshot,
+            writer=RetrievalComparisonReportWriter(),
+        )
+        comparison_reporter.prepare_output_directory()
+        service = build_service(
+            build_registry(
+                vector=StaticRetriever(
+                    [build_result("shared", rank=1, retriever="vector")]
+                ),
+                bm25=StaticRetriever(
+                    [build_result("shared", rank=1, retriever="bm25")]
+                ),
+            ),
+            comparison_reporter=comparison_reporter,
+        )
+
+        try:
+            result = service.compare(
+                "comparison report",
+                retrievers=["vector", "bm25"],
+                top_k=1,
+            )
+
+            self.assertIsNotNone(result.report_path)
+            if result.report_path is None:
+                self.fail("启用 compare search 报告后没有返回聚合报告路径")
+            report = json.loads(result.report_path.read_text(encoding="utf-8"))
+            self.assertEqual(report["report_type"], "retrieval_comparison")
+            self.assertEqual(report["trace_id"], result.trace.trace_id)
+            self.assertEqual(report["status"], "success")
+            self.assertEqual(report["strategy_results"][0]["retriever"], "vector")
+            self.assertEqual(report["overlaps"][0]["chunk_id"], "shared")
+        finally:
+            shutil.rmtree(output_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":
