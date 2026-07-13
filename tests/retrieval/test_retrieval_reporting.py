@@ -18,6 +18,11 @@ from app.core.settings import (
 )
 from app.factory import ApplicationFactory
 from app.retrieval.configs import RetrievalConfig
+from app.retrieval.context_packer import ContextPackerConfig
+from app.retrieval.postprocessing import (
+    PostProcessingConfig,
+    PostProcessingProfile,
+)
 from app.retrieval.reporting import (
     RetrievalConfigSnapshot,
     RetrievalIndexSnapshot,
@@ -99,10 +104,13 @@ def build_runtime_snapshot() -> RetrievalRuntimeSnapshot:
             hybrid_rrf_rank_constant=60,
             hybrid_vector_weight=1.0,
             hybrid_bm25_weight=1.0,
-            reranking_enabled=False,
-            reranking_strategy="lexical",
-            reranking_candidate_limit=12,
-            reranking_failure_mode="fail_open",
+            postprocessing=PostProcessingProfile.from_config(
+                PostProcessingConfig(
+                    retrieval=RetrievalConfig(strategy="vector", top_k=2),
+                    reranking=RerankingConfig(enabled=False),
+                    context_packing=ContextPackerConfig(),
+                )
+            ),
             registered_strategies=("bm25", "hybrid", "vector"),
         ),
     )
@@ -164,6 +172,12 @@ class RetrievalReportingTest(unittest.TestCase):
                     "ChunkIdDeduplicationStage",
                     "TopKLimitStage",
                 ],
+            )
+            self.assertEqual(
+                report["runtime"]["config"]["postprocessing"][
+                    "candidate_limit_source"
+                ],
+                "resolved_top_k",
             )
             self.assertNotIn("text_preview", report["results"][0])
         finally:
