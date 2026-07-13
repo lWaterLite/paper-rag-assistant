@@ -28,6 +28,8 @@ from app.retrieval.context_packer import ContextPacker
 from app.retrieval.retrievers import Retriever, RetrieverRegistry
 from app.retrieval.service import CompareSearchService, SearchService
 from app.retrieval.tokenizers import TokenizerRegistry
+from app.retrieval.rerankers import RerankerRegistry
+from app.retrieval.token_estimators import TokenEstimatorRegistry
 
 
 @dataclass(slots=True)
@@ -42,6 +44,8 @@ class ApplicationFactory:
     project_settings: ProjectSettings = field(default_factory=ProjectSettings)
     chunker_registry: ChunkerRegistry | None = None
     tokenizer_registry: TokenizerRegistry | None = None
+    reranker_registry: RerankerRegistry | None = None
+    token_estimator_registry: TokenEstimatorRegistry | None = None
     configs: ConfigFactory = field(init=False)
     ingestion: IngestionFactory = field(init=False)
     indexing: IndexingFactory = field(init=False)
@@ -67,6 +71,16 @@ class ApplicationFactory:
             **(
                 {"tokenizer_registry": self.tokenizer_registry}
                 if self.tokenizer_registry is not None
+                else {}
+            ),
+            **(
+                {"reranker_registry": self.reranker_registry}
+                if self.reranker_registry is not None
+                else {}
+            ),
+            **(
+                {"token_estimator_registry": self.token_estimator_registry}
+                if self.token_estimator_registry is not None
                 else {}
             ),
         )

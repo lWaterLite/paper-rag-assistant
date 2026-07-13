@@ -165,6 +165,14 @@ class RetrievalSignalResponse(ApiModel):
     score: float
 
 
+class RerankSignalResponse(ApiModel):
+    """Rerank 阶段对检索结果提供的运行时证据。"""
+
+    reranker: str
+    rank: int
+    score: float
+
+
 class RetrievedChunkResponse(ApiModel):
     """API 返回的检索片段。"""
 
@@ -183,6 +191,7 @@ class RetrievedChunkResponse(ApiModel):
     page_end: int | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     retrieval_signals: list[RetrievalSignalResponse] = Field(default_factory=list)
+    rerank_signal: RerankSignalResponse | None = None
 
 
 class TraceStageResponse(ApiModel):
@@ -358,6 +367,15 @@ def retrieved_chunk_to_response(chunk: RetrievedChunk) -> RetrievedChunkResponse
             )
             for signal in chunk.retrieval_signals
         ],
+        rerank_signal=(
+            RerankSignalResponse(
+                reranker=chunk.rerank_signal.reranker,
+                rank=chunk.rerank_signal.rank,
+                score=chunk.rerank_signal.score,
+            )
+            if chunk.rerank_signal is not None
+            else None
+        ),
     )
 
 
@@ -484,6 +502,7 @@ __all__ = [
     "ErrorResponse",
     "HealthResponse",
     "RetrievalSignalResponse",
+    "RerankSignalResponse",
     "RetrievedChunkResponse",
     "SearchRequest",
     "SearchResponse",

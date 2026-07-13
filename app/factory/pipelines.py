@@ -9,7 +9,7 @@ from app.factory.retrieval import RetrievalFactory
 from app.generation.answer_generator import AnswerGenerator, MockAnswerGenerator
 from app.indexing.index_builder import RagIndex
 from app.pipeline import RagPipeline
-from app.retrieval.context_packer import ContextPacker, SimpleContextPacker
+from app.retrieval.context_packer import ContextPacker
 from app.retrieval.retrievers import Retriever, RetrieverRegistry
 
 
@@ -49,7 +49,7 @@ class PipelineFactory:
             ),
             context_packer=context_packer
             if context_packer is not None
-            else SimpleContextPacker(self.configs.build_context_packer_config()),
+            else self.retrieval.build_context_packer(),
             answer_generator=answer_generator
             if answer_generator is not None
             else MockAnswerGenerator(),

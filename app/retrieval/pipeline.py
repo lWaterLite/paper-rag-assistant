@@ -16,34 +16,28 @@ from app.retrieval.comparison import (
     RetrievalComparisonResult,
 )
 from app.retrieval.configs import RetrievalConfig, RetrievalStrategy
+from app.retrieval.pipeline_types import RetrievalPipelineContext, RetrievalStageResult
 from app.retrieval.reporting import (
-    RetrievalExecutionReport,
     RetrievalComparisonExecutionReport,
     RetrievalComparisonOverlapReport,
     RetrievalComparisonReporter,
     RetrievalComparisonStrategyReport,
+    RetrievalExecutionReport,
     RetrievalReportWriteResult,
     RetrievalReporter,
     RetrievalStageObservation,
 )
+from app.retrieval.rerankers import Reranker, RerankingConfig, RerankStage
 from app.retrieval.retrievers.registry import RetrieverRegistry
 
 
-@dataclass(frozen=True)
-class RetrievalPipelineContext:
-    """一次 retrieval pipeline 运行时上下文。"""
-
-    query: str
-    retriever: RetrievalStrategy
-    top_k: int
-
-
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class RetrievalPipelineResult:
     """一次 retrieval pipeline 的领域层结果。"""
 
     query: str
     retriever: RetrievalStrategy
+    candidate_limit: int
     top_k: int
     results: list[RetrievedChunk]
     trace: RagTrace
@@ -57,7 +51,7 @@ class RetrievalResultStage(Protocol):
         self,
         chunks: Sequence[RetrievedChunk],
         context: RetrievalPipelineContext,
-    ) -> list[RetrievedChunk]:
+    ) -> RetrievalStageResult:
         """处理当前阶段接收到的检索结果。"""
 
 
@@ -68,7 +62,7 @@ class ChunkIdDeduplicationStage:
         self,
         chunks: Sequence[RetrievedChunk],
         context: RetrievalPipelineContext,
-    ) -> list[RetrievedChunk]:
+    ) -> RetrievalStageResult:
         """去除重复 chunk，并重新分配 rank。"""
 
         _ = context
@@ -80,10 +74,13 @@ class ChunkIdDeduplicationStage:
             seen.add(chunk.chunk_id)
             unique_chunks.append(chunk)
 
-        return [
-            replace(chunk, rank=rank)
-            for rank, chunk in enumerate(unique_chunks, start=1)
-        ]
+        return RetrievalStageResult(
+            chunks=[
+                replace(chunk, rank=rank)
+                for rank, chunk in enumerate(unique_chunks, start=1)
+            ],
+            detail={"duplicates_removed": len(chunks) - len(unique_chunks)},
+        )
 
 
 class TopKLimitStage:
@@ -93,37 +90,43 @@ class TopKLimitStage:
         self,
         chunks: Sequence[RetrievedChunk],
         context: RetrievalPipelineContext,
-    ) -> list[RetrievedChunk]:
+    ) -> RetrievalStageResult:
         """只保留本次请求需要的前 top_k 条结果。"""
 
-        return list(chunks[: context.top_k])
+        return RetrievalStageResult(
+            chunks=list(chunks[: context.top_k]),
+            detail={"final_top_k": context.top_k},
+        )
 
 
 class RetrievalPipeline:
-    """封装一次完整检索流程。
-
-    这里负责 query 校验、检索器选择、检索执行、结果后处理和 trace 记录。
-    API 层或应用服务层不直接拼这些步骤，避免 retrieval 逻辑散落在多个入口中。
-    """
+    """封装候选召回、后处理、重排序与执行报告。"""
 
     def __init__(
         self,
         *,
         registry: RetrieverRegistry,
         config: RetrievalConfig,
+        reranking_config: RerankingConfig,
+        reranker: Reranker | None,
         reporter: RetrievalReporter,
         result_stages: Sequence[RetrievalResultStage] | None = None,
     ) -> None:
+        if reranking_config.enabled and reranker is None:
+            raise ValueError("启用 rerank 时必须显式注入 reranker")
+        if not reranking_config.enabled and reranker is not None:
+            raise ValueError("禁用 rerank 时不应注入 reranker")
+
         self._registry = registry
         self._config = config
-        if config.top_k is None:
-            raise ValueError("retrieval config top_k 不能为空")
-        self._default_top_k: int = config.top_k
+        self._reranking_config = reranking_config
+        self._reranker = reranker
+        self._default_top_k = config.top_k
         self._reporter = reporter
         self._result_stages = (
             list(result_stages)
             if result_stages is not None
-            else self._build_default_stages(config)
+            else self._build_default_stages(config, reranking_config, reranker)
         )
 
     def search(
@@ -133,11 +136,12 @@ class RetrievalPipeline:
         top_k: int | None = None,
         retriever: RetrievalStrategy | None = None,
     ) -> RetrievalPipelineResult:
-        """执行一次完整检索。"""
+        """执行一次完整检索，并将 rerank 前后阶段记录到 trace 与报告。"""
 
         trace = RagTrace()
         cleaned_query = query.strip()
         resolved_top_k: int | None = None
+        resolved_candidate_limit: int | None = None
         resolved_retriever: str | None = None
         candidate_count = 0
         deduplicated_count = 0
@@ -149,43 +153,56 @@ class RetrievalPipeline:
             if not cleaned_query:
                 raise AppError(ErrorCode.RETRIEVAL_FAILED, "检索 query 不能为空")
 
-            active_top_k = self._resolve_top_k(top_k)
-            resolved_top_k = active_top_k
-            active_retriever = (
+            resolved_top_k = self._resolve_top_k(top_k)
+            resolved_candidate_limit = self._resolve_candidate_limit(resolved_top_k)
+            resolved_retriever = (
                 self._config.strategy if retriever is None else retriever.strip()
             )
-            resolved_retriever = active_retriever
+            if not resolved_retriever:
+                raise AppError(ErrorCode.INVALID_CONFIG, "retriever 不能为空")
             try:
-                retriever_impl = self._registry.resolve(active_retriever)
+                retriever_impl = self._registry.resolve(resolved_retriever)
             except ValueError as exc:
                 raise AppError(ErrorCode.INVALID_CONFIG, str(exc)) from exc
 
             context = RetrievalPipelineContext(
                 query=cleaned_query,
-                retriever=active_retriever,
-                top_k=active_top_k,
+                retriever=resolved_retriever,
+                candidate_limit=resolved_candidate_limit,
+                top_k=resolved_top_k,
             )
-
-            started = time.perf_counter()
+            retriever_started = time.perf_counter()
             latest_results = retriever_impl.retrieve(
                 cleaned_query,
-                top_k=active_top_k,
+                top_k=resolved_candidate_limit,
             )
             candidate_count = len(latest_results)
             deduplicated_count = candidate_count
+            retriever_detail = {
+                "retriever": resolved_retriever,
+                "candidate_limit": resolved_candidate_limit,
+            }
             observations.append(
                 RetrievalStageObservation(
                     stage="retriever_execution",
+                    status="success",
                     input_count=0,
                     output_count=candidate_count,
-                    latency_ms=_elapsed_ms(started),
+                    latency_ms=_elapsed_ms(retriever_started),
+                    detail=retriever_detail,
                 )
             )
-            (
+            trace.record_stage(
+                "retriever_execution",
+                "success",
+                retriever_started,
+                {**retriever_detail, "returned_count": candidate_count},
+            )
+            latest_results, stage_observations, deduplicated_count = self._apply_result_stages(
                 latest_results,
-                stage_observations,
-                deduplicated_count,
-            ) = self._apply_result_stages(latest_results, context)
+                context,
+                trace,
+            )
             observations.extend(stage_observations)
         except Exception as exc:
             error_code = (
@@ -200,6 +217,7 @@ class RetrievalPipeline:
                     "query": cleaned_query,
                     "requested_top_k": top_k,
                     "resolved_top_k": resolved_top_k,
+                    "resolved_candidate_limit": resolved_candidate_limit,
                     "requested_retriever": retriever,
                     "resolved_retriever": resolved_retriever,
                     "candidate_count": candidate_count,
@@ -214,6 +232,7 @@ class RetrievalPipeline:
                 query=cleaned_query,
                 requested_top_k=top_k,
                 resolved_top_k=resolved_top_k,
+                resolved_candidate_limit=resolved_candidate_limit,
                 requested_retriever=retriever,
                 resolved_retriever=resolved_retriever,
                 candidate_count=candidate_count,
@@ -224,11 +243,7 @@ class RetrievalPipeline:
                 error_code=error_code.value,
                 error_message=error_message,
             )
-            self._record_report_write(
-                trace,
-                report_write_result,
-                reporting_started,
-            )
+            self._record_report_write(trace, report_write_result, reporting_started)
             raise AppError(
                 error_code,
                 f"search 检索失败：{error_message}",
@@ -243,6 +258,7 @@ class RetrievalPipeline:
             {
                 "query": cleaned_query,
                 "top_k": resolved_top_k,
+                "candidate_limit": resolved_candidate_limit,
                 "retriever": resolved_retriever,
                 "candidate_count": candidate_count,
                 "deduplicated_count": deduplicated_count,
@@ -251,7 +267,11 @@ class RetrievalPipeline:
         )
         trace.mark_success()
 
-        if resolved_top_k is None or resolved_retriever is None:
+        if (
+            resolved_top_k is None
+            or resolved_candidate_limit is None
+            or resolved_retriever is None
+        ):
             raise RuntimeError("retrieval 内部错误：成功执行后缺少解析配置")
 
         reporting_started = time.perf_counter()
@@ -259,6 +279,7 @@ class RetrievalPipeline:
             query=cleaned_query,
             requested_top_k=top_k,
             resolved_top_k=resolved_top_k,
+            resolved_candidate_limit=resolved_candidate_limit,
             requested_retriever=retriever,
             resolved_retriever=resolved_retriever,
             candidate_count=candidate_count,
@@ -267,11 +288,7 @@ class RetrievalPipeline:
             observations=observations,
             trace=trace,
         )
-        self._record_report_write(
-            trace,
-            report_write_result,
-            reporting_started,
-        )
+        self._record_report_write(trace, report_write_result, reporting_started)
         if report_write_result.error_message and report_write_result.fatal:
             trace.mark_failed("retrieval_reporting", report_write_result.error_message)
             raise AppError(
@@ -284,6 +301,7 @@ class RetrievalPipeline:
         return RetrievalPipelineResult(
             query=cleaned_query,
             retriever=resolved_retriever,
+            candidate_limit=resolved_candidate_limit,
             top_k=resolved_top_k,
             results=latest_results,
             trace=trace,
@@ -291,18 +309,116 @@ class RetrievalPipeline:
         )
 
     def _resolve_top_k(self, top_k: int | None) -> int:
-        """解析本次请求使用的 top_k。"""
+        """解析本次请求最终返回的 top_k。"""
 
-        resolved: int
-        if top_k is None:
-            resolved = self._default_top_k
-        else:
-            resolved = top_k
+        resolved = self._default_top_k if top_k is None else top_k
         if resolved <= 0:
             raise AppError(
-                ErrorCode.INVALID_CONFIG, f"top_k 必须大于 0，当前 top_k={resolved}"
+                ErrorCode.INVALID_CONFIG,
+                f"top_k 必须大于 0，当前 top_k={resolved}",
             )
         return resolved
+
+    def _resolve_candidate_limit(self, top_k: int) -> int:
+        """解析候选召回上限，关闭 rerank 时保持原有 top-k 行为。"""
+
+        if not self._reranking_config.enabled:
+            return top_k
+        return max(top_k, self._reranking_config.candidate_limit)
+
+    def _apply_result_stages(
+        self,
+        results: Sequence[RetrievedChunk],
+        context: RetrievalPipelineContext,
+        trace: RagTrace,
+    ) -> tuple[list[RetrievedChunk], list[RetrievalStageObservation], int]:
+        """按顺序执行后处理阶段，并记录每个阶段的事实。"""
+
+        processed = list(results)
+        observations: list[RetrievalStageObservation] = []
+        deduplicated_count = len(processed)
+        for stage in self._result_stages:
+            stage_name = type(stage).__name__
+            input_count = len(processed)
+            started = time.perf_counter()
+            try:
+                stage_result = stage.process(processed, context)
+            except Exception as exc:
+                error_message = exc.message if isinstance(exc, AppError) else str(exc)
+                detail = {"error_message": error_message}
+                observations.append(
+                    RetrievalStageObservation(
+                        stage=stage_name,
+                        status="error",
+                        input_count=input_count,
+                        output_count=input_count,
+                        latency_ms=_elapsed_ms(started),
+                        detail=detail,
+                    )
+                )
+                trace.record_stage(stage_name, "error", started, detail)
+                raise
+
+            processed = stage_result.chunks
+            detail = dict(stage_result.detail)
+            observations.append(
+                RetrievalStageObservation(
+                    stage=stage_name,
+                    status="success",
+                    input_count=input_count,
+                    output_count=len(processed),
+                    latency_ms=_elapsed_ms(started),
+                    detail=detail,
+                )
+            )
+            trace.record_stage(
+                stage_name,
+                "success",
+                started,
+                {**detail, "input_count": input_count, "output_count": len(processed)},
+            )
+            if isinstance(stage, ChunkIdDeduplicationStage):
+                deduplicated_count = len(processed)
+        return processed, observations, deduplicated_count
+
+    def _write_execution_report(
+        self,
+        *,
+        query: str,
+        requested_top_k: int | None,
+        resolved_top_k: int | None,
+        resolved_candidate_limit: int | None,
+        requested_retriever: str | None,
+        resolved_retriever: str | None,
+        candidate_count: int,
+        deduplicated_count: int,
+        results: Sequence[RetrievedChunk],
+        observations: Sequence[RetrievalStageObservation],
+        trace: RagTrace,
+        error_code: str | None = None,
+        error_message: str | None = None,
+    ) -> RetrievalReportWriteResult:
+        """把当前执行状态交给 reporter，pipeline 不处理 JSON 细节。"""
+
+        return self._reporter.write(
+            RetrievalExecutionReport(
+                query=query,
+                requested_top_k=requested_top_k,
+                resolved_top_k=resolved_top_k,
+                resolved_candidate_limit=resolved_candidate_limit,
+                requested_retriever=requested_retriever,
+                resolved_retriever=resolved_retriever,
+                candidate_count=candidate_count,
+                deduplicated_count=deduplicated_count,
+                returned_count=len(results),
+                stage_observations=tuple(observations),
+                results=tuple(results),
+                runtime=self._reporter.runtime_snapshot,
+                trace=trace,
+                error_code=error_code,
+                error_message=error_message,
+            )
+        )
 
     def _record_report_write(
         self,
@@ -333,90 +449,27 @@ class RetrievalPipeline:
             },
         )
 
-    def _apply_result_stages(
-        self,
-        results: Sequence[RetrievedChunk],
-        context: RetrievalPipelineContext,
-    ) -> tuple[
-        list[RetrievedChunk],
-        list[RetrievalStageObservation],
-        int,
-    ]:
-        """按顺序执行检索结果后处理阶段。"""
-
-        processed = list(results)
-        observations: list[RetrievalStageObservation] = []
-        deduplicated_count = len(processed)
-        for stage in self._result_stages:
-            input_count = len(processed)
-            started = time.perf_counter()
-            processed = stage.process(processed, context)
-            observations.append(
-                RetrievalStageObservation(
-                    stage=type(stage).__name__,
-                    input_count=input_count,
-                    output_count=len(processed),
-                    latency_ms=_elapsed_ms(started),
-                )
-            )
-            if isinstance(stage, ChunkIdDeduplicationStage):
-                deduplicated_count = len(processed)
-        return processed, observations, deduplicated_count
-
-    def _write_execution_report(
-        self,
-        *,
-        query: str,
-        requested_top_k: int | None,
-        resolved_top_k: int | None,
-        requested_retriever: str | None,
-        resolved_retriever: str | None,
-        candidate_count: int,
-        deduplicated_count: int,
-        results: Sequence[RetrievedChunk],
-        observations: Sequence[RetrievalStageObservation],
-        trace: RagTrace,
-        error_code: str | None = None,
-        error_message: str | None = None,
-    ) -> RetrievalReportWriteResult:
-        """把当前执行状态交给 reporter，pipeline 不处理 JSON 细节。"""
-
-        return self._reporter.write(
-            RetrievalExecutionReport(
-                query=query,
-                requested_top_k=requested_top_k,
-                resolved_top_k=resolved_top_k,
-                requested_retriever=requested_retriever,
-                resolved_retriever=resolved_retriever,
-                candidate_count=candidate_count,
-                deduplicated_count=deduplicated_count,
-                returned_count=len(results),
-                stage_observations=tuple(observations),
-                results=tuple(results),
-                runtime=self._reporter.runtime_snapshot,
-                trace=trace,
-                error_code=error_code,
-                error_message=error_message,
-            )
-        )
-
     @staticmethod
-    def _build_default_stages(config: RetrievalConfig) -> list[RetrievalResultStage]:
-        """根据配置创建默认后处理阶段。"""
+    def _build_default_stages(
+        config: RetrievalConfig,
+        reranking_config: RerankingConfig,
+        reranker: Reranker | None,
+    ) -> list[RetrievalResultStage]:
+        """构建默认后处理顺序：去重、重排、最终截断。"""
 
         stages: list[RetrievalResultStage] = []
         if config.deduplicate_by_chunk_id:
             stages.append(ChunkIdDeduplicationStage())
+        if reranking_config.enabled:
+            if reranker is None:
+                raise ValueError("启用 rerank 时必须显式注入 reranker")
+            stages.append(RerankStage(reranker=reranker, config=reranking_config))
         stages.append(TopKLimitStage())
         return stages
 
 
 class RetrievalComparisonPipeline:
-    """编排多策略检索比较流程。
-
-    每个具体策略仍然复用单策略 RetrievalPipeline，比较流程只负责调度、
-    汇总各策略结果，并计算共同命中的 chunk。
-    """
+    """编排多策略检索比较流程。"""
 
     def __init__(
         self,
@@ -436,7 +489,7 @@ class RetrievalComparisonPipeline:
         retrievers: Sequence[RetrievalStrategy],
         top_k: int | None = None,
     ) -> RetrievalComparisonResult:
-        """执行多策略检索比较。"""
+        """并列执行多个单策略检索，并保留每个子请求的独立结果。"""
 
         trace = RagTrace()
         started = time.perf_counter()
@@ -497,6 +550,7 @@ class RetrievalComparisonPipeline:
                 strategy_started,
                 {
                     "retriever": strategy,
+                    "candidate_limit": result.candidate_limit,
                     "returned_count": len(result.results),
                     "child_trace_id": result.trace.trace_id,
                     "report_path": (
@@ -645,7 +699,8 @@ class RetrievalComparisonPipeline:
         resolved = self._default_top_k if top_k is None else top_k
         if resolved <= 0:
             raise AppError(
-                ErrorCode.INVALID_CONFIG, f"top_k 必须大于 0，当前 top_k={resolved}"
+                ErrorCode.INVALID_CONFIG,
+                f"top_k 必须大于 0，当前 top_k={resolved}",
             )
         return resolved
 

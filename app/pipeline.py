@@ -12,7 +12,7 @@ from typing import Any, NoReturn, Protocol
 from app.core.errors import AppError, ErrorCode
 from app.core.models import RagAnswer, RagTrace
 from app.generation.answer_generator import AnswerGenerator
-from app.retrieval.context_packer import ContextPacker
+from app.retrieval.context_packer import ContextPackRequest, ContextPacker
 from app.retrieval.pipeline import RetrievalPipelineResult
 
 
@@ -103,7 +103,9 @@ class RagPipeline:
 
         started = time.perf_counter()
         try:
-            packed_context = self._context_packer.pack(retrieved_chunks)
+            packed_context = self._context_packer.pack(
+                ContextPackRequest(query=question, chunks=retrieved_chunks)
+            )
         except Exception as exc:
             self._record_failure_and_raise(
                 trace=trace,
@@ -123,6 +125,11 @@ class RagPipeline:
                     "dropped_chunks": len(packed_context.dropped_chunks),
                     "citation_count": len(packed_context.citations),
                     "context_chars": len(packed_context.context_text),
+                    "context_tokens": packed_context.token_usage.used_context_tokens,
+                    "available_context_tokens": (
+                        packed_context.token_usage.available_context_tokens
+                    ),
+                    "dropped_chunk_count": len(packed_context.dropped_chunks),
                 },
             )
 

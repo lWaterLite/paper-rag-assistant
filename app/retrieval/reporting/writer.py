@@ -51,6 +51,7 @@ class RetrievalReportWriter:
                 "query": report.query,
                 "requested_top_k": report.requested_top_k,
                 "resolved_top_k": report.resolved_top_k,
+                "resolved_candidate_limit": report.resolved_candidate_limit,
                 "requested_retriever": report.requested_retriever,
                 "resolved_retriever": report.resolved_retriever,
             },
@@ -100,6 +101,9 @@ def _serialize_result(
         "page_start": result.page_start,
         "page_end": result.page_end,
         "retrieval_signals": [asdict(signal) for signal in result.retrieval_signals],
+        "rerank_signal": (
+            asdict(result.rerank_signal) if result.rerank_signal is not None else None
+        ),
     }
     if config.include_result_text:
         payload["text_preview"] = result.text[: config.result_preview_chars]

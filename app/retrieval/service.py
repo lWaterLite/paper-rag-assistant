@@ -12,6 +12,7 @@ from app.retrieval.pipeline import (
     RetrievalPipelineResult,
 )
 from app.retrieval.reporting import RetrievalComparisonReporter, RetrievalReporter
+from app.retrieval.rerankers import Reranker, RerankingConfig
 from app.retrieval.retrievers.registry import RetrieverRegistry
 
 
@@ -30,11 +31,15 @@ class SearchService:
         *,
         registry: RetrieverRegistry,
         config: RetrievalConfig,
+        reranking_config: RerankingConfig,
+        reranker: Reranker | None,
         reporter: RetrievalReporter,
     ) -> None:
         self._pipeline = RetrievalPipeline(
             registry=registry,
             config=config,
+            reranking_config=reranking_config,
+            reranker=reranker,
             reporter=reporter,
         )
 
@@ -58,12 +63,16 @@ class CompareSearchService:
         *,
         registry: RetrieverRegistry,
         config: RetrievalConfig,
+        reranking_config: RerankingConfig,
+        reranker: Reranker | None,
         reporter: RetrievalReporter,
         comparison_reporter: RetrievalComparisonReporter,
     ) -> None:
         search_pipeline = RetrievalPipeline(
             registry=registry,
             config=config,
+            reranking_config=reranking_config,
+            reranker=reranker,
             reporter=reporter,
         )
         self._pipeline = RetrievalComparisonPipeline(

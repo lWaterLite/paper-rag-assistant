@@ -22,7 +22,9 @@ from app.retrieval.configs import (
     HybridRetrievalConfig,
     RetrievalConfig,
 )
+from app.retrieval.rerankers import RerankingConfig
 from app.retrieval.reporting import RetrievalReportConfig
+from app.retrieval.token_estimators import TokenEstimatorConfig
 from app.retrieval.tokenizers import TokenizerConfig
 
 
@@ -154,11 +156,39 @@ class ConfigFactory:
             bm25_weight=settings.bm25_weight,
         )
 
+    def build_reranking_config(self) -> RerankingConfig:
+        """从 ProjectSettings 转换成 rerank 阶段运行时配置。"""
+
+        settings = self.project_settings.retrieval.reranking
+        return RerankingConfig(
+            enabled=settings.enabled,
+            strategy=settings.strategy,
+            candidate_limit=settings.candidate_limit,
+            batch_size=settings.batch_size,
+            failure_mode=settings.failure_mode,
+        )
+
+    def build_token_estimator_config(self) -> TokenEstimatorConfig:
+        """从 ProjectSettings 转换成模型上下文 token 估算器配置。"""
+
+        return TokenEstimatorConfig(
+            strategy=(
+                self.project_settings.retrieval.context_packing.token_estimator.strategy
+            )
+        )
+
     def build_context_packer_config(self) -> ContextPackerConfig:
         """从 ProjectSettings 转换成上下文组织器运行时配置。"""
 
         settings = self.project_settings.retrieval.context_packing
-        return ContextPackerConfig(max_context_chars=settings.max_context_chars)
+        return ContextPackerConfig(
+            model_context_window=settings.model_context_window,
+            max_context_tokens=settings.max_context_tokens,
+            reserved_prompt_tokens=settings.reserved_prompt_tokens,
+            reserved_output_tokens=settings.reserved_output_tokens,
+            safety_margin_tokens=settings.safety_margin_tokens,
+            max_chunks_per_document=settings.max_chunks_per_document,
+        )
 
     def build_rag_pipeline_config(self) -> RagPipelineConfig:
         """从 ProjectSettings 转换成在线 RAG pipeline 配置。"""

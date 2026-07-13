@@ -272,14 +272,85 @@ class HybridRetrievalSettings(BaseModel):
     bm25_weight: float = Field(default=1.0, gt=0, description="BM25 召回权重")
 
 
-class ContextPackingSettings(BaseModel):
-    """检索结果进入生成阶段前的上下文组织配置。"""
+class RerankingSettings(BaseModel):
+    """候选重排序阶段的结构化配置。"""
 
-    max_context_chars: int = Field(
+    enabled: bool = Field(default=False, description="是否在候选召回后执行 rerank")
+    strategy: str = Field(default="lexical", min_length=1, description="reranker 策略名")
+    candidate_limit: int = Field(default=12, gt=0, description="rerank 前候选召回上限")
+    batch_size: int = Field(default=8, gt=0, description="reranker 批处理大小")
+    failure_mode: Literal["fail_open", "fail_closed"] = Field(
+        default="fail_open",
+        description="reranker 失败时沿用原排序或终止请求",
+    )
+
+    @model_validator(mode="after")
+    def validate_strategy(self) -> "RerankingSettings":
+        """清理并校验 reranker 策略名。"""
+
+        self.strategy = self.strategy.strip()
+        if not self.strategy:
+            raise ValueError("reranking strategy 不能为空")
+        return self
+
+
+class TokenEstimatorSettings(BaseModel):
+    """模型上下文 token 估算器的结构化配置。"""
+
+    strategy: str = Field(default="regex", min_length=1, description="token estimator 策略名")
+
+    @model_validator(mode="after")
+    def validate_strategy(self) -> "TokenEstimatorSettings":
+        """清理并校验 token estimator 策略名。"""
+
+        self.strategy = self.strategy.strip()
+        if not self.strategy:
+            raise ValueError("token estimator strategy 不能为空")
+        return self
+
+
+class ContextPackingSettings(BaseModel):
+    """检索结果进入生成阶段前的 token-aware 上下文组织配置。"""
+
+    model_context_window: int = Field(
+        default=4096,
+        gt=0,
+        description="目标生成模型的上下文窗口大小",
+    )
+    max_context_tokens: int = Field(
         default=1800,
         gt=0,
-        description="进入生成阶段的最大上下文字符数",
+        description="资料上下文最多使用的 token 数",
     )
+    reserved_prompt_tokens: int = Field(
+        default=200,
+        gt=0,
+        description="system prompt 与固定格式的预留 token 数",
+    )
+    reserved_output_tokens: int = Field(
+        default=512,
+        gt=0,
+        description="为模型回答预留的 token 数",
+    )
+    safety_margin_tokens: int = Field(
+        default=64,
+        gt=0,
+        description="避免估算误差导致超窗的安全余量",
+    )
+    max_chunks_per_document: int = Field(
+        default=2,
+        gt=0,
+        description="单篇文档最多贡献多少个上下文候选",
+    )
+    token_estimator: TokenEstimatorSettings = Field(default_factory=TokenEstimatorSettings)
+
+    @model_validator(mode="after")
+    def validate_context_window(self) -> "ContextPackingSettings":
+        """校验上下文 token 预算关系。"""
+
+        if self.max_context_tokens > self.model_context_window:
+            raise ValueError("max_context_tokens 不能大于 model_context_window")
+        return self
 
 
 class RetrievalReportSettings(BaseModel):
@@ -313,6 +384,7 @@ class RetrievalSettings(BaseModel):
     tokenizer: TokenizerSettings = Field(default_factory=TokenizerSettings)
     bm25: BM25Settings = Field(default_factory=BM25Settings)
     hybrid: HybridRetrievalSettings = Field(default_factory=HybridRetrievalSettings)
+    reranking: RerankingSettings = Field(default_factory=RerankingSettings)
     context_packing: ContextPackingSettings = Field(
         default_factory=ContextPackingSettings
     )

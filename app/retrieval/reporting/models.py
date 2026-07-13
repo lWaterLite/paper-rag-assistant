@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any, Literal
 
 from app.core.models import RagTrace, RetrievedChunk
 
@@ -42,6 +43,10 @@ class RetrievalConfigSnapshot:
     hybrid_rrf_rank_constant: int
     hybrid_vector_weight: float
     hybrid_bm25_weight: float
+    reranking_enabled: bool
+    reranking_strategy: str
+    reranking_candidate_limit: int
+    reranking_failure_mode: str
     registered_strategies: tuple[str, ...]
 
 
@@ -58,9 +63,11 @@ class RetrievalStageObservation:
     """Retrieval 内部某个处理阶段的输入、输出和耗时。"""
 
     stage: str
+    status: Literal["success", "error"]
     input_count: int
     output_count: int
     latency_ms: float
+    detail: dict[str, Any]
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,6 +77,7 @@ class RetrievalExecutionReport:
     query: str
     requested_top_k: int | None
     resolved_top_k: int | None
+    resolved_candidate_limit: int | None
     requested_retriever: str | None
     resolved_retriever: str | None
     candidate_count: int

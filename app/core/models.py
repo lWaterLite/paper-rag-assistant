@@ -137,6 +137,15 @@ class RetrievalSignal:
 
 
 @dataclass(frozen=True)
+class RerankSignal:
+    """重排序阶段对某个候选提供的运行时证据。"""
+
+    reranker: str
+    rank: int
+    score: float
+
+
+@dataclass(frozen=True)
 class RetrievedChunk:
     """检索结果。
 
@@ -159,6 +168,7 @@ class RetrievedChunk:
     page_end: int | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
     retrieval_signals: tuple[RetrievalSignal, ...] = ()
+    rerank_signal: RerankSignal | None = None
 
 
 @dataclass(frozen=True)

@@ -17,6 +17,12 @@ from app.retrieval.retrievers import (
     VectorRetriever,
 )
 from app.retrieval.retrievers.fusion import ReciprocalRankFusion
+from app.retrieval.rerankers import (
+    Reranker,
+    RerankerRegistry,
+    RerankingConfig,
+    build_default_reranker_registry,
+)
 from app.retrieval.reporting import (
     RetrievalComparisonReporter,
     RetrievalComparisonReportWriter,
@@ -32,6 +38,12 @@ from app.retrieval.tokenizers import (
     TokenizerRegistry,
     build_default_tokenizer_registry,
 )
+from app.retrieval.token_estimators import (
+    TokenEstimator,
+    TokenEstimatorRegistry,
+    build_default_token_estimator_registry,
+)
+from app.retrieval.context_packer import ContextPacker, TokenAwareContextPacker
 
 
 @dataclass(slots=True)
@@ -41,6 +53,10 @@ class RetrievalFactory:
     configs: ConfigFactory
     tokenizer_registry: TokenizerRegistry = field(
         default_factory=build_default_tokenizer_registry
+    )
+    reranker_registry: RerankerRegistry | None = None
+    token_estimator_registry: TokenEstimatorRegistry = field(
+        default_factory=build_default_token_estimator_registry
     )
 
     @staticmethod
@@ -69,6 +85,45 @@ class RetrievalFactory:
 
         return self.tokenizer_registry.create(
             self.configs.build_tokenizer_config()
+        )
+
+    def build_reranker(
+        self,
+        config: RerankingConfig | None = None,
+    ) -> Reranker | None:
+        """根据配置创建 reranker；禁用时显式返回 None。"""
+
+        active_config = (
+            config if config is not None else self.configs.build_reranking_config()
+        )
+        if not active_config.enabled:
+            return None
+        active_registry = (
+            self.reranker_registry
+            if self.reranker_registry is not None
+            else build_default_reranker_registry(self.build_tokenizer())
+        )
+        try:
+            return active_registry.create(active_config)
+        except ValueError as exc:
+            raise AppError(ErrorCode.INVALID_CONFIG, str(exc)) from exc
+
+    def build_token_estimator(self) -> TokenEstimator:
+        """根据配置创建生成模型窗口使用的 token estimator。"""
+
+        try:
+            return self.token_estimator_registry.create(
+                self.configs.build_token_estimator_config()
+            )
+        except ValueError as exc:
+            raise AppError(ErrorCode.INVALID_CONFIG, str(exc)) from exc
+
+    def build_context_packer(self) -> ContextPacker:
+        """创建 token-aware ContextPacker。"""
+
+        return TokenAwareContextPacker(
+            config=self.configs.build_context_packer_config(),
+            token_estimator=self.build_token_estimator(),
         )
 
     def build_hybrid_retriever(
@@ -145,9 +200,12 @@ class RetrievalFactory:
         active_registry = (
             registry if registry is not None else self.build_retriever_registry(index)
         )
+        reranking_config = self.configs.build_reranking_config()
         return SearchService(
             registry=active_registry,
             config=self.configs.build_retrieval_config(),
+            reranking_config=reranking_config,
+            reranker=self.build_reranker(reranking_config),
             reporter=self.build_retrieval_reporter(index, active_registry),
         )
 
@@ -162,9 +220,12 @@ class RetrievalFactory:
         active_registry = (
             registry if registry is not None else self.build_retriever_registry(index)
         )
+        reranking_config = self.configs.build_reranking_config()
         return CompareSearchService(
             registry=active_registry,
             config=self.configs.build_retrieval_config(),
+            reranking_config=reranking_config,
+            reranker=self.build_reranker(reranking_config),
             reporter=self.build_retrieval_reporter(index, active_registry),
             comparison_reporter=self.build_retrieval_comparison_reporter(
                 index,
@@ -212,6 +273,7 @@ class RetrievalFactory:
         manifest = index.manifest
         retrieval_config = self.configs.build_retrieval_config()
         hybrid_config = self.configs.build_hybrid_retrieval_config()
+        reranking_config = self.configs.build_reranking_config()
         return RetrievalRuntimeSnapshot(
             index=RetrievalIndexSnapshot(
                 index_id=manifest.index_id,
@@ -240,6 +302,10 @@ class RetrievalFactory:
                 hybrid_rrf_rank_constant=hybrid_config.rrf_rank_constant,
                 hybrid_vector_weight=hybrid_config.vector_weight,
                 hybrid_bm25_weight=hybrid_config.bm25_weight,
+                reranking_enabled=reranking_config.enabled,
+                reranking_strategy=reranking_config.strategy,
+                reranking_candidate_limit=reranking_config.candidate_limit,
+                reranking_failure_mode=reranking_config.failure_mode,
                 registered_strategies=registry.list_strategies(),
             ),
         )

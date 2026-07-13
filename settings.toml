@@ -87,8 +87,23 @@ rrf_rank_constant = 60
 vector_weight = 1.0
 bm25_weight = 1.0
 
+[retrieval.reranking]
+enabled = true
+strategy = "lexical"
+candidate_limit = 12
+batch_size = 8
+failure_mode = "fail_open"
+
 [retrieval.context_packing]
-max_context_chars = 1800
+model_context_window = 4096
+max_context_tokens = 1800
+reserved_prompt_tokens = 200
+reserved_output_tokens = 512
+safety_margin_tokens = 64
+max_chunks_per_document = 2
+
+[retrieval.context_packing.token_estimator]
+strategy = "regex"
 
 [retrieval.report]
 enabled = true

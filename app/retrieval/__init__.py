@@ -5,6 +5,14 @@ from app.retrieval.configs import (
     HybridRetrievalConfig,
     RetrievalConfig,
 )
+from app.retrieval.context_packer import (
+    ContextPackRequest,
+    ContextPacker,
+    ContextPackerConfig,
+    ContextSegment,
+    PackedContext,
+    TokenAwareContextPacker,
+)
 from app.retrieval.comparison import (
     ComparedChunkOverlap,
     ComparedStrategyResult,
@@ -29,6 +37,19 @@ from app.retrieval.service import (
     SearchResult,
     SearchService,
 )
+from app.retrieval.rerankers import (
+    LexicalReranker,
+    Reranker,
+    RerankerRegistry,
+    RerankingConfig,
+    RerankStage,
+)
+from app.retrieval.token_estimators import (
+    RegexTokenEstimator,
+    TokenEstimator,
+    TokenEstimatorConfig,
+    TokenEstimatorRegistry,
+)
 from app.retrieval.tokenizers import (
     RegexTokenizer,
     Tokenizer,
@@ -41,11 +62,17 @@ __all__ = [
     "ComparedStrategyResult",
     "CompareSearchResult",
     "CompareSearchService",
+    "ContextPackRequest",
+    "ContextPacker",
+    "ContextPackerConfig",
+    "ContextSegment",
     "BM25Config",
     "BM25Index",
     "BM25Retriever",
     "HybridRetrievalConfig",
     "HybridRetriever",
+    "LexicalReranker",
+    "PackedContext",
     "RetrievalComparisonPipeline",
     "RetrievalComparisonResult",
     "RetrievalPipeline",
@@ -53,11 +80,20 @@ __all__ = [
     "RetrievalConfig",
     "Retriever",
     "RetrieverRegistry",
+    "Reranker",
+    "RerankerRegistry",
+    "RerankingConfig",
+    "RerankStage",
+    "RegexTokenEstimator",
     "SearchResult",
     "SearchService",
     "RegexTokenizer",
     "Tokenizer",
     "TokenizerConfig",
     "TokenizerRegistry",
+    "TokenAwareContextPacker",
+    "TokenEstimator",
+    "TokenEstimatorConfig",
+    "TokenEstimatorRegistry",
     "VectorRetriever",
 ]
