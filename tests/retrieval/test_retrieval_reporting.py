@@ -27,6 +27,8 @@ from app.retrieval.reporting import (
     RetrievalRuntimeSnapshot,
 )
 from app.retrieval.retrievers import RetrieverRegistry
+from app.retrieval.rerankers import LexicalReranker, RerankingConfig
+from app.retrieval.tokenizers import RegexTokenizer
 from app.retrieval.service import SearchService
 
 
@@ -97,6 +99,10 @@ def build_runtime_snapshot() -> RetrievalRuntimeSnapshot:
             hybrid_rrf_rank_constant=60,
             hybrid_vector_weight=1.0,
             hybrid_bm25_weight=1.0,
+            reranking_enabled=False,
+            reranking_strategy="lexical",
+            reranking_candidate_limit=12,
+            reranking_failure_mode="fail_open",
             registered_strategies=("bm25", "hybrid", "vector"),
         ),
     )
@@ -133,6 +139,8 @@ class RetrievalReportingTest(unittest.TestCase):
         service = SearchService(
             registry=registry,
             config=RetrievalConfig(strategy="vector", top_k=2),
+            reranking_config=RerankingConfig(enabled=False),
+            reranker=None,
             reporter=build_reporter(output_dir),
         )
 
@@ -168,6 +176,8 @@ class RetrievalReportingTest(unittest.TestCase):
         service = SearchService(
             registry=registry,
             config=RetrievalConfig(strategy="vector", top_k=2),
+            reranking_config=RerankingConfig(enabled=False),
+            reranker=None,
             reporter=build_reporter(output_dir),
         )
 
@@ -215,6 +225,46 @@ class RetrievalReportingTest(unittest.TestCase):
             self.assertEqual(report["report_type"], "retrieval_execution")
             self.assertEqual(report["status"], "success")
             self.assertEqual(report["runtime"]["index"]["index_id"], index.manifest.index_id)
+        finally:
+            shutil.rmtree(output_dir, ignore_errors=True)
+
+    def test_rerank_stage_report_records_candidate_limit_and_strategy(self) -> None:
+        output_dir = Path(".tmp_tests") / f"retrieval_{uuid.uuid4().hex}"
+        registry = RetrieverRegistry()
+        registry.register(
+            "vector",
+            lambda: StaticRetriever(
+                [
+                    build_result("a", 1),
+                    build_result("b", 2),
+                    build_result("c", 3),
+                ]
+            ),
+        )
+        service = SearchService(
+            registry=registry,
+            config=RetrievalConfig(strategy="vector", top_k=1),
+            reranking_config=RerankingConfig(
+                enabled=True,
+                candidate_limit=3,
+                batch_size=2,
+            ),
+            reranker=LexicalReranker(RegexTokenizer(), batch_size=2),
+            reporter=build_reporter(output_dir),
+        )
+
+        try:
+            result = service.search("完整文本")
+            if result.report_path is None:
+                self.fail("启用 retrieval report 后没有返回报告路径")
+            report = json.loads(result.report_path.read_text(encoding="utf-8"))
+            rerank_stage = next(
+                stage for stage in report["stages"] if stage["stage"] == "RerankStage"
+            )
+
+            self.assertEqual(report["request"]["resolved_candidate_limit"], 3)
+            self.assertEqual(rerank_stage["detail"]["reranker"], "lexical")
+            self.assertFalse(rerank_stage["detail"]["degraded"])
         finally:
             shutil.rmtree(output_dir, ignore_errors=True)
 

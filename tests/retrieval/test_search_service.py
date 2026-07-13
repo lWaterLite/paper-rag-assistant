@@ -11,6 +11,7 @@ from app.core.models import RetrievedChunk
 from app.retrieval.configs import RetrievalConfig
 from app.retrieval.retrievers import RetrieverRegistry
 from app.retrieval.reporting import RetrievalReporter
+from app.retrieval.rerankers import RerankingConfig
 from app.retrieval.service import SearchService
 
 
@@ -74,6 +75,8 @@ class SearchServiceTest(unittest.TestCase):
                 ),
             ),
             config=RetrievalConfig(strategy="vector", top_k=3, deduplicate_by_chunk_id=True),
+            reranking_config=RerankingConfig(enabled=False),
+            reranker=None,
             reporter=RetrievalReporter.disabled(),
         )
 
@@ -98,6 +101,8 @@ class SearchServiceTest(unittest.TestCase):
                 ),
             ),
             config=RetrievalConfig(strategy="vector", top_k=1),
+            reranking_config=RerankingConfig(enabled=False),
+            reranker=None,
             reporter=RetrievalReporter.disabled(),
         )
 
@@ -110,6 +115,8 @@ class SearchServiceTest(unittest.TestCase):
         service = SearchService(
             registry=build_registry(vector=StaticRetriever("vector", [])),
             config=RetrievalConfig(strategy="vector", top_k=1),
+            reranking_config=RerankingConfig(enabled=False),
+            reranker=None,
             reporter=RetrievalReporter.disabled(),
         )
 
@@ -128,6 +135,8 @@ class SearchServiceTest(unittest.TestCase):
                 )
             ),
             config=RetrievalConfig(strategy="bm25", top_k=1),
+            reranking_config=RerankingConfig(enabled=False),
+            reranker=None,
             reporter=RetrievalReporter.disabled(),
         )
 

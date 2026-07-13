@@ -19,6 +19,7 @@ from app.retrieval.reporting import (
     RetrievalReporter,
 )
 from app.retrieval.retrievers import RetrieverRegistry
+from app.retrieval.rerankers import RerankingConfig
 from app.retrieval.service import CompareSearchService
 
 
@@ -76,6 +77,8 @@ def build_service(
     return CompareSearchService(
         registry=registry,
         config=RetrievalConfig(strategy="vector", top_k=2),
+        reranking_config=RerankingConfig(enabled=False),
+        reranker=None,
         reporter=RetrievalReporter.disabled(),
         comparison_reporter=(
             comparison_reporter

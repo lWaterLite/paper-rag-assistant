@@ -21,6 +21,7 @@ from app.core.models import (
     Citation,
     RagAnswer,
     RagTrace,
+    RerankSignal,
     RetrievalSignal,
     RetrievedChunk,
 )
@@ -144,6 +145,19 @@ class ApiSchemaTest(unittest.TestCase):
             ["vector", "bm25"],
         )
         self.assertEqual(response.retrieval_signals[1].score, 7.5)
+
+    def test_retrieved_chunk_response_exposes_rerank_signal_without_overwriting_retrieval_score(self) -> None:
+        chunk = replace(
+            build_retrieved_chunk(),
+            rerank_signal=RerankSignal("lexical", rank=1, score=2.5),
+        )
+
+        response = retrieved_chunk_to_response(chunk)
+
+        self.assertEqual(response.score, 0.87)
+        self.assertIsNotNone(response.rerank_signal)
+        self.assertEqual(response.rerank_signal.reranker, "lexical")
+        self.assertEqual(response.rerank_signal.score, 2.5)
 
     def test_ask_response_hides_retrieved_chunks_by_default(self) -> None:
         response = rag_answer_to_response(build_answer())

@@ -184,7 +184,8 @@ class CapturingAnswerGenerator:
 class FailingContextPacker:
     """测试用失败上下文组织器。"""
 
-    def pack(self, chunks):
+    def pack(self, request):
+        _ = request
         raise RuntimeError("上下文组织失败")
 
 

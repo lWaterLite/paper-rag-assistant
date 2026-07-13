@@ -28,6 +28,7 @@ from app.core.settings import (
     PdfCleanerSettings,
     ProjectSettings,
     RetrievalReportSettings,
+    RerankingSettings,
     RetrievalSettings,
     TokenizerSettings,
     VectorRepositorySettings,
@@ -75,7 +76,17 @@ class SettingsTest(unittest.TestCase):
 
     def test_context_packing_settings_rejects_non_positive_budget(self) -> None:
         with self.assertRaises(ValidationError):
-            ContextPackingSettings(max_context_chars=0)
+            ContextPackingSettings(max_context_tokens=0)
+
+        with self.assertRaises(ValidationError):
+            ContextPackingSettings(model_context_window=100, max_context_tokens=101)
+
+    def test_reranking_settings_normalizes_strategy_and_validates_limits(self) -> None:
+        settings = RerankingSettings(strategy=" lexical ", candidate_limit=10)
+
+        self.assertEqual(settings.strategy, "lexical")
+        with self.assertRaises(ValidationError):
+            RerankingSettings(candidate_limit=0)
 
     def test_settings_rejects_invalid_pdf_cleaner_ratio(self) -> None:
         with self.assertRaises(ValidationError) as context:
@@ -157,8 +168,23 @@ rrf_rank_constant = 50
 vector_weight = 1.2
 bm25_weight = 0.8
 
+[retrieval.reranking]
+enabled = true
+strategy = "lexical"
+candidate_limit = 15
+batch_size = 5
+failure_mode = "fail_closed"
+
 [retrieval.context_packing]
-max_context_chars = 2400
+model_context_window = 8192
+max_context_tokens = 2400
+reserved_prompt_tokens = 300
+reserved_output_tokens = 600
+safety_margin_tokens = 80
+max_chunks_per_document = 3
+
+[retrieval.context_packing.token_estimator]
+strategy = "regex"
 
 [retrieval.report]
 enabled = true
@@ -207,9 +233,24 @@ fail_on_write_error = true
             self.assertEqual(project_settings.retrieval.strategy, "hybrid")
             self.assertEqual(project_settings.retrieval.top_k, 7)
             self.assertEqual(
-                project_settings.retrieval.context_packing.max_context_chars,
+                project_settings.retrieval.context_packing.max_context_tokens,
                 2400,
             )
+            self.assertEqual(
+                project_settings.retrieval.context_packing.model_context_window,
+                8192,
+            )
+            self.assertEqual(
+                project_settings.retrieval.context_packing.max_chunks_per_document,
+                3,
+            )
+            self.assertEqual(
+                project_settings.retrieval.context_packing.token_estimator.strategy,
+                "regex",
+            )
+            self.assertTrue(project_settings.retrieval.reranking.enabled)
+            self.assertEqual(project_settings.retrieval.reranking.candidate_limit, 15)
+            self.assertEqual(project_settings.retrieval.reranking.failure_mode, "fail_closed")
             self.assertTrue(project_settings.retrieval.report.enabled)
             self.assertEqual(
                 project_settings.retrieval.report.output_dir,

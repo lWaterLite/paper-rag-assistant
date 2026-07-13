@@ -7,7 +7,11 @@ import unittest
 from app.core.models import Citation, RetrievedChunk
 from app.generation.answer_generator import MockAnswerGenerator
 from app.generation.prompts import build_rag_answer_prompt
-from app.retrieval.context_packer import DroppedChunk, PackedContext
+from app.retrieval.context_packer import (
+    ContextTokenUsage,
+    DroppedChunk,
+    PackedContext,
+)
 
 
 def build_packed_context() -> PackedContext:
@@ -47,6 +51,16 @@ def build_packed_context() -> PackedContext:
                 detail="剩余上下文预算不足",
             )
         ],
+        segments=[],
+        token_usage=ContextTokenUsage(
+            estimator="regex",
+            question_tokens=1,
+            reserved_prompt_tokens=10,
+            reserved_output_tokens=10,
+            safety_margin_tokens=2,
+            available_context_tokens=50,
+            used_context_tokens=10,
+        ),
     )
 
 
@@ -80,7 +94,22 @@ class RagAnswerPromptTest(unittest.TestCase):
     def test_prompt_handles_empty_context(self) -> None:
         prompt = build_rag_answer_prompt(
             "没有资料时怎么办？",
-            PackedContext(context_text="", citations=[], used_chunks=[], dropped_chunks=[]),
+            PackedContext(
+                context_text="",
+                citations=[],
+                used_chunks=[],
+                dropped_chunks=[],
+                segments=[],
+                token_usage=ContextTokenUsage(
+                    estimator="regex",
+                    question_tokens=1,
+                    reserved_prompt_tokens=10,
+                    reserved_output_tokens=10,
+                    safety_margin_tokens=2,
+                    available_context_tokens=50,
+                    used_context_tokens=0,
+                ),
+            ),
         )
 
         self.assertIn("当前没有可用 context", prompt.user_prompt)
@@ -95,4 +124,3 @@ class RagAnswerPromptTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
