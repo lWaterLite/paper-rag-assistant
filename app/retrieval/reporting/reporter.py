@@ -13,6 +13,13 @@ from app.retrieval.reporting.models import (
     RetrievalRuntimeSnapshot,
 )
 from app.retrieval.reporting.writer import RetrievalReportWriter
+from app.retrieval.postprocessing import (
+    PostProcessingConfig,
+    PostProcessingProfile,
+)
+from app.retrieval.configs import RetrievalConfig
+from app.retrieval.context_packer import ContextPackerConfig
+from app.retrieval.rerankers import RerankingConfig
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,10 +79,13 @@ class RetrievalReporter:
                     hybrid_rrf_rank_constant=0,
                     hybrid_vector_weight=0,
                     hybrid_bm25_weight=0,
-                    reranking_enabled=False,
-                    reranking_strategy="unavailable",
-                    reranking_candidate_limit=0,
-                    reranking_failure_mode="unavailable",
+                    postprocessing=PostProcessingProfile.from_config(
+                        PostProcessingConfig(
+                            retrieval=RetrievalConfig(top_k=1),
+                            reranking=RerankingConfig(enabled=False),
+                            context_packing=ContextPackerConfig(),
+                        )
+                    ),
                     registered_strategies=(),
                 ),
             ),

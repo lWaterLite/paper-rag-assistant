@@ -22,6 +22,7 @@ from app.retrieval.configs import (
     HybridRetrievalConfig,
     RetrievalConfig,
 )
+from app.retrieval.postprocessing import PostProcessingConfig
 from app.retrieval.rerankers import RerankingConfig
 from app.retrieval.reporting import RetrievalReportConfig
 from app.retrieval.token_estimators import TokenEstimatorConfig
@@ -188,6 +189,15 @@ class ConfigFactory:
             reserved_output_tokens=settings.reserved_output_tokens,
             safety_margin_tokens=settings.safety_margin_tokens,
             max_chunks_per_document=settings.max_chunks_per_document,
+        )
+
+    def build_postprocessing_config(self) -> PostProcessingConfig:
+        """聚合检索后处理流程需要共同校验的运行时配置。"""
+
+        return PostProcessingConfig(
+            retrieval=self.build_retrieval_config(),
+            reranking=self.build_reranking_config(),
+            context_packing=self.build_context_packer_config(),
         )
 
     def build_rag_pipeline_config(self) -> RagPipelineConfig:

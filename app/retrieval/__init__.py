@@ -23,6 +23,11 @@ from app.retrieval.pipeline import (
     RetrievalPipeline,
     RetrievalPipelineResult,
 )
+from app.retrieval.postprocessing import (
+    PostProcessingConfig,
+    PostProcessingConfigValidator,
+    PostProcessingProfile,
+)
 from app.retrieval.retrievers import (
     BM25Index,
     BM25Retriever,
@@ -73,6 +78,9 @@ __all__ = [
     "HybridRetriever",
     "LexicalReranker",
     "PackedContext",
+    "PostProcessingConfig",
+    "PostProcessingConfigValidator",
+    "PostProcessingProfile",
     "RetrievalComparisonPipeline",
     "RetrievalComparisonResult",
     "RetrievalPipeline",

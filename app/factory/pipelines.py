@@ -41,15 +41,19 @@ class PipelineFactory:
             active_registry = RetrieverRegistry()
             active_registry.register(strategy, lambda: configured_retriever)
 
+        postprocessing_config = self.retrieval.build_postprocessing_config()
         return RagPipeline(
             config=self.configs.build_rag_pipeline_config(),
             retrieval_service=self.retrieval.build_search_service(
                 index,
                 registry=active_registry,
+                postprocessing_config=postprocessing_config,
             ),
             context_packer=context_packer
             if context_packer is not None
-            else self.retrieval.build_context_packer(),
+            else self.retrieval.build_context_packer(
+                postprocessing_config=postprocessing_config,
+            ),
             answer_generator=answer_generator
             if answer_generator is not None
             else MockAnswerGenerator(),

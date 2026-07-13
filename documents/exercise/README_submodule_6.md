@@ -58,6 +58,14 @@ app/retrieval/
     registry.py
       TokenEstimatorRegistry
 
+  postprocessing/
+    config.py
+      PostProcessingConfig
+    validator.py
+      PostProcessingConfigValidator
+    profile.py
+      PostProcessingProfile
+
   pipeline_types.py
     RetrievalPipelineContext、RetrievalStageResult
 
@@ -286,10 +294,14 @@ settings.toml
   -> RerankingSettings / ContextPackingSettings / TokenEstimatorSettings
   -> ConfigFactory
   -> RerankingConfig / ContextPackerConfig / TokenEstimatorConfig
+  -> PostProcessingConfig
   -> RetrievalFactory
+  -> PostProcessingConfigValidator / PostProcessingProfile
   -> RerankerRegistry / TokenEstimatorRegistry
   -> SearchService / CompareSearchService / TokenAwareContextPacker
 ```
+
+`RetrievalFactory` 会先验证 `PostProcessingConfig`，再构建 `SearchService`、reporter 或 `TokenAwareContextPacker`。`PipelineFactory` 则把同一份已校验 Config 同时传给 SearchService 与 ContextPacker，保证一次 `RagPipeline` 组装不会混用不同配置快照。
 
 `RerankStage`、`TokenAwareContextPacker` 和具体策略对象不会读取 `ProjectSettings`，也不会自己选择默认实现。所有对象由 Factory 组装。
 
@@ -309,8 +321,10 @@ stages[].status
 stages[].detail.reranker
 stages[].detail.degraded
 results[].rerank_signal
-runtime.config.reranking_*
+runtime.config.postprocessing
 ```
+
+`runtime.config.postprocessing` 是 `PostProcessingProfile` 的稳定快照。它会记录 rerank 是否启用、candidate limit 当前的实际语义、默认候选宽度、单文档上限、模型窗口、预留 token、静态可用预算和有效上下文上限。单次请求再扣除 question token 后的实际预算仍保留在 `context_packing` trace 中。
 
 `RetrievedChunk.score` 仍表示原检索器给出的 score；rerank 的 score 放在独立的 `rerank_signal` 中。这样不会把 BM25、向量、RRF 与 rerank 分数误当作同一量纲。
 
@@ -368,6 +382,7 @@ failure_mode = "fail_open"
   tests.retrieval.test_reranking `
   tests.retrieval.test_token_estimators `
   tests.retrieval.test_context_packer `
+  tests.retrieval.test_postprocessing `
   tests.retrieval.test_retrieval_reporting
 ```
 
@@ -380,88 +395,93 @@ failure_mode = "fail_open"
 5. token 预算、文档配额、去重、截断与 segment provenance。
 6. rerank 阶段写入 retrieval report。
 7. API 映射保留原始 retrieval score 并暴露 rerank signal。
+8. 后处理配置组合校验、Factory 的提前失败与 Profile 报告快照。
 
 ## 9. 工程练习
 
-本次练习不要求补测试；新增或改动功能时，应同步由项目维护对应测试。
+本次练习不要求你接入真实模型、下载模型文件或新增第三方推理依赖，也不要求补测试；新增或改动功能时，对应测试由项目维护。
 
-### 练习 1：接入真实 Cross-Encoder Reranker
+练习关注的是已经具备真实实现后的下一层问题：如何让后处理流程的配置组合能够被清晰校验与说明，以及如何在不破坏来源追溯与报告的前提下扩展证据处理阶段。这两项能力比替换某个具体 reranker 或 tokenizer 更值得在当前阶段掌握。
 
-目标是新增一个真实模型 adapter，而不是把第三方模型加载代码塞进 `RerankStage`。
+### 练习 1：定义后处理流程配置的有效组合（已实现）
+
+当前系统的后处理行为由 reranking、candidate limit、context packing 等多组配置共同决定。它们分散存在是合理的，但组合本身也有领域规则，例如：
+
+```text
+reranking.enabled = false 时，candidate_limit 不应被误解为 rerank 候选宽度。
+max_chunks_per_document 会直接影响单篇文档可以占用的上下文上限。
+上下文 token 预算必须大于各类预留预算推导出的最低可用值。
+```
+
+本项目已增加一个面向“后处理流程”的配置校验与说明层，而不是把互相依赖的检查散落到每个 Config 的 `__post_init__` 中：
+
+```text
+app/retrieval/postprocessing/
+  config.py
+    PostProcessingConfig
+  validator.py
+    PostProcessingConfigValidator
+  profile.py
+    PostProcessingProfile
+```
+
+推荐分工：
+
+```text
+RerankingConfig / ContextPackerConfig
+  各自验证自身字段是否合法。
+
+PostProcessingConfigValidator
+  验证跨配置组合是否有意义，抛出带字段路径的 AppError 或 ValueError。
+
+PostProcessingProfile
+  生成不可变的运行时摘要，供 retrieval report、CLI 或未来 API 使用。
+  它不构建 retriever、reranker 或 context packer。
+```
+
+当前实现的规则与接入位置：
+
+1. `ConfigFactory.build_postprocessing_config()` 聚合既有 Config，不新增 TOML 或新的 Settings 类。
+2. `PostProcessingConfigValidator` 拒绝启用 rerank 但 `candidate_limit < top_k` 的组合；同时拒绝预留 token 后没有资料预算、或 `max_context_tokens` 超出静态可用预算的组合。
+3. `RetrievalFactory` 在创建 SearchService、CompareSearchService 或 ContextPacker 前执行校验，并将错误统一转换为 `AppError(INVALID_CONFIG)`。
+4. `PostProcessingProfile` 不可变，记录启用状态、默认候选宽度及其来源、失败策略、文档配额和 token 预算；它被写入 `runtime.config.postprocessing`。
+5. `PipelineFactory` 使用同一份已验证的 `PostProcessingConfig` 组装 SearchService 与 ContextPacker，避免一次 RAG 请求混用不同快照。
+
+验收重点是：错误配置能在应用组装时尽早暴露；一份检索报告能够解释本次结果使用了哪一种完整的后处理方案。
+
+### 练习 2：设计证据变换阶段的边界
+
+未来可能需要对候选证据进行去模板、相邻段合并、抽取式压缩或格式规整，但这些步骤不能混入 `AnswerGenerator`，也不能丢失来源。请为“证据变换”设计一个可插拔阶段边界，而不是立刻接入 LLM 压缩。
 
 建议结构：
 
 ```text
-app/retrieval/rerankers/
-  cross_encoder.py
-    CrossEncoderReranker
+app/retrieval/evidence_transformers/
+  base.py
+    EvidenceTransformer Protocol
+    EvidenceTransformRequest / EvidenceTransformResult
+  passthrough.py
+    PassthroughEvidenceTransformer
+  stage.py
+    EvidenceTransformStage
 ```
 
-要求：
-
-1. `CrossEncoderReranker` 实现 `Reranker` Protocol。
-2. 构造函数只接收模型 client、`RerankingConfig` 或更细的 `CrossEncoderRerankerConfig`，不读取 TOML。
-3. provider 在组合根注册到 `RerankerRegistry`，例如策略名 `cross_encoder`。
-4. 支持 batch、超时、模型输入长度截断和异常转换。
-5. 输出必须保持完整原候选集合，交给 `RerankStage` 统一验证。
-
-可选依赖建议使用 `sentence-transformers`。如决定接入，由你自行执行：
-
-```powershell
-uv add sentence-transformers
-```
-
-模型文件下载、显存占用和首次加载耗时都应由应用启动/Factory 生命周期管理，不能在每个请求中重新构造模型。
-
-### 练习 2：实现模型专用 TokenEstimator
-
-目标是让真实模型调用时的 token 预算更精确。
-
-建议新增：
+建议在 `TopKLimitStage` 之后、`TokenAwareContextPacker` 的合并与预算逻辑之前插入该阶段：
 
 ```text
-app/retrieval/token_estimators/tiktoken.py
-  TiktokenTokenEstimator
+retrieve -> dedup -> rerank -> top-k
+  -> evidence transform
+  -> token-aware context packing
 ```
 
-要求：
+实现要求：
 
-1. 保持 `TokenEstimator.count_text(text)` 接口不变。
-2. 在 registry 中注册策略名，例如 `tiktoken`。
-3. 在 TOML 中切换 `retrieval.context_packing.token_estimator.strategy`。
-4. 不修改 ContextPacker 的预算算法；替换策略只能影响计数方式。
-5. 当模型名与 tokenizer 编码不兼容时，给出清晰配置错误，不静默回退。
+1. 先只实现 `PassthroughEvidenceTransformer`，以验证完整组装、阶段 trace、错误处理和 provenance 契约，不实现细粒度的文本压缩算法。
+2. 输入输出必须能明确关联原始 `chunk_id`；若一个输出片段来自多个 chunk，必须保留完整 source id 集合和原文范围。
+3. 将阶段状态、输入/输出数量、是否降级及转换器名称写入已有 report；不要另起一套日志格式。
+4. future transformer 若产生无法追溯到原文的新表述，必须被接口契约禁止；LLM 摘要式压缩仍留到子模块 7 的 grounded generation 与 citation 校验之后。
 
-若采用 `tiktoken`，由你自行添加依赖：
-
-```powershell
-uv add tiktoken
-```
-
-### 练习 3：抽取 ContextSelectionPolicy
-
-当前 `TokenAwareContextPacker` 内置“按 rank 优先、单文档配额”的选择规则。下一步可以将选择规则抽成独立策略：
-
-```text
-ContextSelectionPolicy
-  RankFirstSelectionPolicy
-  DiversityAwareSelectionPolicy
-```
-
-目标不是再造一个大而全的 manager，而是让 ContextPacker 专注预算、段落渲染和 provenance，让 policy 专注“在候选中选择谁”。
-
-验收要点：策略切换来自 Settings/Config/Registry；不同策略不会改变 citation 和 source chunk 的追溯契约；ContextPacker 不需要知道具体策略类型。
-
-### 练习 4：安全的 Extractive Context Compressor
-
-设计 `ContextCompressor`，只允许从原 chunk 中抽取连续句子或文本窗口，不能生成新表述。
-
-要求：
-
-1. 输出仍能定位到 `source_chunk_ids` 与原始字符/token 范围。
-2. 压缩后不得丢失 Citation/ContextSegment provenance。
-3. 压缩是 ContextPacker 前或内部的独立阶段，不混入 AnswerGenerator。
-4. 不在本练习实现 LLM 摘要式压缩；它需要子模块 7 的 grounded generation 与 citation 校验配合。
+验收重点是：你可以在不修改 Reranker、Retriever、AnswerGenerator 的情况下新增任意证据变换器，并且最终 `ContextSegment` 仍能解释每一段上下文来自哪里。
 
 ## 10. 本子模块边界
 

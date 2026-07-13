@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 
 from app.core.models import RagTrace, RetrievedChunk
+from app.retrieval.postprocessing import PostProcessingProfile
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,10 +44,7 @@ class RetrievalConfigSnapshot:
     hybrid_rrf_rank_constant: int
     hybrid_vector_weight: float
     hybrid_bm25_weight: float
-    reranking_enabled: bool
-    reranking_strategy: str
-    reranking_candidate_limit: int
-    reranking_failure_mode: str
+    postprocessing: PostProcessingProfile
     registered_strategies: tuple[str, ...]
 
 

@@ -44,6 +44,11 @@ from app.retrieval.token_estimators import (
     build_default_token_estimator_registry,
 )
 from app.retrieval.context_packer import ContextPacker, TokenAwareContextPacker
+from app.retrieval.postprocessing import (
+    PostProcessingConfig,
+    PostProcessingConfigValidator,
+    PostProcessingProfile,
+)
 
 
 @dataclass(slots=True)
@@ -118,13 +123,54 @@ class RetrievalFactory:
         except ValueError as exc:
             raise AppError(ErrorCode.INVALID_CONFIG, str(exc)) from exc
 
-    def build_context_packer(self) -> ContextPacker:
+    def build_context_packer(
+        self,
+        *,
+        postprocessing_config: PostProcessingConfig | None = None,
+    ) -> ContextPacker:
         """创建 token-aware ContextPacker。"""
 
+        active_config = self._resolve_postprocessing_config(postprocessing_config)
         return TokenAwareContextPacker(
-            config=self.configs.build_context_packer_config(),
+            config=active_config.context_packing,
             token_estimator=self.build_token_estimator(),
         )
+
+    def build_postprocessing_config(self) -> PostProcessingConfig:
+        """构建并校验检索后处理流程的组合配置。"""
+
+        config = self.configs.build_postprocessing_config()
+        self._validate_postprocessing_config(config)
+        return config
+
+    @staticmethod
+    def _validate_postprocessing_config(config: PostProcessingConfig) -> None:
+        """把组合校验错误转换为应用统一错误。"""
+
+        try:
+            PostProcessingConfigValidator.validate(config)
+        except ValueError as exc:
+            raise AppError(ErrorCode.INVALID_CONFIG, str(exc)) from exc
+
+    def _resolve_postprocessing_config(
+        self,
+        config: PostProcessingConfig | None,
+    ) -> PostProcessingConfig:
+        """解析调用方注入或当前 Factory 创建的后处理配置。"""
+
+        if config is None:
+            return self.build_postprocessing_config()
+        self._validate_postprocessing_config(config)
+        return config
+
+    def build_postprocessing_profile(
+        self,
+        config: PostProcessingConfig | None = None,
+    ) -> PostProcessingProfile:
+        """构建供报告与诊断使用的后处理运行时摘要。"""
+
+        active_config = self._resolve_postprocessing_config(config)
+        return PostProcessingProfile.from_config(active_config)
 
     def build_hybrid_retriever(
         self,
@@ -194,19 +240,29 @@ class RetrievalFactory:
         index: RagIndex,
         *,
         registry: RetrieverRegistry | None = None,
+        postprocessing_config: PostProcessingConfig | None = None,
     ) -> SearchService:
         """创建只执行检索的 SearchService。"""
 
         active_registry = (
             registry if registry is not None else self.build_retriever_registry(index)
         )
-        reranking_config = self.configs.build_reranking_config()
+        active_postprocessing_config = self._resolve_postprocessing_config(
+            postprocessing_config
+        )
+        reranking_config = active_postprocessing_config.reranking
         return SearchService(
             registry=active_registry,
-            config=self.configs.build_retrieval_config(),
+            config=active_postprocessing_config.retrieval,
             reranking_config=reranking_config,
             reranker=self.build_reranker(reranking_config),
-            reporter=self.build_retrieval_reporter(index, active_registry),
+            reporter=self.build_retrieval_reporter(
+                index,
+                active_registry,
+                postprocessing_profile=self.build_postprocessing_profile(
+                    active_postprocessing_config
+                ),
+            ),
         )
 
     def build_compare_search_service(
@@ -214,22 +270,34 @@ class RetrievalFactory:
         index: RagIndex,
         *,
         registry: RetrieverRegistry | None = None,
+        postprocessing_config: PostProcessingConfig | None = None,
     ) -> CompareSearchService:
         """创建多策略检索比较服务。"""
 
         active_registry = (
             registry if registry is not None else self.build_retriever_registry(index)
         )
-        reranking_config = self.configs.build_reranking_config()
+        active_postprocessing_config = self._resolve_postprocessing_config(
+            postprocessing_config
+        )
+        reranking_config = active_postprocessing_config.reranking
+        postprocessing_profile = self.build_postprocessing_profile(
+            active_postprocessing_config
+        )
         return CompareSearchService(
             registry=active_registry,
-            config=self.configs.build_retrieval_config(),
+            config=active_postprocessing_config.retrieval,
             reranking_config=reranking_config,
             reranker=self.build_reranker(reranking_config),
-            reporter=self.build_retrieval_reporter(index, active_registry),
+            reporter=self.build_retrieval_reporter(
+                index,
+                active_registry,
+                postprocessing_profile=postprocessing_profile,
+            ),
             comparison_reporter=self.build_retrieval_comparison_reporter(
                 index,
                 active_registry,
+                postprocessing_profile=postprocessing_profile,
             ),
         )
 
@@ -237,12 +305,18 @@ class RetrievalFactory:
         self,
         index: RagIndex,
         registry: RetrieverRegistry,
+        *,
+        postprocessing_profile: PostProcessingProfile,
     ) -> RetrievalReporter:
         """根据索引、配置和已注册策略创建 retrieval reporter。"""
 
         reporter = RetrievalReporter(
             config=self.configs.build_retrieval_report_config(),
-            runtime_snapshot=self.build_retrieval_runtime_snapshot(index, registry),
+            runtime_snapshot=self.build_retrieval_runtime_snapshot(
+                index,
+                registry,
+                postprocessing_profile=postprocessing_profile,
+            ),
             writer=RetrievalReportWriter(),
         )
         reporter.prepare_output_directory()
@@ -252,12 +326,18 @@ class RetrievalFactory:
         self,
         index: RagIndex,
         registry: RetrieverRegistry,
+        *,
+        postprocessing_profile: PostProcessingProfile,
     ) -> RetrievalComparisonReporter:
         """根据索引、配置和已注册策略创建 compare search 聚合报告组件。"""
 
         reporter = RetrievalComparisonReporter(
             config=self.configs.build_retrieval_report_config(),
-            runtime_snapshot=self.build_retrieval_runtime_snapshot(index, registry),
+            runtime_snapshot=self.build_retrieval_runtime_snapshot(
+                index,
+                registry,
+                postprocessing_profile=postprocessing_profile,
+            ),
             writer=RetrievalComparisonReportWriter(),
         )
         reporter.prepare_output_directory()
@@ -267,13 +347,14 @@ class RetrievalFactory:
         self,
         index: RagIndex,
         registry: RetrieverRegistry,
+        *,
+        postprocessing_profile: PostProcessingProfile,
     ) -> RetrievalRuntimeSnapshot:
         """构建单策略与比较报告共同使用的运行时快照。"""
 
         manifest = index.manifest
         retrieval_config = self.configs.build_retrieval_config()
         hybrid_config = self.configs.build_hybrid_retrieval_config()
-        reranking_config = self.configs.build_reranking_config()
         return RetrievalRuntimeSnapshot(
             index=RetrievalIndexSnapshot(
                 index_id=manifest.index_id,
@@ -302,10 +383,7 @@ class RetrievalFactory:
                 hybrid_rrf_rank_constant=hybrid_config.rrf_rank_constant,
                 hybrid_vector_weight=hybrid_config.vector_weight,
                 hybrid_bm25_weight=hybrid_config.bm25_weight,
-                reranking_enabled=reranking_config.enabled,
-                reranking_strategy=reranking_config.strategy,
-                reranking_candidate_limit=reranking_config.candidate_limit,
-                reranking_failure_mode=reranking_config.failure_mode,
+                postprocessing=postprocessing_profile,
                 registered_strategies=registry.list_strategies(),
             ),
         )
