@@ -359,118 +359,164 @@ paper-rag-assistant/
 
 ---
 
-### 子模块 5：Baseline 检索与 BM25 检索
+### 子模块 5：多策略检索、Hybrid 融合与检索可观测性
+
+实际完成情况：
+
+本子模块已从最初的 vector/BM25 baseline 扩展为完整的候选检索子系统。它完成了
+`VectorRetriever`、`BM25Retriever`、加权 RRF `HybridRetriever`、`RetrieverRegistry`、
+`TokenizerRegistry`、`SearchService`、检索报告和 compare search。基础的字符预算版
+`SimpleContextPacker` 也已接入在线 RAG 调用链，负责为后续生成阶段提供去重、相邻合并和
+citation 标记后的上下文。
+
+这一阶段的定位是“找什么、如何组合候选、如何看见检索过程”。它不负责把候选做模型级
+重排序，也不负责正式检索指标评测；两部分分别留给子模块 6 与子模块 8。
 
 学习目标：
 
-- 建立最小可用的 dense retrieval baseline。
-- 理解关键词检索 BM25 和向量检索的互补关系。
-- 让检索结果可解释、可测试、可比较。
+- 建立 dense、sparse 与 hybrid 三种可独立运行的候选检索策略。
+- 理解 BM25、向量相似度和 RRF 的分数及排名语义差异。
+- 让检索结果具有稳定数据契约、来源信息、运行 trace 和可持久化报告。
+- 建立单策略 search 与多策略 compare search 的清晰边界。
 
 需要掌握：
 
-- top-k 检索。
-- 相似度分数。
-- BM25 的基本思想。
-- dense retrieval 和 sparse retrieval 的差异。
-- query embedding。
-- 检索结果去重。
+- query embedding、top-k、向量相似度与关键词召回。
+- BM25 的 TF、IDF、长度归一化和 tokenizer 一致性。
+- dense retrieval 与 sparse retrieval 的互补关系。
+- `RetrievedChunk`、`RetrievalSignal`、rank 与原始 score 的数据边界。
+- `Retriever` Protocol、策略注册表、惰性 provider 与依赖注入。
+- reciprocal rank fusion（RRF）、候选集扩张、加权融合与 chunk-id 聚合。
+- 检索结果去重、最终 top-k 截断与 pipeline 后处理阶段。
+- retrieval trace、执行报告、失败报告、compare search 与 overlap 分析。
+- 基础 context packing：去重、相邻 chunk 合并、字符预算与 citation 标记。
 
 实践任务：
 
-1. 实现 `VectorRetriever`：
-   - 输入 query。
-   - 输出 top-k `RetrievedChunk`。
-2. 实现 `BM25Retriever`：
-   - 对 chunk 文本建立关键词索引。
-   - 支持中英文基本检索。
-3. 设计统一检索结果结构：
-
-```python
-class RetrievedChunk:
-    chunk_id: str
-    doc_id: str
-    text: str
-    score: float
-    source: str
-    page_start: int | None
-    page_end: int | None
-    section: str | None
-    retriever: str
-```
-
-4. 为 `/search` API 返回检索结果、分数、metadata。
-5. 人工构造 20 条问题，检查 top-k 是否命中相关 chunk。
+1. 实现并统一三种候选检索器：
+   - `VectorRetriever` 使用 query embedding 和 `VectorCollection` 搜索。
+   - `BM25Index` 与 `BM25Retriever` 分离索引统计和在线检索职责。
+   - `HybridRetriever` 通过多个 `Retriever` 召回源和 RRF 输出统一 `RetrievedChunk`。
+2. 设计统一检索结果与运行时证据：
+   - 保留 chunk、文档、章节、页码、来源路径和 metadata。
+   - 将每个召回源的 score/rank 保存在运行时 `RetrievalSignal`，不写入文档 metadata。
+3. 使用 registry 与 factory 组装策略：
+   - 由 `RetrieverRegistry` 校验策略名、惰性构建并缓存实例。
+   - 由 `TokenizerRegistry` 确保 BM25 建索引和 query 使用同一分词规则。
+   - `settings.toml -> Settings -> ConfigFactory -> Config -> Factory` 保持单向配置流。
+4. 实现检索流程与对外能力：
+   - `SearchService -> RetrievalPipeline -> Retriever -> ResultStage[]`。
+   - `/search` handler 返回结果、来源、rank、score 和可选 trace。
+   - `CompareSearchService` 并列执行多个策略，返回独立结果、失败信息和 chunk overlap。
+5. 完成检索领域报告：
+   - 单策略请求记录候选数、去重数、最终返回数、阶段耗时、索引与配置快照。
+   - compare search 写入父级聚合报告，并关联各子策略报告和 trace。
+   - 成功与失败请求都保留可追溯记录。
+6. 实现基础上下文组织：
+   - 去除重复 chunk 与重复文本。
+   - 合并同一文档的相邻 chunk。
+   - 在字符预算内生成包含 citation id 的 `PackedContext`。
 
 验收标准：
 
-- dense retrieval 和 BM25 retrieval 都能独立运行。
-- `/search` 返回的每条结果都包含 chunk 内容和来源信息。
-- 能对同一个 query 比较 BM25 与向量检索的差异。
-- 至少有 8 个检索测试，包括无结果、top-k 边界、重复结果、metadata 保留、中文 query、英文 query。
-- 能解释为什么向量检索不一定能命中精确术语，BM25 不一定能命中语义近似问题。
+- vector、BM25、hybrid 三种策略均通过同一个 `Retriever` 协议与 registry 运行。
+- BM25 索引文本与查询文本使用同一个可注入 tokenizer，且中英文基础检索可运行。
+- hybrid 不直接相加 BM25 与向量原始分数，而是使用加权 RRF；每个结果保留多路检索证据。
+- `/search` 的每条结果都包含文本、rank、score、来源路径、文档/章节/页码 metadata。
+- compare search 能在同一 query 下展示多个策略的独立结果、失败状态和 overlap，不把它误当作融合排序。
+- retrieval pipeline 的去重和 top-k 处理对 API、CLI 与 RAG pipeline 一致生效。
+- 检索成功、检索失败和比较检索都能写入结构化报告并关联 trace id。
+- 基础 context packing 能去重、合并相邻 chunk、记录 dropped reason，并保留用于后续生成的 citation 信息。
+- 已有检索测试覆盖无结果、top-k、重复结果、metadata、tokenizer、registry、hybrid、报告和比较模式。
+- 能解释为什么向量检索不一定命中精确术语、BM25 不一定命中语义近似问题，以及为什么不同策略的原始 score 不能直接比较。
 
 工程注意事项：
 
-- 检索阶段不要直接生成答案，先把“找到了什么”暴露出来。
-- 分数不能跨检索器直接比较，BM25 分数和向量相似度需要归一化或融合策略。
-- top-k 不是越大越好，过多无关 chunk 会污染上下文。
+- 检索阶段先暴露“找到了什么”，不能把回答生成混入 `SearchService` 或 `RetrievalPipeline`。
+- `HybridRetriever` 的职责是融合候选召回，不承担 rerank；rerank 将在子模块 6 以独立后处理阶段接入。
+- compare search 是观察与诊断工具，不是分数融合器，也不是正式评测系统。
+- 当前 `SimpleContextPacker` 仍使用字符预算且合并段只以基础 citation 表达来源；token-aware 预算和完整段级 provenance 将在子模块 6 完成。
+- 本子模块的 compare/report 用于工程诊断，不替代 golden dataset、Recall@k、MRR 和实验管理；正式评测基础设施仍属于子模块 8。
 
 ---
 
-### 子模块 6：Hybrid Retrieval、Rerank 与 Context Packing
+### 子模块 6：重排序、检索后处理与上下文预算
+
+调整说明：
+
+子模块 5 已经提前完成了 `HybridRetriever`、加权 RRF 融合、基础去重、字符预算版
+`ContextPacker`、检索比较接口和检索报告。因此子模块 6 不再重复实现 hybrid retrieval，
+而是以现有 `vector`、`bm25`、`hybrid` 为候选召回基线，专注完成“候选结果如何成为
+可靠 LLM 上下文”的后半段流程。
+
+本次调整不改变后续模块边界：query rewrite、回答生成和回答级 citation 校验仍属于子模块
+7；正式 golden dataset、指标计算和实验管理仍属于子模块 8；HTTP 服务、Streaming 和通用
+请求可观测性仍属于子模块 9；生产安全、权限、成本和部署仍属于子模块 10。
 
 学习目标：
 
-- 将 BM25 和向量检索组合成 hybrid retrieval。
-- 使用 rerank 提升最终进入上下文的 chunk 质量。
-- 在有限上下文窗口内组织最有用、最少重复、最可引用的材料。
+- 理解两阶段检索：先扩大候选召回，再用 rerank 选择真正值得进入上下文的 chunk。
+- 将 rerank 设计成可替换、可配置、可降级的检索后处理阶段，而不是耦合在某个 retriever 中。
+- 将现有字符预算版 context packing 升级为面向模型上下文窗口的 token 预算与来源追溯流程。
+- 保持现有 hybrid、report 和 compare search 的稳定语义，并为子模块 7 的生成与引用校验提供可靠输入。
 
 需要掌握：
 
-- score normalization。
-- reciprocal rank fusion。
-- weighted score fusion。
-- reranker。
-- cross-encoder rerank。
-- LLM-based rerank。
-- context packing。
-- context compression。
+- candidate retrieval、final selection 与 two-stage retrieval。
+- reranker、bi-encoder 与 cross-encoder 的职责差异。
+- pointwise、pairwise、listwise rerank 的基本思想。
+- rerank score、原始 retrieval score 与 rank 的语义边界。
+- `Reranker` Protocol、`RerankStage`、策略注册表与故障降级。
+- candidate limit、final top-k 与 rerank batch 的配置关系。
+- token budget、token estimator、模型上下文窗口和输出预留。
+- context packing、文档多样性、相邻 chunk 合并、来源追溯与安全的 extractive compression。
+- rerank 与 context packing 的阶段统计和领域级报告。
 
 实践任务：
 
-1. 实现 `HybridRetriever`：
-   - vector top-k
-   - BM25 top-k
-   - 去重
-   - 分数融合
-2. 实现 `Reranker` 抽象接口：
-   - mock reranker
-   - 可选真实 reranker
-3. 实现 `ContextPacker`：
-   - 按 token budget 选择 chunk。
-   - 合并同一文档相邻 chunk。
-   - 去除重复内容。
-   - 保留 citation id。
-4. 对比三组策略：
-   - vector only
-   - BM25 only
-   - hybrid + rerank
-5. 记录每组策略的检索命中率、平均延迟、返回 chunk 数量。
+1. 重构 retrieval pipeline 的候选与最终结果边界：
+   - 明确候选数量 `candidate_limit` 与最终返回数量 `top_k`。
+   - 保持 `Retriever` 负责召回，后处理阶段负责选择，不让具体 retriever 感知 rerank。
+   - 保证关闭 rerank 时，现有 vector、BM25、hybrid 的行为可复现。
+2. 设计并接入 `Reranker` 抽象：
+   - 使用 Protocol 定义批量重排序输入、输出和错误边界。
+   - 实现一个确定性的本地 baseline reranker，作为不依赖模型下载的可测试实现。
+   - 为 cross-encoder 或远程 reranker 预留 client adapter 与 registry 接入点，不在业务 pipeline 中直接导入第三方 SDK。
+   - 配置 rerank 的启用状态、策略名、候选上限、batch size、失败策略与最终 top-k。
+3. 将 context packing 升级为 token-aware 流程：
+   - 将 BM25 tokenizer 与模型 token 估算职责分离。
+   - 引入可替换 `TokenEstimator`，计算提示词开销、问题、引用前缀、上下文和预留输出所占预算。
+   - 保留去重、相邻 chunk 合并，同时增加每篇文档上限和 dropped reason。
+   - 为合并或截断后的上下文段保存完整 source chunk 列表，避免来源信息只剩第一个 chunk。
+4. 设计安全的压缩边界：
+   - 仅允许不改变事实归属的 extractive 压缩进入本子模块实现。
+   - 明确 generative compression 必须在后续回答生成与 citation 校验能力具备后再接入。
+5. 扩展 retrieval 领域报告：
+   - 记录候选数、去重后数量、rerank 前后顺序、最终选择数、token 使用量和丢弃原因。
+   - 记录 reranker 的耗时、策略名、降级状态和子阶段 trace。
+6. 使用确定性 fixture 验证关键工作流：
+   - rerank 开关不会改变配置外的行为。
+   - rerank 失败按配置执行 fail-open 或 fail-closed。
+   - token 预算不会超限，且所有上下文段仍能追溯到原始 chunk。
 
 验收标准：
 
-- hybrid retrieval 可以通过配置打开或关闭。
-- rerank 可以通过配置打开或关闭。
-- context packing 不会丢失 citation metadata。
-- 至少完成 30 条问题的检索评测。
-- 能说明 rerank 改善了哪些问题，又带来了哪些成本。
+- `hybrid` 继续作为普通 `Retriever` 在 registry 中工作，未被 rerank 逻辑侵入。
+- rerank 可以通过 `settings.toml` 开关、策略名和 Config 配置，且关闭时保留当前检索排序。
+- `candidate_limit`、rerank 输入数和最终 `top_k` 的职责明确，报告可以看出每一步数量变化。
+- reranker 的失败路径有明确错误码、trace 和可配置降级策略，不会静默吞掉排序失败。
+- context packing 使用 token 预算而不是字符数近似值，并为每个使用或丢弃的 chunk 保留可解释原因。
+- 相邻 chunk 合并、截断或 extractive 压缩后仍保留完整来源 chunk 列表和位置范围。
+- 已有 retrieval report、compare search、`/search` 和 `/ask` 主调用链继续通过回归测试。
+- 能解释 rerank 提升的对象、额外延迟与成本，以及为何正式指标评测仍留到子模块 8。
 
 工程注意事项：
 
-- Rerank 的目标不是返回更多 chunk，而是让进入 LLM 的上下文更准确。
-- context packing 应该控制 token budget，否则回答生成阶段会变慢或超限。
-- 多个 chunk 来自同一篇论文时，要避免重复段落占满上下文。
+- Rerank 不是新的召回器；它只能在已有候选集合内重新排序，召回阶段遗漏的证据无法被它找回。
+- 不要把不同模型或不同 reranker 的原始 score 当作同一量纲；对外稳定展示 rank，原始分数仅用于本次运行诊断。
+- ContextPacker 不应擅自调用 LLM 或修改事实含义；其职责是选择、组织和追溯证据。
+- token 预算必须预留系统提示词、问题、citation 格式和输出空间，不能只计算 chunk 正文。
+- 不在本子模块建立 golden dataset、Recall@k/MRR 运行器或配置实验矩阵；这些属于子模块 8，避免过早把评测基础设施和检索实现混在一起。
 
 ---
 
