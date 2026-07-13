@@ -9,7 +9,7 @@ from app.core.settings import EnvSettings, ProjectSettings, RetrievalSettings
 from app.core.errors import AppError, ErrorCode
 from app.core.models import RagAnswer
 from app.factory import ApplicationFactory
-from app.retrieval.context_packer import PackedContext
+from app.retrieval.context import PackedContext
 
 
 SAMPLE_SOURCE_DIR = Path("data/raw/papers")

@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 from app.core.models import Citation, RetrievedChunk
-from app.retrieval.token_estimators import TokenEstimator
+from app.retrieval.context.token_estimators import TokenEstimator
 
 
 @dataclass(frozen=True, slots=True)

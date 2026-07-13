@@ -24,12 +24,12 @@ from app.pipeline import RagPipeline
 from app.repositories.chunk_repository import ChunkRepository
 from app.repositories.document_repository import DocumentRepository
 from app.repositories.vector_repository import VectorRepository
-from app.retrieval.context_packer import ContextPacker
+from app.retrieval.context import ContextPacker
 from app.retrieval.retrievers import Retriever, RetrieverRegistry
-from app.retrieval.service import CompareSearchService, SearchService
+from app.retrieval.services.search import CompareSearchService, SearchService
 from app.retrieval.tokenizers import TokenizerRegistry
 from app.retrieval.rerankers import RerankerRegistry
-from app.retrieval.token_estimators import TokenEstimatorRegistry
+from app.retrieval.context.token_estimators import TokenEstimatorRegistry
 
 
 @dataclass(slots=True)

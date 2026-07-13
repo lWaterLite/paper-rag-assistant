@@ -313,7 +313,7 @@ python -m unittest discover -s tests
 
 ### 练习 10：Context Packing 改进
 
-位置：`app/retrieval/context_packer.py`
+位置：`app/retrieval/context/packer.py`
 
 任务：
 

@@ -40,9 +40,9 @@ User Query
 核心新增或调整文件：
 
 ```text
-app/retrieval/configs.py
+app/retrieval/configuration/retrieval.py
 app/retrieval/pipeline.py
-app/retrieval/service.py
+app/retrieval/services/search.py
 app/retrieval/retrievers/__init__.py
 app/retrieval/retrievers/base.py
 app/retrieval/retrievers/vector.py
@@ -1232,7 +1232,7 @@ app/api/schemas.py
 app/api/handlers.py
   handle_compare_search_request
 
-app/retrieval/service.py
+app/retrieval/services/search.py
   CompareSearchService
 
 app/retrieval/pipeline.py

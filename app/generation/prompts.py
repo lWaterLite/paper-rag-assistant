@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.retrieval.context_packer import PackedContext
+from app.retrieval.context import PackedContext
 
 
 @dataclass(frozen=True)

@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from dataclasses import replace
 
 from app.core.models import RetrievedChunk
-from app.retrieval.configs import HybridRetrievalConfig
+from app.retrieval.configuration import HybridRetrievalConfig
 from app.retrieval.retrievers.fusion import (
     RankedResultSet,
     ReciprocalRankFusion,

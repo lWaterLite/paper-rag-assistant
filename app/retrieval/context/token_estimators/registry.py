@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from app.retrieval.token_estimators.base import TokenEstimator
-from app.retrieval.token_estimators.config import TokenEstimatorConfig
-from app.retrieval.token_estimators.regex import RegexTokenEstimator
+from app.retrieval.context.token_estimators.base import TokenEstimator
+from app.retrieval.context.token_estimators.config import TokenEstimatorConfig
+from app.retrieval.context.token_estimators.regex import RegexTokenEstimator
 
 TokenEstimatorProvider = Callable[[], TokenEstimator]
 

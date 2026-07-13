@@ -9,7 +9,7 @@ from app.factory.retrieval import RetrievalFactory
 from app.generation.answer_generator import AnswerGenerator, MockAnswerGenerator
 from app.indexing.index_builder import RagIndex
 from app.pipeline import RagPipeline
-from app.retrieval.context_packer import ContextPacker
+from app.retrieval.context import ContextPacker
 from app.retrieval.retrievers import Retriever, RetrieverRegistry
 
 

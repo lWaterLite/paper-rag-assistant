@@ -11,7 +11,7 @@ from pathlib import Path
 from app.api.handlers import handle_compare_search_request
 from app.api.schemas import CompareSearchRequest
 from app.core.models import RetrievedChunk
-from app.retrieval.configs import RetrievalConfig
+from app.retrieval.configuration import RetrievalConfig
 from app.retrieval.reporting import (
     RetrievalComparisonReporter,
     RetrievalComparisonReportWriter,
@@ -20,7 +20,7 @@ from app.retrieval.reporting import (
 )
 from app.retrieval.retrievers import RetrieverRegistry
 from app.retrieval.rerankers import RerankingConfig
-from app.retrieval.service import CompareSearchService
+from app.retrieval.services.search import CompareSearchService
 
 
 def build_result(

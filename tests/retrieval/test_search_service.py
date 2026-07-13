@@ -8,11 +8,11 @@ from app.api.handlers import handle_search_request
 from app.api.schemas import SearchRequest
 from app.core.errors import AppError, ErrorCode
 from app.core.models import RetrievedChunk
-from app.retrieval.configs import RetrievalConfig
+from app.retrieval.configuration import RetrievalConfig
 from app.retrieval.retrievers import RetrieverRegistry
 from app.retrieval.reporting import RetrievalReporter
 from app.retrieval.rerankers import RerankingConfig
-from app.retrieval.service import SearchService
+from app.retrieval.services.search import SearchService
 
 
 def build_result(chunk_id: str, *, rank: int = 1, retriever: str = "vector") -> RetrievedChunk:

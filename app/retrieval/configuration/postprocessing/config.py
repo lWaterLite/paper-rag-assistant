@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.retrieval.configs import RetrievalConfig
-from app.retrieval.context_packer import ContextPackerConfig
-from app.retrieval.rerankers import RerankingConfig
+from app.retrieval.configuration.retrieval import RetrievalConfig
+from app.retrieval.context.packer import ContextPackerConfig
+from app.retrieval.rerankers.config import RerankingConfig
 
 
 @dataclass(frozen=True, slots=True)

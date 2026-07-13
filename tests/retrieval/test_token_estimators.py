@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from app.retrieval.token_estimators import (
+from app.retrieval.context.token_estimators import (
     RegexTokenEstimator,
     TokenEstimatorConfig,
     TokenEstimatorRegistry,

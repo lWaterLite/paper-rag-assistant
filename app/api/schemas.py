@@ -11,8 +11,8 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.models import Citation, RagAnswer, RagTrace, RetrievedChunk
+from app.retrieval.configuration import RetrievalStrategy
 from app.retrieval.comparison import RetrievalComparisonResult
-from app.retrieval.configs import RetrievalStrategy
 
 
 class ApiModel(BaseModel):

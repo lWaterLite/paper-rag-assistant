@@ -11,7 +11,7 @@ from app.api.schemas import (
     retrieved_chunk_to_response,
     trace_to_response,
 )
-from app.retrieval.service import CompareSearchService, SearchService
+from app.retrieval.services.search import CompareSearchService, SearchService
 
 
 def handle_search_request(

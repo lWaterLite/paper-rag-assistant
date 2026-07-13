@@ -15,7 +15,7 @@ from app.retrieval.comparison import (
     ComparedStrategyResult,
     RetrievalComparisonResult,
 )
-from app.retrieval.configs import RetrievalConfig, RetrievalStrategy
+from app.retrieval.configuration import RetrievalConfig, RetrievalStrategy
 from app.retrieval.pipeline_types import RetrievalPipelineContext, RetrievalStageResult
 from app.retrieval.reporting import (
     RetrievalComparisonExecutionReport,

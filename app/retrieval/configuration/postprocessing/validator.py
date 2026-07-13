@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.retrieval.postprocessing.config import PostProcessingConfig
+from app.retrieval.configuration.postprocessing.config import PostProcessingConfig
 
 
 class PostProcessingConfigValidator:

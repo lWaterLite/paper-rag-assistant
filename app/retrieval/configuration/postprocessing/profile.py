@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.retrieval.postprocessing.config import PostProcessingConfig
+from app.retrieval.configuration.postprocessing.config import PostProcessingConfig
 
 
 @dataclass(frozen=True, slots=True)

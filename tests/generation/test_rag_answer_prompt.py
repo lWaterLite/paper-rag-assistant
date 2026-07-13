@@ -7,7 +7,7 @@ import unittest
 from app.core.models import Citation, RetrievedChunk
 from app.generation.answer_generator import MockAnswerGenerator
 from app.generation.prompts import build_rag_answer_prompt
-from app.retrieval.context_packer import (
+from app.retrieval.context import (
     ContextTokenUsage,
     DroppedChunk,
     PackedContext,

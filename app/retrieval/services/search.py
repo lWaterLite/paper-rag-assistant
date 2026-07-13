@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from app.retrieval.configs import RetrievalConfig, RetrievalStrategy
+from app.retrieval.configuration import RetrievalConfig, RetrievalStrategy
 from app.retrieval.comparison import RetrievalComparisonResult
 from app.retrieval.pipeline import (
     RetrievalComparisonPipeline,

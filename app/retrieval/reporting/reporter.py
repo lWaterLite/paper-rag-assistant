@@ -13,12 +13,12 @@ from app.retrieval.reporting.models import (
     RetrievalRuntimeSnapshot,
 )
 from app.retrieval.reporting.writer import RetrievalReportWriter
-from app.retrieval.postprocessing import (
+from app.retrieval.configuration.postprocessing import (
     PostProcessingConfig,
     PostProcessingProfile,
 )
-from app.retrieval.configs import RetrievalConfig
-from app.retrieval.context_packer import ContextPackerConfig
+from app.retrieval.configuration import RetrievalConfig
+from app.retrieval.context import ContextPackerConfig
 from app.retrieval.rerankers import RerankingConfig
 
 

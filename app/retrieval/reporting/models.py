@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 
 from app.core.models import RagTrace, RetrievedChunk
-from app.retrieval.postprocessing import PostProcessingProfile
+from app.retrieval.configuration.postprocessing import PostProcessingProfile
 
 
 @dataclass(frozen=True, slots=True)

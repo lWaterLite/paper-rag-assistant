@@ -32,19 +32,19 @@ from app.retrieval.reporting import (
     RetrievalReportWriter,
     RetrievalRuntimeSnapshot,
 )
-from app.retrieval.service import CompareSearchService, SearchService
+from app.retrieval.services.search import CompareSearchService, SearchService
 from app.retrieval.tokenizers import (
     Tokenizer,
     TokenizerRegistry,
     build_default_tokenizer_registry,
 )
-from app.retrieval.token_estimators import (
+from app.retrieval.context.token_estimators import (
     TokenEstimator,
     TokenEstimatorRegistry,
     build_default_token_estimator_registry,
 )
-from app.retrieval.context_packer import ContextPacker, TokenAwareContextPacker
-from app.retrieval.postprocessing import (
+from app.retrieval.context import ContextPacker, TokenAwareContextPacker
+from app.retrieval.configuration.postprocessing import (
     PostProcessingConfig,
     PostProcessingConfigValidator,
     PostProcessingProfile,

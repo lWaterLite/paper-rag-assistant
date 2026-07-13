@@ -7,7 +7,7 @@ from collections.abc import Iterable, Sequence
 
 from app.core.models import DocumentChunk
 from app.ingest.chunking.collection import InMemoryChunkCollection
-from app.retrieval.configs import BM25Config
+from app.retrieval.configuration import BM25Config
 from app.retrieval.retrievers import BM25Index, BM25Retriever
 from app.retrieval.tokenizers import RegexTokenizer, Tokenizer
 

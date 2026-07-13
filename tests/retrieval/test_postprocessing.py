@@ -13,13 +13,13 @@ from app.core.settings import (
     RetrievalSettings,
 )
 from app.factory import ApplicationFactory
-from app.retrieval.configs import RetrievalConfig
-from app.retrieval.context_packer import ContextPackerConfig
-from app.retrieval.postprocessing import (
+from app.retrieval.configuration import RetrievalConfig
+from app.retrieval.configuration.postprocessing import (
     PostProcessingConfig,
     PostProcessingConfigValidator,
     PostProcessingProfile,
 )
+from app.retrieval.context import ContextPackerConfig
 from app.retrieval.rerankers import RerankingConfig
 
 

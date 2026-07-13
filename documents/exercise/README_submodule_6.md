@@ -36,6 +36,29 @@ query
 
 ```text
 app/retrieval/
+  pipeline.py
+    候选召回、后处理阶段、rerank、报告、compare search
+  pipeline_types.py
+    RetrievalPipelineContext、RetrievalStageResult
+  comparison/
+    compare search 领域结果模型
+
+  configuration/
+    retrieval.py
+      RetrievalConfig、BM25Config、HybridRetrievalConfig
+    postprocessing/
+      PostProcessingConfig、PostProcessingConfigValidator、PostProcessingProfile
+
+  services/
+    search.py
+      SearchService、CompareSearchService
+
+  context/
+    packer.py
+      ContextPackRequest、ContextSegment、TokenAwareContextPacker
+    token_estimators/
+      TokenEstimator Protocol、TokenEstimatorConfig、Registry、Regex 实现
+
   rerankers/
     base.py
       Reranker Protocol、RerankedCandidate
@@ -48,32 +71,19 @@ app/retrieval/
     stage.py
       RerankStage
 
-  token_estimators/
-    base.py
-      TokenEstimator Protocol
-    config.py
-      TokenEstimatorConfig
-    regex.py
-      RegexTokenEstimator
+  retrievers/
+    vector.py / bm25.py / hybrid.py
+      三种候选召回实现
     registry.py
-      TokenEstimatorRegistry
+      RetrieverRegistry
+    fusion/
+      RRF 等融合策略
 
-  postprocessing/
-    config.py
-      PostProcessingConfig
-    validator.py
-      PostProcessingConfigValidator
-    profile.py
-      PostProcessingProfile
+  tokenizers/
+    Tokenizer Protocol、TokenizerConfig、Registry、Regex 实现
 
-  pipeline_types.py
-    RetrievalPipelineContext、RetrievalStageResult
-
-  pipeline.py
-    候选召回、后处理阶段、rerank、报告、compare search
-
-  context_packer.py
-    ContextPackRequest、ContextSegment、TokenAwareContextPacker
+  reporting/
+    单策略与 compare search 的报告模型、reporter、writer
 
 app/factory/
   configs.py
@@ -416,7 +426,7 @@ max_chunks_per_document 会直接影响单篇文档可以占用的上下文上�
 本项目已增加一个面向“后处理流程”的配置校验与说明层，而不是把互相依赖的检查散落到每个 Config 的 `__post_init__` 中：
 
 ```text
-app/retrieval/postprocessing/
+app/retrieval/configuration/postprocessing/
   config.py
     PostProcessingConfig
   validator.py

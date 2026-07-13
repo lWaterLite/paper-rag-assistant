@@ -9,7 +9,7 @@ from typing import Protocol
 
 from app.core.models import RagAnswer, RagTrace, RetrievedChunk
 from app.generation.prompts import RagAnswerPrompt, build_rag_answer_prompt
-from app.retrieval.context_packer import PackedContext
+from app.retrieval.context import PackedContext
 
 
 class AnswerGenerator(Protocol):

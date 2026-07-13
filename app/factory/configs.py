@@ -16,16 +16,16 @@ from app.ingest.cleaners import PdfTextCleanerConfig
 from app.ingest.loaders import LocalDocumentLoaderConfig
 from app.ingest.pipeline import IngestionReportConfig
 from app.pipeline import RagPipelineConfig
-from app.retrieval.context_packer import ContextPackerConfig
-from app.retrieval.configs import (
+from app.retrieval.context import ContextPackerConfig
+from app.retrieval.configuration import (
     BM25Config,
     HybridRetrievalConfig,
     RetrievalConfig,
 )
-from app.retrieval.postprocessing import PostProcessingConfig
+from app.retrieval.configuration.postprocessing import PostProcessingConfig
 from app.retrieval.rerankers import RerankingConfig
 from app.retrieval.reporting import RetrievalReportConfig
-from app.retrieval.token_estimators import TokenEstimatorConfig
+from app.retrieval.context.token_estimators import TokenEstimatorConfig
 from app.retrieval.tokenizers import TokenizerConfig
 
 

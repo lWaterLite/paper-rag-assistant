@@ -39,21 +39,19 @@ Retrieval 的职责不是“直接回答问题”，而是把用户 query 转换
 
 ```text
 app/retrieval/
+  pipeline.py          单策略检索与多策略比较的流程编排
+  pipeline_types.py    各后处理 stage 共享的窄类型契约
+  comparison/          compare search 的领域结果模型
+  configuration/       检索 Config 与跨配置后处理校验/Profile
+  services/            SearchService、CompareSearchService 等应用服务
+  context/             ContextPacker 与 token estimator
   retrievers/          候选召回：vector、BM25、hybrid 与 RRF 融合
   rerankers/           已召回候选的相关性重排序
   tokenizers/          BM25 与 lexical reranker 使用的分词能力
-  token_estimators/    生成模型上下文预算使用的 token 计数能力
-  postprocessing/      跨配置校验与后处理运行时摘要
   reporting/           单策略与多策略比较的 JSON 报告
-  comparison/          compare search 的领域结果模型
-  pipeline.py          单策略检索与多策略比较的流程编排
-  service.py           API、CLI、RAG Pipeline 面向的应用服务入口
-  context_packer.py    token 预算下的证据选择、合并、截断与来源追溯
-  pipeline_types.py    各后处理 stage 共享的窄类型契约
-  configs.py           retrieval 局部运行时 Config
 ```
 
-`pipeline_types.py` 不承载业务行为，只定义 `RetrievalPipelineContext` 与 `RetrievalStageResult`。这样 `RetrievalPipeline` 可以调用 `RerankStage`，而 `RerankStage` 又能依赖稳定的 stage 输入输出类型，不会形成 `pipeline -> stage -> pipeline` 的循环导入。
+`pipeline_types.py` 不承载业务行为，只定义 `RetrievalPipelineContext` 与 `RetrievalStageResult`。这样 `RetrievalPipeline` 可以调用 `RerankStage`，而 `RerankStage` 又能依赖稳定的 stage 输入输出类型，不会形成 `pipeline -> stage -> pipeline` 的循环导入。根级 `pipeline.py` 只承载 retrieval 的流程编排，不承担策略实现或应用服务职责。
 
 ## 3. 对象创建与配置流
 

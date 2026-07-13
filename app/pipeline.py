@@ -12,7 +12,7 @@ from typing import Any, NoReturn, Protocol
 from app.core.errors import AppError, ErrorCode
 from app.core.models import RagAnswer, RagTrace
 from app.generation.answer_generator import AnswerGenerator
-from app.retrieval.context_packer import ContextPackRequest, ContextPacker
+from app.retrieval.context import ContextPackRequest, ContextPacker
 from app.retrieval.pipeline import RetrievalPipelineResult
 
 

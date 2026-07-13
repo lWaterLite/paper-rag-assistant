@@ -17,12 +17,12 @@ from app.core.settings import (
     RetrievalSettings,
 )
 from app.factory import ApplicationFactory
-from app.retrieval.configs import RetrievalConfig
-from app.retrieval.context_packer import ContextPackerConfig
-from app.retrieval.postprocessing import (
+from app.retrieval.configuration import RetrievalConfig
+from app.retrieval.configuration.postprocessing import (
     PostProcessingConfig,
     PostProcessingProfile,
 )
+from app.retrieval.context import ContextPackerConfig
 from app.retrieval.reporting import (
     RetrievalConfigSnapshot,
     RetrievalIndexSnapshot,
@@ -34,7 +34,7 @@ from app.retrieval.reporting import (
 from app.retrieval.retrievers import RetrieverRegistry
 from app.retrieval.rerankers import LexicalReranker, RerankingConfig
 from app.retrieval.tokenizers import RegexTokenizer
-from app.retrieval.service import SearchService
+from app.retrieval.services.search import SearchService
 
 
 class StaticRetriever:

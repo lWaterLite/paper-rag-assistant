@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Literal
 
 from app.core.models import RagTrace, RetrievedChunk
-from app.retrieval.configs import RetrievalStrategy
+from app.retrieval.configuration.retrieval import RetrievalStrategy
 
 
 ComparisonStatus = Literal["success", "partial_error", "error"]

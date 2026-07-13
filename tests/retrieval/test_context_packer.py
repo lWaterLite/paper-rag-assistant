@@ -5,12 +5,12 @@ from __future__ import annotations
 import unittest
 
 from app.core.models import RetrievedChunk
-from app.retrieval.context_packer import (
+from app.retrieval.context import (
     ContextPackerConfig,
     ContextPackRequest,
     TokenAwareContextPacker,
 )
-from app.retrieval.token_estimators import RegexTokenEstimator
+from app.retrieval.context.token_estimators import RegexTokenEstimator
 
 
 def build_retrieved_chunk(
