@@ -44,6 +44,13 @@ from app.retrieval.context.token_estimators import (
     build_default_token_estimator_registry,
 )
 from app.retrieval.context import ContextPacker, TokenAwareContextPacker
+from app.retrieval.context.evidence_transformers import (
+    EvidenceTransformStage,
+    EvidenceTransformationConfig,
+    EvidenceTransformer,
+    EvidenceTransformerRegistry,
+    build_default_evidence_transformer_registry,
+)
 from app.retrieval.configuration.postprocessing import (
     PostProcessingConfig,
     PostProcessingConfigValidator,
@@ -62,6 +69,9 @@ class RetrievalFactory:
     reranker_registry: RerankerRegistry | None = None
     token_estimator_registry: TokenEstimatorRegistry = field(
         default_factory=build_default_token_estimator_registry
+    )
+    evidence_transformer_registry: EvidenceTransformerRegistry = field(
+        default_factory=build_default_evidence_transformer_registry
     )
 
     @staticmethod
@@ -134,6 +144,38 @@ class RetrievalFactory:
         return TokenAwareContextPacker(
             config=active_config.context_packing,
             token_estimator=self.build_token_estimator(),
+        )
+
+    def build_evidence_transformer(
+        self,
+        config: EvidenceTransformationConfig | None = None,
+    ) -> EvidenceTransformer | None:
+        """根据配置创建候选证据变换器；禁用时显式返回 None。"""
+
+        active_config = (
+            config
+            if config is not None
+            else self.configs.build_evidence_transformation_config()
+        )
+        if not active_config.enabled:
+            return None
+        try:
+            return self.evidence_transformer_registry.create(active_config)
+        except (TypeError, ValueError) as exc:
+            raise AppError(ErrorCode.INVALID_CONFIG, str(exc)) from exc
+
+    def build_evidence_transform_stage(
+        self,
+        *,
+        postprocessing_config: PostProcessingConfig | None = None,
+    ) -> EvidenceTransformStage:
+        """创建仅供 RAG 上下文分支使用的候选证据变换阶段。"""
+
+        active_config = self._resolve_postprocessing_config(postprocessing_config)
+        transformation_config = active_config.evidence_transformation
+        return EvidenceTransformStage(
+            config=transformation_config,
+            transformer=self.build_evidence_transformer(transformation_config),
         )
 
     def build_postprocessing_config(self) -> PostProcessingConfig:

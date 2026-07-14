@@ -20,6 +20,9 @@ class PostProcessingProfile:
     configured_candidate_limit: int | None
     default_candidate_limit: int
     candidate_limit_source: str
+    evidence_transformation_enabled: bool
+    evidence_transformation_strategy: str | None
+    evidence_transformation_failure_mode: str | None
     default_top_k: int
     deduplicate_by_chunk_id: bool
     max_chunks_per_document: int
@@ -60,6 +63,17 @@ class PostProcessingProfile:
             default_candidate_limit=default_candidate_limit,
             candidate_limit_source=(
                 "reranking_candidate_window" if reranking_enabled else "resolved_top_k"
+            ),
+            evidence_transformation_enabled=config.evidence_transformation.enabled,
+            evidence_transformation_strategy=(
+                config.evidence_transformation.strategy
+                if config.evidence_transformation.enabled
+                else None
+            ),
+            evidence_transformation_failure_mode=(
+                config.evidence_transformation.failure_mode
+                if config.evidence_transformation.enabled
+                else None
             ),
             default_top_k=config.retrieval.top_k,
             deduplicate_by_chunk_id=config.retrieval.deduplicate_by_chunk_id,

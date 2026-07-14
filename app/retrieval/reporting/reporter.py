@@ -19,6 +19,7 @@ from app.retrieval.configuration.postprocessing import (
 )
 from app.retrieval.configuration import RetrievalConfig
 from app.retrieval.context import ContextPackerConfig
+from app.retrieval.context.evidence_transformers import EvidenceTransformationConfig
 from app.retrieval.rerankers import RerankingConfig
 
 
@@ -84,6 +85,7 @@ class RetrievalReporter:
                             retrieval=RetrievalConfig(top_k=1),
                             reranking=RerankingConfig(enabled=False),
                             context_packing=ContextPackerConfig(),
+                            evidence_transformation=EvidenceTransformationConfig(),
                         )
                     ),
                     registered_strategies=(),

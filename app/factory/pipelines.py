@@ -54,6 +54,9 @@ class PipelineFactory:
             else self.retrieval.build_context_packer(
                 postprocessing_config=postprocessing_config,
             ),
+            evidence_transform_stage=self.retrieval.build_evidence_transform_stage(
+                postprocessing_config=postprocessing_config,
+            ),
             answer_generator=answer_generator
             if answer_generator is not None
             else MockAnswerGenerator(),

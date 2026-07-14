@@ -6,6 +6,9 @@ from dataclasses import dataclass
 
 from app.retrieval.configuration.retrieval import RetrievalConfig
 from app.retrieval.context.packer import ContextPackerConfig
+from app.retrieval.context.evidence_transformers.config import (
+    EvidenceTransformationConfig,
+)
 from app.retrieval.rerankers.config import RerankingConfig
 
 
@@ -20,3 +23,4 @@ class PostProcessingConfig:
     retrieval: RetrievalConfig
     reranking: RerankingConfig
     context_packing: ContextPackerConfig
+    evidence_transformation: EvidenceTransformationConfig

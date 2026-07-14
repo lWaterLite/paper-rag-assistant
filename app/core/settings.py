@@ -309,6 +309,33 @@ class TokenEstimatorSettings(BaseModel):
         return self
 
 
+class EvidenceTransformationSettings(BaseModel):
+    """候选证据变换阶段的结构化配置。"""
+
+    enabled: bool = Field(
+        default=True,
+        description="是否在 ContextPacker 前执行候选证据变换",
+    )
+    strategy: str = Field(
+        default="passthrough",
+        min_length=1,
+        description="evidence transformer 策略名",
+    )
+    failure_mode: Literal["fail_open", "fail_closed"] = Field(
+        default="fail_open",
+        description="证据变换失败时沿用原始候选或终止请求",
+    )
+
+    @model_validator(mode="after")
+    def validate_strategy(self) -> "EvidenceTransformationSettings":
+        """清理并校验 transformer 策略名。"""
+
+        self.strategy = self.strategy.strip()
+        if not self.strategy:
+            raise ValueError("evidence transformation strategy 不能为空")
+        return self
+
+
 class ContextPackingSettings(BaseModel):
     """检索结果进入生成阶段前的 token-aware 上下文组织配置。"""
 
@@ -343,6 +370,9 @@ class ContextPackingSettings(BaseModel):
         description="单篇文档最多贡献多少个上下文候选",
     )
     token_estimator: TokenEstimatorSettings = Field(default_factory=TokenEstimatorSettings)
+    evidence_transformation: EvidenceTransformationSettings = Field(
+        default_factory=EvidenceTransformationSettings
+    )
 
     @model_validator(mode="after")
     def validate_context_window(self) -> "ContextPackingSettings":

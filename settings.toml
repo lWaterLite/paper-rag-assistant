@@ -105,6 +105,11 @@ max_chunks_per_document = 2
 [retrieval.context_packing.token_estimator]
 strategy = "regex"
 
+[retrieval.context_packing.evidence_transformation]
+enabled = true
+strategy = "passthrough"
+failure_mode = "fail_open"
+
 [retrieval.report]
 enabled = true
 output_dir = "logs/retrieval"

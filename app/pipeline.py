@@ -13,6 +13,10 @@ from app.core.errors import AppError, ErrorCode
 from app.core.models import RagAnswer, RagTrace
 from app.generation.answer_generator import AnswerGenerator
 from app.retrieval.context import ContextPackRequest, ContextPacker
+from app.retrieval.context.evidence_transformers import (
+    EvidenceTransformRequest,
+    EvidenceTransformStage,
+)
 from app.retrieval.pipeline import RetrievalPipelineResult
 
 
@@ -49,11 +53,13 @@ class RagPipeline:
         *,
         retrieval_service: RetrievalService,
         context_packer: ContextPacker,
+        evidence_transform_stage: EvidenceTransformStage,
         answer_generator: AnswerGenerator,
     ) -> None:
         self._config = config
         self._retrieval_service = retrieval_service
         self._context_packer = context_packer
+        self._evidence_transform_stage = evidence_transform_stage
         self._answer_generator = answer_generator
 
     def ask(self, question: str) -> RagAnswer:
@@ -103,8 +109,35 @@ class RagPipeline:
 
         started = time.perf_counter()
         try:
+            evidence_result = self._evidence_transform_stage.process(
+                EvidenceTransformRequest(query=question, chunks=retrieved_chunks)
+            )
+            evidence_candidates = evidence_result.candidates
+        except Exception as exc:
+            self._record_failure_and_raise(
+                trace=trace,
+                stage="evidence_transformation",
+                started_at=started,
+                exc=exc,
+                default_code=ErrorCode.EVIDENCE_TRANSFORM_FAILED,
+                detail={"retrieved_chunks": len(retrieved_chunks)},
+            )
+        else:
+            trace.record_stage(
+                "evidence_transformation",
+                "success",
+                started,
+                {
+                    **evidence_result.detail,
+                    "input_count": len(retrieved_chunks),
+                    "output_count": len(evidence_candidates),
+                },
+            )
+
+        started = time.perf_counter()
+        try:
             packed_context = self._context_packer.pack(
-                ContextPackRequest(query=question, chunks=retrieved_chunks)
+                ContextPackRequest(query=question, candidates=evidence_candidates)
             )
         except Exception as exc:
             self._record_failure_and_raise(
@@ -113,7 +146,10 @@ class RagPipeline:
                 started_at=started,
                 exc=exc,
                 default_code=ErrorCode.RETRIEVAL_FAILED,
-                detail={"retrieved_chunks": len(retrieved_chunks)},
+                detail={
+                    "retrieved_chunks": len(retrieved_chunks),
+                    "evidence_candidates": len(evidence_candidates),
+                },
             )
         else:
             trace.record_stage(

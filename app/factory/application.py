@@ -30,6 +30,7 @@ from app.retrieval.services.search import CompareSearchService, SearchService
 from app.retrieval.tokenizers import TokenizerRegistry
 from app.retrieval.rerankers import RerankerRegistry
 from app.retrieval.context.token_estimators import TokenEstimatorRegistry
+from app.retrieval.context.evidence_transformers import EvidenceTransformerRegistry
 
 
 @dataclass(slots=True)
@@ -46,6 +47,7 @@ class ApplicationFactory:
     tokenizer_registry: TokenizerRegistry | None = None
     reranker_registry: RerankerRegistry | None = None
     token_estimator_registry: TokenEstimatorRegistry | None = None
+    evidence_transformer_registry: EvidenceTransformerRegistry | None = None
     configs: ConfigFactory = field(init=False)
     ingestion: IngestionFactory = field(init=False)
     indexing: IndexingFactory = field(init=False)
@@ -81,6 +83,11 @@ class ApplicationFactory:
             **(
                 {"token_estimator_registry": self.token_estimator_registry}
                 if self.token_estimator_registry is not None
+                else {}
+            ),
+            **(
+                {"evidence_transformer_registry": self.evidence_transformer_registry}
+                if self.evidence_transformer_registry is not None
                 else {}
             ),
         )

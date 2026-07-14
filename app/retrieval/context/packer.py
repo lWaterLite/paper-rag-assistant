@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 from app.core.models import Citation, RetrievedChunk
+from app.retrieval.context.evidence_transformers.models import EvidenceCandidate
 from app.retrieval.context.token_estimators import TokenEstimator
 
 
@@ -42,12 +43,12 @@ class ContextPackRequest:
     """ContextPacker 的结构化输入。"""
 
     query: str
-    chunks: Sequence[RetrievedChunk]
+    candidates: Sequence[EvidenceCandidate]
 
 
 @dataclass(frozen=True, slots=True)
 class DroppedChunk:
-    """没有进入最终上下文的 chunk 及其原因。"""
+    """没有进入最终上下文的来源 chunk 及其原因。"""
 
     chunk_id: str
     reason: str
@@ -56,10 +57,37 @@ class DroppedChunk:
 
 @dataclass(frozen=True, slots=True)
 class ContextCandidate:
-    """可进入上下文的候选段，可能由相邻 chunk 合并而成。"""
+    """可进入上下文的候选段，可能由多个候选证据合并而成。"""
 
     text: str
-    chunks: tuple[RetrievedChunk, ...]
+    evidence: tuple[EvidenceCandidate, ...]
+
+    @property
+    def primary_chunk(self) -> RetrievedChunk:
+        """返回用于相邻判断、文档配额与 Citation 的首个来源。"""
+
+        return self.evidence[0].primary_chunk
+
+    @property
+    def source_chunks(self) -> tuple[RetrievedChunk, ...]:
+        """返回候选段的去重来源 chunk。"""
+
+        chunks_by_identity: dict[tuple[str, str], RetrievedChunk] = {}
+        for item in self.evidence:
+            for chunk in item.source_chunks:
+                key = (chunk.chunk_id, chunk.version_id)
+                chunks_by_identity.setdefault(key, chunk)
+        return tuple(chunks_by_identity.values())
+
+
+@dataclass(frozen=True, slots=True)
+class ContextSourceRange:
+    """最终上下文段在原始 chunk 中的来源范围。"""
+
+    chunk_id: str
+    version_id: str
+    char_start: int
+    char_end: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +103,7 @@ class ContextSegment:
     sections: tuple[str, ...]
     token_count: int
     is_truncated: bool
+    source_ranges: tuple[ContextSourceRange, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,14 +138,14 @@ class PackedContext:
 
 
 class ContextPacker(Protocol):
-    """根据 query、候选结果和 token 预算组织上下文。"""
+    """根据 query、候选证据和 token 预算组织上下文。"""
 
     def pack(self, request: ContextPackRequest) -> PackedContext:
-        """把检索候选组织为可引用、可追溯的上下文。"""
+        """把候选证据组织为可引用、可追溯的上下文。"""
 
 
 class TokenAwareContextPacker:
-    """按 token 预算选择证据段，并保留完整 chunk 来源。"""
+    """按 token 预算选择证据段，并保留完整的原始 chunk 来源。"""
 
     def __init__(self, *, config: ContextPackerConfig, token_estimator: TokenEstimator) -> None:
         self._config = config
@@ -128,13 +157,17 @@ class TokenAwareContextPacker:
         question_tokens = self._token_estimator.count_text(request.query)
         available_context_tokens = self._resolve_available_context_tokens(question_tokens)
         dropped_chunks: list[DroppedChunk] = []
-        unique_chunks = self._deduplicate_chunks(request.chunks, dropped_chunks)
-        quota_chunks = self._apply_document_quota(unique_chunks, dropped_chunks)
-        candidates = self._merge_adjacent_chunks(quota_chunks)
+        unique_evidence = self._deduplicate_evidence(
+            request.candidates,
+            dropped_chunks,
+        )
+        quota_evidence = self._apply_document_quota(unique_evidence, dropped_chunks)
+        candidates = self._merge_adjacent_evidence(quota_evidence)
 
         context_parts: list[str] = []
         citations: list[Citation] = []
         used_chunks: list[RetrievedChunk] = []
+        used_chunk_identities: set[tuple[str, str]] = set()
         segments: list[ContextSegment] = []
         used_context_tokens = 0
 
@@ -165,7 +198,11 @@ class TokenAwareContextPacker:
             part_token_count = self._token_estimator.count_text(f"{separator}{part}")
             context_parts.append(part)
             used_context_tokens += part_token_count
-            used_chunks.extend(candidate.chunks)
+            self._append_used_chunks(
+                candidate,
+                used_chunks,
+                used_chunk_identities,
+            )
             segment = self._build_segment(
                 citation_id,
                 candidate,
@@ -206,84 +243,82 @@ class TokenAwareContextPacker:
         return max(0, min(self._config.max_context_tokens, window_budget))
 
     @staticmethod
-    def _deduplicate_chunks(
-        chunks: Sequence[RetrievedChunk],
+    def _deduplicate_evidence(
+        evidence: Sequence[EvidenceCandidate],
         dropped_chunks: list[DroppedChunk],
-    ) -> list[RetrievedChunk]:
-        """按 chunk id 与规范化文本去重。"""
+    ) -> list[EvidenceCandidate]:
+        """按 evidence identity 与规范化文本去重。"""
 
-        seen_chunk_ids: set[str] = set()
+        seen_evidence_ids: set[str] = set()
         seen_texts: set[str] = set()
-        unique_chunks: list[RetrievedChunk] = []
-        for chunk in chunks:
-            normalized_text = " ".join(chunk.text.split()).lower()
-            if chunk.chunk_id in seen_chunk_ids:
-                dropped_chunks.append(
-                    DroppedChunk(
-                        chunk_id=chunk.chunk_id,
-                        reason="duplicate_chunk_id",
-                        detail="同一个 chunk_id 已经进入上下文候选",
-                    )
+        unique_evidence: list[EvidenceCandidate] = []
+        for item in evidence:
+            normalized_text = " ".join(item.text.split()).lower()
+            if item.evidence_id in seen_evidence_ids:
+                _append_dropped_evidence(
+                    item,
+                    dropped_chunks,
+                    reason="duplicate_evidence_id",
+                    detail="同一个 evidence_id 已经进入上下文候选",
                 )
                 continue
             if normalized_text in seen_texts:
-                dropped_chunks.append(
-                    DroppedChunk(
-                        chunk_id=chunk.chunk_id,
-                        reason="duplicate_content",
-                        detail="文本内容与已有上下文候选重复",
-                    )
+                _append_dropped_evidence(
+                    item,
+                    dropped_chunks,
+                    reason="duplicate_content",
+                    detail="文本内容与已有上下文候选重复",
                 )
                 continue
-            seen_chunk_ids.add(chunk.chunk_id)
+            seen_evidence_ids.add(item.evidence_id)
             seen_texts.add(normalized_text)
-            unique_chunks.append(chunk)
-        return unique_chunks
+            unique_evidence.append(item)
+        return unique_evidence
 
     def _apply_document_quota(
         self,
-        chunks: Sequence[RetrievedChunk],
+        evidence: Sequence[EvidenceCandidate],
         dropped_chunks: list[DroppedChunk],
-    ) -> list[RetrievedChunk]:
+    ) -> list[EvidenceCandidate]:
         """限制单篇文档占用过多上下文候选。"""
 
         counts: dict[tuple[str, str], int] = {}
-        selected: list[RetrievedChunk] = []
-        for chunk in chunks:
-            key = (chunk.doc_id, chunk.version_id)
+        selected: list[EvidenceCandidate] = []
+        for item in evidence:
+            primary_chunk = item.primary_chunk
+            key = (primary_chunk.doc_id, primary_chunk.version_id)
             current_count = counts.get(key, 0)
             if current_count >= self._config.max_chunks_per_document:
-                dropped_chunks.append(
-                    DroppedChunk(
-                        chunk_id=chunk.chunk_id,
-                        reason="document_chunk_quota_exceeded",
-                        detail=(
-                            "同一文档已达到上下文候选上限："
-                            f"{self._config.max_chunks_per_document}"
-                        ),
-                    )
+                _append_dropped_evidence(
+                    item,
+                    dropped_chunks,
+                    reason="document_chunk_quota_exceeded",
+                    detail=(
+                        "同一文档已达到上下文候选上限："
+                        f"{self._config.max_chunks_per_document}"
+                    ),
                 )
                 continue
             counts[key] = current_count + 1
-            selected.append(chunk)
+            selected.append(item)
         return selected
 
     @staticmethod
-    def _merge_adjacent_chunks(
-        chunks: Sequence[RetrievedChunk],
+    def _merge_adjacent_evidence(
+        evidence: Sequence[EvidenceCandidate],
     ) -> list[ContextCandidate]:
-        """在检索排序顺序中合并同文档相邻 chunk。"""
+        """在检索排序顺序中合并来源相邻的候选证据。"""
 
         candidates: list[ContextCandidate] = []
-        for chunk in chunks:
-            if candidates and _is_adjacent(candidates[-1].chunks[-1], chunk):
+        for item in evidence:
+            if candidates and _is_adjacent(candidates[-1].primary_chunk, item.primary_chunk):
                 previous = candidates[-1]
                 candidates[-1] = ContextCandidate(
-                    text=f"{previous.text}\n{chunk.text}",
-                    chunks=(*previous.chunks, chunk),
+                    text=f"{previous.text}\n{item.text}",
+                    evidence=(*previous.evidence, item),
                 )
             else:
-                candidates.append(ContextCandidate(text=chunk.text, chunks=(chunk,)))
+                candidates.append(ContextCandidate(text=item.text, evidence=(item,)))
         return candidates
 
     def _fit_text_to_budget(
@@ -326,10 +361,22 @@ class TokenAwareContextPacker:
         """记录由于同一预算原因未进入上下文的剩余候选。"""
 
         for candidate in candidates:
-            for chunk in candidate.chunks:
-                dropped_chunks.append(
-                    DroppedChunk(chunk_id=chunk.chunk_id, reason=reason, detail=detail)
-                )
+            for item in candidate.evidence:
+                _append_dropped_evidence(item, dropped_chunks, reason=reason, detail=detail)
+
+    @staticmethod
+    def _append_used_chunks(
+        candidate: ContextCandidate,
+        used_chunks: list[RetrievedChunk],
+        used_chunk_identities: set[tuple[str, str]],
+    ) -> None:
+        """将候选段的来源 chunk 去重后写入最终结果。"""
+
+        for chunk in candidate.source_chunks:
+            identity = (chunk.chunk_id, chunk.version_id)
+            if identity not in used_chunk_identities:
+                used_chunk_identities.add(identity)
+                used_chunks.append(chunk)
 
     def _build_segment(
         self,
@@ -342,34 +389,34 @@ class TokenAwareContextPacker:
     ) -> ContextSegment:
         """构建记录完整来源的上下文段。"""
 
+        source_chunks = candidate.source_chunks
         page_starts = [
-            chunk.page_start for chunk in candidate.chunks if chunk.page_start is not None
+            chunk.page_start for chunk in source_chunks if chunk.page_start is not None
         ]
         page_ends = [
-            chunk.page_end for chunk in candidate.chunks if chunk.page_end is not None
+            chunk.page_end for chunk in source_chunks if chunk.page_end is not None
         ]
         sections = tuple(
-            dict.fromkeys(
-                chunk.section for chunk in candidate.chunks if chunk.section is not None
-            )
+            dict.fromkeys(chunk.section for chunk in source_chunks if chunk.section is not None)
         )
         return ContextSegment(
             citation_id=citation_id,
             text=text,
-            source_chunk_ids=tuple(chunk.chunk_id for chunk in candidate.chunks),
-            source_doc_id=candidate.chunks[0].doc_id,
+            source_chunk_ids=tuple(chunk.chunk_id for chunk in source_chunks),
+            source_doc_id=candidate.primary_chunk.doc_id,
             page_start=min(page_starts) if page_starts else None,
             page_end=max(page_ends) if page_ends else None,
             sections=sections,
             token_count=token_count,
             is_truncated=is_truncated,
+            source_ranges=_build_source_ranges(candidate),
         )
 
     @staticmethod
     def _build_citation(segment: ContextSegment, candidate: ContextCandidate) -> Citation:
         """构建与段级 provenance 对应的兼容 citation。"""
 
-        first_chunk = candidate.chunks[0]
+        first_chunk = candidate.primary_chunk
         return Citation(
             citation_id=segment.citation_id,
             chunk_id=first_chunk.chunk_id,
@@ -384,6 +431,21 @@ class TokenAwareContextPacker:
         )
 
 
+def _append_dropped_evidence(
+    evidence: EvidenceCandidate,
+    dropped_chunks: list[DroppedChunk],
+    *,
+    reason: str,
+    detail: str,
+) -> None:
+    """将一个候选证据关联的所有来源记录为未采用。"""
+
+    for chunk in evidence.source_chunks:
+        dropped_chunks.append(
+            DroppedChunk(chunk_id=chunk.chunk_id, reason=reason, detail=detail)
+        )
+
+
 def _is_adjacent(left: RetrievedChunk, right: RetrievedChunk) -> bool:
     """判断两个 chunk 是否来自同一文档版本的相邻位置。"""
 
@@ -392,3 +454,30 @@ def _is_adjacent(left: RetrievedChunk, right: RetrievedChunk) -> bool:
         and left.version_id == right.version_id
         and left.chunk_index + 1 == right.chunk_index
     )
+
+
+def _build_source_ranges(candidate: ContextCandidate) -> tuple[ContextSourceRange, ...]:
+    """把候选证据来源转换成最终上下文可消费的范围描述。"""
+
+    ranges: list[ContextSourceRange] = []
+    seen: set[tuple[str, str, int, int]] = set()
+    for evidence in candidate.evidence:
+        for source in evidence.sources:
+            identity = (
+                source.chunk.chunk_id,
+                source.chunk.version_id,
+                source.char_start,
+                source.char_end,
+            )
+            if identity in seen:
+                continue
+            seen.add(identity)
+            ranges.append(
+                ContextSourceRange(
+                    chunk_id=source.chunk.chunk_id,
+                    version_id=source.chunk.version_id,
+                    char_start=source.char_start,
+                    char_end=source.char_end,
+                )
+            )
+    return tuple(ranges)

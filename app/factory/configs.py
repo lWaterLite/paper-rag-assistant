@@ -17,6 +17,7 @@ from app.ingest.loaders import LocalDocumentLoaderConfig
 from app.ingest.pipeline import IngestionReportConfig
 from app.pipeline import RagPipelineConfig
 from app.retrieval.context import ContextPackerConfig
+from app.retrieval.context.evidence_transformers import EvidenceTransformationConfig
 from app.retrieval.configuration import (
     BM25Config,
     HybridRetrievalConfig,
@@ -191,6 +192,16 @@ class ConfigFactory:
             max_chunks_per_document=settings.max_chunks_per_document,
         )
 
+    def build_evidence_transformation_config(self) -> EvidenceTransformationConfig:
+        """从 ProjectSettings 转换成候选证据变换运行时配置。"""
+
+        settings = self.project_settings.retrieval.context_packing.evidence_transformation
+        return EvidenceTransformationConfig(
+            enabled=settings.enabled,
+            strategy=settings.strategy,
+            failure_mode=settings.failure_mode,
+        )
+
     def build_postprocessing_config(self) -> PostProcessingConfig:
         """聚合检索后处理流程需要共同校验的运行时配置。"""
 
@@ -198,6 +209,7 @@ class ConfigFactory:
             retrieval=self.build_retrieval_config(),
             reranking=self.build_reranking_config(),
             context_packing=self.build_context_packer_config(),
+            evidence_transformation=self.build_evidence_transformation_config(),
         )
 
     def build_rag_pipeline_config(self) -> RagPipelineConfig:
