@@ -150,9 +150,7 @@ class EmbeddingSettings(BaseModel):
     API key 不放在这里，由 EnvSettings 从环境变量读取。
     """
 
-    provider: Literal["mock", "openai"] = Field(
-        default="mock", description="embedding 服务提供方"
-    )
+    provider: str = Field(default="mock", description="embedding 服务提供方")
     model: str = Field(
         default="mock-hash-embedding", min_length=1, description="embedding 模型名称"
     )
@@ -167,7 +165,10 @@ class EmbeddingSettings(BaseModel):
     def validate_text_fields(self) -> "EmbeddingSettings":
         """清理并校验字符串字段。"""
 
+        self.provider = self.provider.strip().lower()
         self.model = self.model.strip()
+        if not self.provider:
+            raise ValueError("provider 不能为空")
         if not self.model:
             raise ValueError("model 不能为空")
         return self

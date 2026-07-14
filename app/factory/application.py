@@ -11,24 +11,26 @@ from app.factory.ingestion import IngestionFactory
 from app.factory.pipelines import PipelineFactory
 from app.factory.retrieval import RetrievalFactory
 from app.generation.answer_generator import AnswerGenerator
-from app.indexing.embedding_cache import EmbeddingCache
-from app.indexing.embeddings import EmbeddingClient
-from app.indexing.index_builder import IndexBuilder, RagIndex
-from app.indexing.vector_collection import VectorCollection
-from app.ingest.chunking.collection import ChunkCollection
-from app.ingest.chunking.registry import ChunkerRegistry
-from app.ingest.collections import DocumentCollection
+from app.indexing.embeddings import (
+    EmbeddingClientRegistry,
+    build_default_embedding_client_registry,
+)
+from app.indexing.pipeline import IndexBuilder, RagIndex
+from app.ingest.chunking.registry import ChunkerRegistry, build_default_chunker_registry
 from app.pipeline import RagPipeline
-from app.repositories.chunk_repository import ChunkRepository
-from app.repositories.document_repository import DocumentRepository
-from app.repositories.vector_repository import VectorRepository
 from app.retrieval.context import ContextPacker
 from app.retrieval.retrievers import Retriever, RetrieverRegistry
 from app.retrieval.services.search import CompareSearchService, SearchService
-from app.retrieval.tokenizers import TokenizerRegistry
+from app.retrieval.tokenizers import TokenizerRegistry, build_default_tokenizer_registry
 from app.retrieval.rerankers import RerankerRegistry
-from app.retrieval.context.token_estimators import TokenEstimatorRegistry
+from app.retrieval.context.token_estimators import (
+    TokenEstimatorRegistry,
+    build_default_token_estimator_registry,
+)
 from app.retrieval.context.evidence_transformers import EvidenceTransformerRegistry
+from app.retrieval.context.evidence_transformers import (
+    build_default_evidence_transformer_registry,
+)
 
 
 @dataclass(slots=True)
@@ -46,6 +48,7 @@ class ApplicationFactory:
     reranker_registry: RerankerRegistry | None = None
     token_estimator_registry: TokenEstimatorRegistry | None = None
     evidence_transformer_registry: EvidenceTransformerRegistry | None = None
+    embedding_registry: EmbeddingClientRegistry | None = None
     configs: ConfigFactory = field(init=False)
     ingestion: IngestionFactory = field(init=False)
     indexing: IndexingFactory = field(init=False)
@@ -59,62 +62,48 @@ class ApplicationFactory:
         )
         self.ingestion = IngestionFactory(
             configs=self.configs,
-            **(
-                {"chunker_registry": self.chunker_registry}
+            chunker_registry=(
+                self.chunker_registry
                 if self.chunker_registry is not None
-                else {}
+                else build_default_chunker_registry()
             ),
         )
-        self.indexing = IndexingFactory(configs=self.configs, ingestion=self.ingestion)
+        self.indexing = IndexingFactory(
+            configs=self.configs,
+            ingestion=self.ingestion,
+            embedding_registry=(
+                self.embedding_registry
+                if self.embedding_registry is not None
+                else build_default_embedding_client_registry()
+            ),
+        )
         self.retrieval = RetrievalFactory(
             configs=self.configs,
-            **(
-                {"tokenizer_registry": self.tokenizer_registry}
+            tokenizer_registry=(
+                self.tokenizer_registry
                 if self.tokenizer_registry is not None
-                else {}
+                else build_default_tokenizer_registry()
             ),
-            **(
-                {"reranker_registry": self.reranker_registry}
-                if self.reranker_registry is not None
-                else {}
-            ),
-            **(
-                {"token_estimator_registry": self.token_estimator_registry}
+            reranker_registry=self.reranker_registry,
+            token_estimator_registry=(
+                self.token_estimator_registry
                 if self.token_estimator_registry is not None
-                else {}
+                else build_default_token_estimator_registry()
             ),
-            **(
-                {"evidence_transformer_registry": self.evidence_transformer_registry}
+            evidence_transformer_registry=(
+                self.evidence_transformer_registry
                 if self.evidence_transformer_registry is not None
-                else {}
+                else build_default_evidence_transformer_registry()
             ),
         )
         self.pipelines = PipelineFactory(configs=self.configs, retrieval=self.retrieval)
 
     def build_index_builder(
         self,
-        *,
-        embedding_client: EmbeddingClient | None = None,
-        embedding_cache: EmbeddingCache | None = None,
-        vector_collection: VectorCollection | None = None,
-        document_collection: DocumentCollection | None = None,
-        chunk_collection: ChunkCollection | None = None,
-        vector_repository: VectorRepository | None = None,
-        document_repository: DocumentRepository | None = None,
-        chunk_repository: ChunkRepository | None = None,
     ) -> IndexBuilder:
         """创建离线索引构建器。"""
 
-        return self.indexing.build_index_builder(
-            embedding_client=embedding_client,
-            embedding_cache=embedding_cache,
-            vector_collection=vector_collection,
-            document_collection=document_collection,
-            chunk_collection=chunk_collection,
-            vector_repository=vector_repository,
-            document_repository=document_repository,
-            chunk_repository=chunk_repository,
-        )
+        return self.indexing.build_index_builder()
 
     def build_rag_index_from_storage(self) -> RagIndex:
         """从已有持久化索引加载在线 RAG 索引。"""

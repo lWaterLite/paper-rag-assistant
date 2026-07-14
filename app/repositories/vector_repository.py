@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from app.core.errors import AppError, ErrorCode
-from app.indexing.vector_collection import (
+from app.indexing.collections import (
     InMemoryVectorCollection,
     VectorCollection,
     VectorRecord,

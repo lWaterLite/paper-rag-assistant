@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Literal
 
 
-EmbeddingProvider = Literal["mock", "openai"]
+EmbeddingProvider = str
 VectorRepositoryType = Literal["memory", "local_json"]
 DistanceMetric = Literal["cosine"]
 
@@ -28,6 +28,8 @@ class EmbeddingConfig:
     max_retries: int = 2
 
     def __post_init__(self) -> None:
+        if not self.provider.strip():
+            raise ValueError("embedding provider 不能为空")
         if not self.model.strip():
             raise ValueError("embedding model 不能为空")
         if self.dimension <= 0:

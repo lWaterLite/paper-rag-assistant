@@ -1,33 +1,32 @@
-"""索引构建、embedding 与向量存储。"""
+"""索引构建、索引恢复与索引运行时组件。"""
 
-from app.indexing.configs import (
-    EmbeddingConfig,
-    IndexBuilderConfig,
-    VectorRepositoryConfig,
-)
-from app.indexing.embedding_cache import (
-    EmbeddingCache,
-    FileEmbeddingCache,
-    InMemoryEmbeddingCache,
-)
-from app.indexing.embeddings import (
-    EmbeddingClient,
-    MockEmbeddingClient,
-    OpenAIEmbeddingClient,
-)
-from app.indexing.index_builder import IndexBuilder, IndexBuildResult, RagIndex
-from app.indexing.manifest import IndexManifest
-from app.indexing.report import IndexBuildReportWriter
-from app.indexing.vector_collection import (
+from app.indexing.collections import (
     InMemoryVectorCollection,
     VectorCollection,
     VectorRecord,
     VectorSearchResult,
 )
+from app.indexing.configuration import (
+    EmbeddingConfig,
+    IndexBuilderConfig,
+    VectorRepositoryConfig,
+)
+from app.indexing.embeddings import (
+    EmbeddingCache,
+    EmbeddingClient,
+    EmbeddingClientRegistry,
+    FileEmbeddingCache,
+    InMemoryEmbeddingCache,
+    build_default_embedding_client_registry,
+)
+from app.indexing.manifests import IndexManifest
+from app.indexing.pipeline import IndexBuildResult, IndexBuilder, IndexLoader, RagIndex
+from app.indexing.reporting import IndexBuildReportWriter
 
 __all__ = [
     "EmbeddingCache",
     "EmbeddingClient",
+    "EmbeddingClientRegistry",
     "EmbeddingConfig",
     "FileEmbeddingCache",
     "InMemoryEmbeddingCache",
@@ -36,12 +35,12 @@ __all__ = [
     "IndexBuildResult",
     "IndexBuilder",
     "IndexBuilderConfig",
+    "IndexLoader",
     "IndexManifest",
-    "MockEmbeddingClient",
-    "OpenAIEmbeddingClient",
     "RagIndex",
     "VectorCollection",
     "VectorRecord",
     "VectorRepositoryConfig",
     "VectorSearchResult",
+    "build_default_embedding_client_registry",
 ]

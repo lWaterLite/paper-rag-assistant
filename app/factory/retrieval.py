@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 from app.core.errors import AppError, ErrorCode
 from app.factory.configs import ConfigFactory
-from app.indexing.index_builder import RagIndex
+from app.indexing.pipeline import RagIndex
 from app.retrieval.retrievers import (
     BM25Index,
     BM25Retriever,

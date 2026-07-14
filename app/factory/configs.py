@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.core.settings import EnvSettings, ProjectSettings
-from app.indexing.configs import (
+from app.indexing.configuration import (
     EmbeddingConfig,
     IndexBuilderConfig,
     VectorRepositoryConfig,

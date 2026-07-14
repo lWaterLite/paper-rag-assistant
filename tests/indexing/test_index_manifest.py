@@ -8,8 +8,16 @@ import uuid
 from dataclasses import replace
 from pathlib import Path
 
-from app.indexing.configs import EmbeddingConfig, IndexBuilderConfig, VectorRepositoryConfig
-from app.indexing.manifest import CURRENT_INDEX_SCHEMA_VERSION, IndexManifest, validate_manifest_compatible
+from app.indexing.configuration import (
+    EmbeddingConfig,
+    IndexBuilderConfig,
+    VectorRepositoryConfig,
+)
+from app.indexing.manifests import (
+    CURRENT_INDEX_SCHEMA_VERSION,
+    IndexManifest,
+    validate_manifest_compatible,
+)
 from app.repositories.index_manifest_repository import IndexManifestRepository
 
 

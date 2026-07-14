@@ -9,7 +9,7 @@ from app.core.models import RetrievedChunk
 from app.core.settings import EnvSettings, ProjectSettings, RetrievalSettings
 from app.factory.configs import ConfigFactory
 from app.factory.retrieval import RetrievalFactory
-from app.indexing.index_builder import RagIndex
+from app.indexing.pipeline import RagIndex
 from app.retrieval.retrievers import RetrieverRegistry
 
 

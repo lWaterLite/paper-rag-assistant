@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from app.indexing.configs import IndexBuilderConfig
-from app.indexing.manifest import IndexManifest
+from app.indexing.configuration import IndexBuilderConfig
+from app.indexing.manifests import IndexManifest
 
 
 class IndexManifestRepository:

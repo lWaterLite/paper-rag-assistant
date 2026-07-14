@@ -5,8 +5,13 @@ from __future__ import annotations
 import unittest
 
 from app.core.errors import AppError, ErrorCode
-from app.indexing.configs import EmbeddingConfig
-from app.indexing.embeddings import MockEmbeddingClient, OpenAIEmbeddingClient, validate_embedding_vectors
+from app.indexing.configuration import EmbeddingConfig
+from app.indexing.embeddings import (
+    MockEmbeddingClient,
+    OpenAIEmbeddingClient,
+    build_default_embedding_client_registry,
+    validate_embedding_vectors,
+)
 
 
 class EmbeddingClientTest(unittest.TestCase):
@@ -23,6 +28,31 @@ class EmbeddingClientTest(unittest.TestCase):
         client = MockEmbeddingClient(EmbeddingConfig(provider="mock", model="mock-hash-embedding", dimension=16))
 
         self.assertEqual(client.embed_text("same text"), client.embed_text("same text"))
+
+    def test_registry_creates_configured_mock_client(self) -> None:
+        registry = build_default_embedding_client_registry()
+
+        client = registry.create(
+            EmbeddingConfig(
+                provider="mock",
+                model="mock-hash-embedding",
+                dimension=16,
+            )
+        )
+
+        self.assertIsInstance(client, MockEmbeddingClient)
+
+    def test_registry_rejects_unknown_provider(self) -> None:
+        registry = build_default_embedding_client_registry()
+
+        with self.assertRaisesRegex(ValueError, "不支持的 embedding provider"):
+            registry.create(
+                EmbeddingConfig(
+                    provider="custom",
+                    model="custom-embedding",
+                    dimension=16,
+                )
+            )
 
     def test_validate_embedding_vectors_rejects_dimension_mismatch(self) -> None:
         with self.assertRaises(AppError) as context:

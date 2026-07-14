@@ -20,8 +20,14 @@ from app.core.settings import (
     ProjectSettings,
     VectorRepositorySettings,
 )
-from app.factory import ApplicationFactory
-from app.indexing.embedding_cache import InMemoryEmbeddingCache
+from app.factory.configs import ConfigFactory
+from app.factory.indexing import IndexingFactory
+from app.factory.ingestion import IngestionFactory
+from app.indexing.embeddings import (
+    EmbeddingClient,
+    InMemoryEmbeddingCache,
+    build_default_embedding_client_registry,
+)
 
 
 class CountingEmbeddingClient:
@@ -268,13 +274,32 @@ def _find_trace_stage(result, stage_name: str):
     raise AssertionError(f"没有找到 trace 阶段：{stage_name}")
 
 
-def create_index_builder(env_settings: EnvSettings, project_settings: ProjectSettings, **overrides):
-    """通过应用组合根创建测试用 IndexBuilder。"""
+def create_index_builder(
+    env_settings: EnvSettings,
+    project_settings: ProjectSettings,
+    *,
+    embedding_client: EmbeddingClient | None = None,
+    embedding_cache: InMemoryEmbeddingCache | None = None,
+):
+    """通过受控 Factory 装配测试用 IndexBuilder。"""
 
-    return ApplicationFactory(
+    configs = ConfigFactory(
         env_settings=env_settings,
         project_settings=project_settings,
-    ).build_index_builder(**overrides)
+    )
+    embedding_registry = build_default_embedding_client_registry()
+    if embedding_client is not None:
+        embedding_registry.register(
+            "mock",
+            lambda _, __: embedding_client,
+            replace=True,
+        )
+    return IndexingFactory(
+        configs=configs,
+        ingestion=IngestionFactory(configs=configs),
+        embedding_registry=embedding_registry,
+        embedding_cache=embedding_cache,
+    ).build_index_builder()
 
 
 if __name__ == "__main__":

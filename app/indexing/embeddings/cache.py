@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-from app.indexing.embeddings import EmbeddingClient
+from app.indexing.embeddings.base import EmbeddingClient
 
 
 @dataclass(frozen=True)

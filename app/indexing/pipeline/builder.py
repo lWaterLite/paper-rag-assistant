@@ -3,28 +3,31 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field, replace
+from dataclasses import replace
 from pathlib import Path
 
 from app.core.errors import AppError, ErrorCode
 from app.core.tracing import RagTrace
 from app.ingest.chunking.models import DocumentChunk
-from app.indexing.configs import (
+from app.indexing.configuration import (
     EmbeddingConfig,
     IndexBuilderConfig,
     VectorRepositoryConfig,
 )
-from app.indexing.embedding_cache import EmbeddingCache
-from app.indexing.embeddings import EmbeddingClient, validate_embedding_vectors
-from app.indexing.manifest import (
+from app.indexing.embeddings import (
+    EmbeddingCache,
+    EmbeddingClient,
+    validate_embedding_vectors,
+)
+from app.indexing.manifests import (
     BUILDING_INDEX_STATUS,
     FAILED_INDEX_STATUS,
     IndexManifest,
     IndexVersionStatus,
     READY_INDEX_STATUS,
 )
-from app.indexing.report import IndexBuildReportWriter
-from app.indexing.vector_collection import VectorCollection, VectorRecord
+from app.indexing.reporting import IndexBuildReportWriter
+from app.indexing.collections import VectorCollection, VectorRecord
 from app.ingest.chunking.collection import ChunkCollection
 from app.ingest.reporting import (
     ChunkingReportConfig,
@@ -36,42 +39,12 @@ from app.ingest.chunking.strategies import Chunker
 from app.ingest.collections import DocumentCollection
 from app.ingest.models import RawDocument
 from app.ingest.pipeline import IngestionPipeline
-from app.ingest.pipeline_types import IngestionFailure
 from app.repositories.chunk_repository import ChunkRepository
 from app.repositories.document_repository import DocumentRepository
 from app.repositories.index_manifest_repository import IndexManifestRepository
 from app.repositories.vector_repository import VectorRepository
 
-
-@dataclass(frozen=True)
-class IndexBuildResult:
-    """一次索引构建的结果摘要。"""
-
-    document_count: int
-    chunk_count: int
-    vector_count: int
-    manifest: IndexManifest
-    trace: RagTrace
-    embedding_cache_hits: int = 0
-    embedding_cache_misses: int = 0
-    skipped_existing_chunks: int = 0
-    empty_chunk_count: int = 0
-    ingestion_failures: list[IngestionFailure] = field(default_factory=list)
-    ingestion_report_path: Path | None = None
-    chunking_report_path: Path | None = None
-    manifest_path: Path | None = None
-    build_report_path: Path | None = None
-
-
-@dataclass(frozen=True)
-class RagIndex:
-    """构建完成后的索引对象。"""
-
-    vector_collection: VectorCollection
-    document_collection: DocumentCollection
-    chunk_collection: ChunkCollection
-    embedding_client: EmbeddingClient
-    manifest: IndexManifest
+from app.indexing.pipeline.types import IndexBuildResult, RagIndex
 
 
 class IndexBuilder:

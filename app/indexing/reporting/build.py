@@ -9,30 +9,15 @@ from __future__ import annotations
 import json
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
-
-class IndexBuildResultLike(Protocol):
-    """报告 writer 需要的构建结果字段。"""
-
-    document_count: int
-    chunk_count: int
-    vector_count: int
-    manifest: Any
-    trace: Any
-    embedding_cache_hits: int
-    embedding_cache_misses: int
-    skipped_existing_chunks: int
-    empty_chunk_count: int
-    ingestion_report_path: Path | None
-    chunking_report_path: Path | None
-    manifest_path: Path | None
+from app.indexing.pipeline.types import IndexBuildResult
 
 
 class IndexBuildReportWriter:
     """把索引构建结果写成 JSON 报告。"""
 
-    def write(self, result: IndexBuildResultLike, output_path: Path) -> Path:
+    def write(self, result: IndexBuildResult, output_path: Path) -> Path:
         """写入索引构建报告，并返回报告路径。"""
 
         output_path.write_text(
@@ -44,7 +29,7 @@ class IndexBuildReportWriter:
         return output_path
 
     @staticmethod
-    def build_report(result: IndexBuildResultLike) -> dict[str, Any]:
+    def build_report(result: IndexBuildResult) -> dict[str, Any]:
         """构建可 JSON 序列化的索引构建报告。"""
 
         return {
