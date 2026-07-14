@@ -30,7 +30,7 @@ query
 4. `fail_open` 与 `fail_closed` 两种 rerank 失败策略。
 5. `TokenEstimator` Protocol 和 `TokenEstimatorRegistry`。
 6. `TokenAwareContextPacker`：token 预算、文档配额、去重、相邻合并、截断与 dropped reason。
-7. `ContextSegment`：合并或截断后仍保存完整 `source_chunk_ids`、原始字符范围、页码范围与章节信息。
+7. `ContextSegment`：合并或截断后仍保存完整 `source_chunk_ids`、实际展示文本可精确映射的原始字符范围、页码范围与章节信息。
 8. `EvidenceTransformStage`：在不修改检索结果的前提下，将候选证据转换为可供上下文打包的 `EvidenceCandidate`。
 9. `EvidenceTransformerRegistry`：通过策略名创建可插拔的证据变换器；当前内置 `passthrough`。
 10. 检索报告记录候选上限、rerank 阶段、策略、降级状态和最终结果。
@@ -556,7 +556,7 @@ failure_mode = "fail_open"
 
 `ContextPackRequest` 已由 `query + RetrievedChunk[]` 改为 `query + EvidenceCandidate[]`。`TokenAwareContextPacker` 仍负责去重、文档配额、相邻合并、token 预算和截断；它通过候选的 `primary_chunk` 与 `source_chunks` 保留与原始检索结果的关联。
 
-对外兼容的边界保持不变：`PackedContext.used_chunks` 仍是 `RetrievedChunk[]`，`Citation` 仍引用首个来源 chunk。新增的 `ContextSegment.source_ranges` 则保留每个段对应的原始字符范围，供后续 citation 校验与诊断使用。
+对外兼容的边界保持不变：`PackedContext.used_chunks` 仍是 `RetrievedChunk[]`，`Citation` 仍引用首个来源 chunk。`ContextSegment.source_ranges` 记录每个段对应的原始字符范围；发生预算截断时，passthrough 与相邻合并候选会将范围收窄到实际展示的文本前缀。无法建立精确文本映射的未来变换候选不会伪造位置范围，供后续 citation 校验与诊断安全使用。
 
 #### 新策略的正确接入方式
 

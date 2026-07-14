@@ -409,7 +409,11 @@ class TokenAwareContextPacker:
             sections=sections,
             token_count=token_count,
             is_truncated=is_truncated,
-            source_ranges=_build_source_ranges(candidate),
+            source_ranges=_build_source_ranges(
+                candidate,
+                displayed_text=text,
+                is_truncated=is_truncated,
+            ),
         )
 
     @staticmethod
@@ -456,8 +460,24 @@ def _is_adjacent(left: RetrievedChunk, right: RetrievedChunk) -> bool:
     )
 
 
-def _build_source_ranges(candidate: ContextCandidate) -> tuple[ContextSourceRange, ...]:
-    """把候选证据来源转换成最终上下文可消费的范围描述。"""
+def _build_source_ranges(
+    candidate: ContextCandidate,
+    *,
+    displayed_text: str,
+    is_truncated: bool,
+) -> tuple[ContextSourceRange, ...]:
+    """构建最终展示文本对应的精确来源范围。"""
+
+    if is_truncated:
+        return _build_truncated_source_ranges(candidate, displayed_text)
+
+    return _build_full_source_ranges(candidate)
+
+
+def _build_full_source_ranges(
+    candidate: ContextCandidate,
+) -> tuple[ContextSourceRange, ...]:
+    """记录未截断候选的全部原始来源范围。"""
 
     ranges: list[ContextSourceRange] = []
     seen: set[tuple[str, str, int, int]] = set()
@@ -481,3 +501,59 @@ def _build_source_ranges(candidate: ContextCandidate) -> tuple[ContextSourceRang
                 )
             )
     return tuple(ranges)
+
+
+def _build_truncated_source_ranges(
+    candidate: ContextCandidate,
+    displayed_text: str,
+) -> tuple[ContextSourceRange, ...]:
+    """仅记录实际展示前缀可以精确映射到原文的位置。"""
+
+    visible_length = len(displayed_text.removesuffix("..."))
+    remaining_length = visible_length
+    ranges: list[ContextSourceRange] = []
+
+    for evidence_index, evidence in enumerate(candidate.evidence):
+        if remaining_length <= 0:
+            break
+
+        consumed_length = min(len(evidence.text), remaining_length)
+        ranges.extend(
+            _build_evidence_prefix_ranges(
+                evidence,
+                consumed_length=consumed_length,
+            )
+        )
+        remaining_length -= consumed_length
+        if consumed_length < len(evidence.text):
+            break
+
+        if evidence_index < len(candidate.evidence) - 1:
+            remaining_length = max(0, remaining_length - 1)
+
+    return tuple(ranges)
+
+
+def _build_evidence_prefix_ranges(
+    evidence: EvidenceCandidate,
+    *,
+    consumed_length: int,
+) -> tuple[ContextSourceRange, ...]:
+    """为可直接映射的单来源证据前缀创建精确范围。"""
+
+    if consumed_length <= 0 or len(evidence.sources) != 1:
+        return ()
+
+    source = evidence.sources[0]
+    source_text = source.chunk.text[source.char_start : source.char_end]
+    if evidence.text != source_text:
+        return ()
+
+    return (
+        ContextSourceRange(
+            chunk_id=source.chunk.chunk_id,
+            version_id=source.chunk.version_id,
+            char_start=source.char_start,
+            char_end=source.char_start + consumed_length,
+        ),
+    )

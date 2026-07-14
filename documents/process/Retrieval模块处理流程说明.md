@@ -140,7 +140,7 @@ TokenAwareContextPacker
 | `RetrievalPipelineResult` | `RetrievalPipeline.search` | query、策略、candidate limit、top-k、结果、trace、报告路径 | SearchService、RagPipeline、compare pipeline |
 | `EvidenceCandidate` | EvidenceTransformStage | 待打包文本、一个或多个 `EvidenceSource`、来源字符范围 | ContextPacker |
 | `ContextCandidate` | ContextPacker 内部 | 一个或多个相邻 `EvidenceCandidate` 的候选文本 | token 预算处理 |
-| `ContextSegment` | ContextPacker | 最终文本段、完整 source chunk id、原始字符范围、页码范围、章节、token 数 | Citation、PackedContext、后续引用校验 |
+| `ContextSegment` | ContextPacker | 最终文本段、完整 source chunk id、实际展示文本可精确映射的原始字符范围、页码范围、章节、token 数 | Citation、PackedContext、后续引用校验 |
 | `PackedContext` | ContextPacker | 上下文文本、Citation、已用/丢弃 chunk、segments、token usage | AnswerGenerator |
 
 `RetrievedChunk.score` 始终保留原召回器的分数：向量相似度、BM25 分数或 RRF 融合分数。rerank 分数不覆盖它，而是写入独立的 `rerank_signal`，避免把不同量纲的分数混为同一种指标。
@@ -447,7 +447,7 @@ PackedContext
   token_usage       本次预算使用明细
 ```
 
-当相邻 chunk 合并时，`ContextSegment.source_chunk_ids` 与 `source_ranges` 会保留所有来源及原始字符范围；`Citation` 为兼容现有回答格式引用首个 chunk。后续回答级 Citation 校验应以 `ContextSegment` 的完整来源为准，而不是误以为合并段只来自首个 chunk。
+当相邻 chunk 合并时，`ContextSegment.source_chunk_ids` 与 `source_ranges` 会保留所有来源及原始字符范围；发生 token 截断时，直接可映射的来源范围会收窄到实际展示的文本前缀，无法精确映射的位置不会被伪造。`Citation` 为兼容现有回答格式引用首个 chunk。后续回答级 Citation 校验应以 `ContextSegment` 的完整来源为准，而不是误以为合并段只来自首个 chunk。
 
 `RagPipeline` 会额外维护自己的 RAG trace：`evidence_transformation` 记录 transformer、输入/输出数量、failure mode 与 degraded 状态；`context_packing` 记录已用/丢弃 chunk 数、citation 数、实际 context token 和可用 token。它同时保留 retrieval 子 trace id 与 retrieval report path，形成跨层诊断关联。检索 JSON 报告在证据变换之前写入，因此通过 `PostProcessingProfile` 记录该功能的配置快照，而不记录一次 `ask` 请求的实际变换结果。
 

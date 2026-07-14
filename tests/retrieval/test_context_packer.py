@@ -164,6 +164,33 @@ class TokenAwareContextPackerTest(unittest.TestCase):
         self.assertTrue(packed.segments[0].is_truncated)
         self.assertEqual(packed.segments[0].source_chunk_ids, ("chunk_1",))
         self.assertTrue(packed.segments[0].text.endswith("..."))
+        source_range = packed.segments[0].source_ranges[0]
+        self.assertEqual(source_range.char_start, 0)
+        self.assertEqual(
+            source_range.char_end,
+            len(packed.segments[0].text.removesuffix("...")),
+        )
+
+    def test_pack_truncation_preserves_exact_ranges_for_merged_passthrough_evidence(self) -> None:
+        first_text = "alpha beta"
+        second_text = "gamma delta epsilon zeta eta theta iota kappa"
+        packed = build_packer(max_context_tokens=12).pack(
+            ContextPackRequest(
+                query="RAG",
+                candidates=passthrough_candidates(
+                    (
+                        build_retrieved_chunk("chunk_1", first_text, chunk_index=0),
+                        build_retrieved_chunk("chunk_2", second_text, chunk_index=1),
+                    )
+                ),
+            )
+        )
+
+        self.assertTrue(packed.segments[0].is_truncated)
+        ranges = packed.segments[0].source_ranges
+        self.assertEqual((ranges[0].chunk_id, ranges[0].char_end), ("chunk_1", len(first_text)))
+        self.assertEqual(ranges[1].chunk_id, "chunk_2")
+        self.assertLess(ranges[1].char_end, len(second_text))
 
     def test_question_and_reserved_tokens_reduce_available_context_budget(self) -> None:
         packed = build_packer(
