@@ -8,13 +8,13 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Protocol
 
-from app.core.models import (
+from app.ingest.models import (
     ParsedBlock,
     ParsedDocument,
     ParseIssue,
     RawDocument,
 )
-from app.ingest.document_collection import (
+from app.ingest.collections import (
     DocumentCollection,
     InMemoryDocumentCollection,
 )

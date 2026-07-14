@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from app.core.models import ParsedBlock, ParsedDocument
+from app.ingest.models import ParsedBlock, ParsedDocument
 from app.ingest.chunking.strategies import ChunkerConfig, SectionAwareChunker
 
 

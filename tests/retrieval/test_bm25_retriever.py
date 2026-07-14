@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from collections.abc import Iterable, Sequence
 
-from app.core.models import DocumentChunk
+from app.ingest.chunking.models import DocumentChunk
 from app.ingest.chunking.collection import InMemoryChunkCollection
 from app.retrieval.configuration import BM25Config
 from app.retrieval.retrievers import BM25Index, BM25Retriever

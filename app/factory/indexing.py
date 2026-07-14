@@ -22,13 +22,10 @@ from app.indexing.index_loader import validate_index_from_storage
 from app.indexing.report import IndexBuildReportWriter
 from app.indexing.vector_collection import InMemoryVectorCollection, VectorCollection
 from app.ingest.chunking.collection import ChunkCollection, InMemoryChunkCollection
-from app.ingest.chunking.registry import ChunkerRegistry
-from app.ingest.chunking.report import ChunkingReportWriter
-from app.ingest.document_collection import (
+from app.ingest.collections import (
     DocumentCollection,
     InMemoryDocumentCollection,
 )
-from app.ingest.pipeline import IngestionPipeline, IngestionReportWriter
 from app.repositories.chunk_repository import ChunkRepository, LocalJsonChunkRepository
 from app.repositories.document_repository import (
     DocumentRepository,
@@ -114,7 +111,6 @@ class IndexingFactory:
     def build_index_builder(
         self,
         *,
-        ingestion_pipeline: IngestionPipeline | None = None,
         embedding_client: EmbeddingClient | None = None,
         embedding_cache: EmbeddingCache | None = None,
         vector_collection: VectorCollection | None = None,
@@ -123,15 +119,13 @@ class IndexingFactory:
         vector_repository: VectorRepository | None = None,
         document_repository: DocumentRepository | None = None,
         chunk_repository: ChunkRepository | None = None,
-        ingestion_report_writer: IngestionReportWriter | None = None,
-        chunking_report_writer: ChunkingReportWriter | None = None,
-        chunker_registry: ChunkerRegistry | None = None,
     ) -> IndexBuilder:
         """创建离线索引构建器。
 
         这里允许测试或实验显式覆盖某些依赖；生产入口使用默认组装即可。
         """
 
+        ingestion_dependencies = self.ingestion.build_indexing_dependencies()
         embedding_config = self.configs.build_embedding_config()
         vector_repository_config = self.configs.build_vector_repository_config()
         index_builder_config = self.configs.build_index_builder_config()
@@ -139,12 +133,8 @@ class IndexingFactory:
             config=index_builder_config,
             embedding_config=embedding_config,
             vector_repository_config=vector_repository_config,
-            ingestion_pipeline=ingestion_pipeline
-            if ingestion_pipeline is not None
-            else self.ingestion.build_ingestion_pipeline(),
-            chunker=self.ingestion.build_configured_chunker(
-                chunker_registry=chunker_registry
-            ),
+            ingestion_pipeline=ingestion_dependencies.pipeline,
+            chunker=ingestion_dependencies.chunker,
             embedding_client=embedding_client
             if embedding_client is not None
             else self.build_embedding_client(),
@@ -173,14 +163,10 @@ class IndexingFactory:
                 vector_repository_config.collection_dir, index_builder_config
             ),
             build_report_writer=IndexBuildReportWriter(),
-            ingestion_report_writer=ingestion_report_writer
-            if ingestion_report_writer is not None
-            else IngestionReportWriter(),
-            ingestion_report_config=self.configs.build_ingestion_report_config(),
-            chunking_report_writer=chunking_report_writer
-            if chunking_report_writer is not None
-            else ChunkingReportWriter(),
-            chunking_report_config=self.configs.build_chunking_report_config(),
+            ingestion_report_writer=ingestion_dependencies.ingestion_report_writer,
+            ingestion_report_config=ingestion_dependencies.ingestion_report_config,
+            chunking_report_writer=ingestion_dependencies.chunking_report_writer,
+            chunking_report_config=ingestion_dependencies.chunking_report_config,
         )
 
     def build_rag_index_from_storage(self) -> RagIndex:

@@ -7,7 +7,8 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from app.core.errors import AppError, ErrorCode
-from app.core.models import DocumentChunk, RagTrace, RawDocument
+from app.core.tracing import RagTrace
+from app.ingest.chunking.models import DocumentChunk
 from app.indexing.configs import (
     EmbeddingConfig,
     IndexBuilderConfig,
@@ -25,15 +26,17 @@ from app.indexing.manifest import (
 from app.indexing.report import IndexBuildReportWriter
 from app.indexing.vector_collection import VectorCollection, VectorRecord
 from app.ingest.chunking.collection import ChunkCollection
-from app.ingest.chunking.report import ChunkingReportConfig, ChunkingReportWriter
-from app.ingest.chunking.strategies import Chunker
-from app.ingest.document_collection import DocumentCollection
-from app.ingest.pipeline import (
-    IngestionFailure,
-    IngestionPipeline,
+from app.ingest.reporting import (
+    ChunkingReportConfig,
+    ChunkingReportWriter,
     IngestionReportConfig,
     IngestionReportWriter,
 )
+from app.ingest.chunking.strategies import Chunker
+from app.ingest.collections import DocumentCollection
+from app.ingest.models import RawDocument
+from app.ingest.pipeline import IngestionPipeline
+from app.ingest.pipeline_types import IngestionFailure
 from app.repositories.chunk_repository import ChunkRepository
 from app.repositories.document_repository import DocumentRepository
 from app.repositories.index_manifest_repository import IndexManifestRepository

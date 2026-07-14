@@ -8,26 +8,13 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
-from dataclasses import dataclass
 from pathlib import Path
 from statistics import mean
 from typing import Any
 
-from app.core.models import DocumentChunk, ParsedDocument
+from app.ingest.chunking.models import DocumentChunk
 from app.ingest.chunking.strategies import ChunkerConfig
-
-
-@dataclass(frozen=True)
-class ChunkingReportConfig:
-    """chunking 报告 writer 的运行时配置。"""
-
-    output_dir: Path = Path("logs")
-
-    @property
-    def output_path(self) -> Path:
-        """默认报告文件路径。"""
-
-        return self.output_dir / "chunking_report.json"
+from app.ingest.models import ParsedDocument
 
 
 class ChunkingReportWriter:

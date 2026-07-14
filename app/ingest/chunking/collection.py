@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Protocol
 
-from app.core.models import DocumentChunk
+from app.ingest.chunking.models import DocumentChunk
 
 
 class ChunkCollection(Protocol):

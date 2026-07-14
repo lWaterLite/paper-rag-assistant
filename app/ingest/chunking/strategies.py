@@ -12,7 +12,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Literal
 
-from app.core.models import DocumentChunk, ParsedBlock, ParsedDocument
+from app.ingest.chunking.models import DocumentChunk
+from app.ingest.models import ParsedBlock, ParsedDocument
 from app.ingest.chunking.metadata import ChunkMetadata, ChunkMetadataBuilder
 
 ChunkingStrategy = str

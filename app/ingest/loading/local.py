@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Protocol
 
 from app.core.errors import AppError, ErrorCode
-from app.core.models import RawDocument
+from app.ingest.models import RawDocument
 
 
 @dataclass(frozen=True)

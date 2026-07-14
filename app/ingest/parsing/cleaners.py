@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from math import ceil
 from typing import Protocol
 
-from app.core.models import ParseIssue
+from app.ingest.models import ParseIssue
 
 
 @dataclass(frozen=True)

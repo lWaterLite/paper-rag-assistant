@@ -10,11 +10,10 @@ from app.indexing.configs import (
     IndexBuilderConfig,
     VectorRepositoryConfig,
 )
-from app.ingest.chunking.report import ChunkingReportConfig
 from app.ingest.chunking.strategies import ChunkerConfig
-from app.ingest.cleaners import PdfTextCleanerConfig
-from app.ingest.loaders import LocalDocumentLoaderConfig
-from app.ingest.pipeline import IngestionReportConfig
+from app.ingest.loading import LocalDocumentLoaderConfig
+from app.ingest.parsing import PdfTextCleanerConfig
+from app.ingest.reporting import ChunkingReportConfig, IngestionReportConfig
 from app.pipeline import RagPipelineConfig
 from app.retrieval.context import ContextPackerConfig
 from app.retrieval.context.evidence_transformers import EvidenceTransformationConfig

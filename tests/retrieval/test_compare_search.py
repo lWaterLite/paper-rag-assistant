@@ -9,7 +9,7 @@ import uuid
 from pathlib import Path
 
 from app.api.handlers import handle_compare_search_request
-from app.api.schemas import CompareSearchRequest
+from app.api.contracts.retrieval import CompareSearchRequest
 from app.core.models import RetrievedChunk
 from app.retrieval.configuration import RetrievalConfig
 from app.retrieval.reporting import (

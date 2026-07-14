@@ -9,10 +9,13 @@ from dataclasses import replace
 from pydantic import ValidationError
 
 from app.api.routes import api_contract, planned_routes
-from app.api.schemas import (
+from app.api.contracts.documents import DocumentIngestRequest
+from app.api.contracts.retrieval import (
     AskRequest,
     CompareSearchRequest,
     SearchRequest,
+)
+from app.api.presenters.retrieval import (
     rag_answer_to_response,
     retrieved_chunk_to_response,
     trace_to_response,
@@ -20,11 +23,11 @@ from app.api.schemas import (
 from app.core.models import (
     Citation,
     RagAnswer,
-    RagTrace,
     RerankSignal,
     RetrievalSignal,
     RetrievedChunk,
 )
+from app.core.tracing import RagTrace
 
 
 def build_retrieved_chunk() -> RetrievedChunk:
@@ -118,6 +121,15 @@ class ApiSchemaTest(unittest.TestCase):
 
         with self.assertRaises(ValidationError):
             CompareSearchRequest(query="RAG", retrievers=[" "])
+
+    def test_document_ingest_request_validates_source_directory(self) -> None:
+        request = DocumentIngestRequest(source_dir="  data/raw/papers  ", rebuild=True)
+
+        self.assertEqual(request.source_dir, "data/raw/papers")
+        self.assertTrue(request.rebuild)
+
+        with self.assertRaises(ValidationError):
+            DocumentIngestRequest(source_dir="   ")
 
     def test_retrieved_chunk_response_keeps_source_and_score(self) -> None:
         response = retrieved_chunk_to_response(build_retrieved_chunk())

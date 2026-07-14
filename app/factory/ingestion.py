@@ -7,16 +7,39 @@ from dataclasses import dataclass, field
 from app.factory.configs import ConfigFactory
 from app.ingest.chunking.registry import ChunkerRegistry, build_default_chunker_registry
 from app.ingest.chunking.strategies import Chunker
-from app.ingest.cleaners import BasicTextCleaner, HtmlTextCleaner, PdfTextCleaner
-from app.ingest.loaders import DocumentIdentityBuilder, LocalDocumentLoader
-from app.ingest.parsers import (
+from app.ingest.loading import DocumentIdentityBuilder, LocalDocumentLoader
+from app.ingest.parsing import (
+    BasicTextCleaner,
     HtmlDocumentParser,
+    HtmlTextCleaner,
     MarkdownParser,
     ParserRegistry,
     PdfDocumentParser,
+    PdfTextCleaner,
     PlainTextParser,
 )
 from app.ingest.pipeline import IngestionPipeline
+from app.ingest.reporting import (
+    ChunkingReportConfig,
+    ChunkingReportWriter,
+    IngestionReportConfig,
+    IngestionReportWriter,
+)
+
+
+@dataclass(frozen=True, slots=True)
+class IngestionIndexingDependencies:
+    """索引构建流程所需的 ingest 组件集合。
+
+    该对象只存在于组合层，避免 IndexingFactory 依赖 ingest 的内部实现细节。
+    """
+
+    pipeline: IngestionPipeline
+    chunker: Chunker
+    ingestion_report_writer: IngestionReportWriter
+    ingestion_report_config: IngestionReportConfig
+    chunking_report_writer: ChunkingReportWriter
+    chunking_report_config: ChunkingReportConfig
 
 
 @dataclass(slots=True)
@@ -80,4 +103,28 @@ class IngestionFactory:
         return IngestionPipeline(
             loader=self.build_local_document_loader(),
             parser_registry=self.build_parser_registry(),
+        )
+
+    @staticmethod
+    def build_ingestion_report_writer() -> IngestionReportWriter:
+        """创建摄取报告写入器。"""
+
+        return IngestionReportWriter()
+
+    @staticmethod
+    def build_chunking_report_writer() -> ChunkingReportWriter:
+        """创建切分质量报告写入器。"""
+
+        return ChunkingReportWriter()
+
+    def build_indexing_dependencies(self) -> IngestionIndexingDependencies:
+        """组装索引构建所需要的 ingest 组件。"""
+
+        return IngestionIndexingDependencies(
+            pipeline=self.build_ingestion_pipeline(),
+            chunker=self.build_configured_chunker(),
+            ingestion_report_writer=self.build_ingestion_report_writer(),
+            ingestion_report_config=self.configs.build_ingestion_report_config(),
+            chunking_report_writer=self.build_chunking_report_writer(),
+            chunking_report_config=self.configs.build_chunking_report_config(),
         )

@@ -9,7 +9,7 @@ import uuid
 from pathlib import Path
 from typing import cast
 
-from app.core.models import ParsedDocument
+from app.ingest.models import ParsedDocument
 from app.core.settings import ChunkingSettings, IngestionSettings, ProjectSettings
 from app.factory import ApplicationFactory
 from app.ingest.chunking.registry import ChunkerRegistry, build_default_chunker_registry
@@ -21,7 +21,7 @@ from app.ingest.chunking.strategies import (
     SectionAwareChunker,
     estimate_token_count,
 )
-from app.ingest.chunking.report import ChunkingReportWriter
+from app.ingest.reporting import ChunkingReportWriter
 
 
 def build_document(text: str, *, source_path: str = "paper.md") -> ParsedDocument:

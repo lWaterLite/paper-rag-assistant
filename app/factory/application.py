@@ -17,9 +17,7 @@ from app.indexing.index_builder import IndexBuilder, RagIndex
 from app.indexing.vector_collection import VectorCollection
 from app.ingest.chunking.collection import ChunkCollection
 from app.ingest.chunking.registry import ChunkerRegistry
-from app.ingest.chunking.report import ChunkingReportWriter
-from app.ingest.document_collection import DocumentCollection
-from app.ingest.pipeline import IngestionPipeline, IngestionReportWriter
+from app.ingest.collections import DocumentCollection
 from app.pipeline import RagPipeline
 from app.repositories.chunk_repository import ChunkRepository
 from app.repositories.document_repository import DocumentRepository
@@ -96,7 +94,6 @@ class ApplicationFactory:
     def build_index_builder(
         self,
         *,
-        ingestion_pipeline: IngestionPipeline | None = None,
         embedding_client: EmbeddingClient | None = None,
         embedding_cache: EmbeddingCache | None = None,
         vector_collection: VectorCollection | None = None,
@@ -105,14 +102,10 @@ class ApplicationFactory:
         vector_repository: VectorRepository | None = None,
         document_repository: DocumentRepository | None = None,
         chunk_repository: ChunkRepository | None = None,
-        ingestion_report_writer: IngestionReportWriter | None = None,
-        chunking_report_writer: ChunkingReportWriter | None = None,
-        chunker_registry: ChunkerRegistry | None = None,
     ) -> IndexBuilder:
         """创建离线索引构建器。"""
 
         return self.indexing.build_index_builder(
-            ingestion_pipeline=ingestion_pipeline,
             embedding_client=embedding_client,
             embedding_cache=embedding_cache,
             vector_collection=vector_collection,
@@ -121,9 +114,6 @@ class ApplicationFactory:
             vector_repository=vector_repository,
             document_repository=document_repository,
             chunk_repository=chunk_repository,
-            ingestion_report_writer=ingestion_report_writer,
-            chunking_report_writer=chunking_report_writer,
-            chunker_registry=chunker_registry,
         )
 
     def build_rag_index_from_storage(self) -> RagIndex:

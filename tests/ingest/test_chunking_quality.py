@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import unittest
 
-from app.core.models import DocumentChunk, ParsedDocument
+from app.ingest.chunking.models import DocumentChunk
+from app.ingest.models import ParsedDocument
 from app.ingest.chunking.quality import ChunkingQualityChecker, ChunkingQualityConfig
 
 

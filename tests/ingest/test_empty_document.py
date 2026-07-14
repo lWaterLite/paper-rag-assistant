@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import unittest
 
-from app.core.models import RawDocument
+from app.ingest.models import RawDocument
 from app.ingest.chunking.strategies import CharacterChunker, ChunkerConfig, SectionAwareChunker
-from app.ingest.cleaners import BasicTextCleaner
-from app.ingest.parsers import PlainTextParser
+from app.ingest.parsing import BasicTextCleaner, PlainTextParser
 
 
 def build_empty_raw_document() -> RawDocument:

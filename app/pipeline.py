@@ -10,7 +10,8 @@ from dataclasses import dataclass
 from typing import Any, NoReturn, Protocol
 
 from app.core.errors import AppError, ErrorCode
-from app.core.models import RagAnswer, RagTrace
+from app.core.models import RagAnswer
+from app.core.tracing import RagTrace
 from app.generation.answer_generator import AnswerGenerator
 from app.retrieval.context import ContextPackRequest, ContextPacker
 from app.retrieval.context.evidence_transformers import (

@@ -1,6 +1,7 @@
 """chunking 子系统软件包。"""
 
 from app.ingest.chunking.metadata import ChunkMetadata, ChunkMetadataBuilder
+from app.ingest.chunking.models import DocumentChunk
 from app.ingest.chunking.quality import (
     ChunkingQualityChecker,
     ChunkingQualityCheckResult,
@@ -8,7 +9,6 @@ from app.ingest.chunking.quality import (
     ChunkingQualityIssue,
 )
 from app.ingest.chunking.registry import ChunkerRegistry, build_default_chunker_registry
-from app.ingest.chunking.report import ChunkingReportConfig, ChunkingReportWriter
 from app.ingest.chunking.strategies import (
     CharacterChunker,
     Chunker,
@@ -22,6 +22,7 @@ __all__ = [
     "CharacterChunker",
     "ChunkMetadata",
     "ChunkMetadataBuilder",
+    "DocumentChunk",
     "Chunker",
     "ChunkerConfig",
     "ChunkerRegistry",
@@ -29,8 +30,6 @@ __all__ = [
     "ChunkingQualityCheckResult",
     "ChunkingQualityConfig",
     "ChunkingQualityIssue",
-    "ChunkingReportConfig",
-    "ChunkingReportWriter",
     "FixedTokenChunker",
     "SectionAwareChunker",
     "build_default_chunker_registry",

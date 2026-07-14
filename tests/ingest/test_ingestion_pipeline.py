@@ -9,12 +9,25 @@ from pathlib import Path
 
 from app.core.settings import IngestionSettings, LoaderSettings, ProjectSettings
 from app.core.errors import AppError, ErrorCode
-from app.core.models import RawDocument
+from app.ingest.models import RawDocument
 from app.factory import ApplicationFactory
-from app.ingest.cleaners import BasicTextCleaner, HtmlTextCleaner, PdfTextCleaner, PdfTextCleanerConfig
-from app.ingest.loaders import DocumentIdentityBuilder, LocalDocumentLoader, LocalDocumentLoaderConfig
-from app.ingest.parsers import HtmlDocumentParser, MarkdownParser, PdfDocumentParser, ParserRegistry
-from app.ingest.pipeline import IngestionPipeline, IngestionReportWriter
+from app.ingest.loading import (
+    DocumentIdentityBuilder,
+    LocalDocumentLoader,
+    LocalDocumentLoaderConfig,
+)
+from app.ingest.parsing import (
+    BasicTextCleaner,
+    HtmlDocumentParser,
+    HtmlTextCleaner,
+    MarkdownParser,
+    ParserRegistry,
+    PdfDocumentParser,
+    PdfTextCleaner,
+    PdfTextCleanerConfig,
+)
+from app.ingest.pipeline import IngestionPipeline
+from app.ingest.reporting import IngestionReportWriter
 
 
 class IngestionPipelineTest(unittest.TestCase):

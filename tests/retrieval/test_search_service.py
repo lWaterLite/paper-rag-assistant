@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 
 from app.api.handlers import handle_search_request
-from app.api.schemas import SearchRequest
+from app.api.contracts.retrieval import SearchRequest
 from app.core.errors import AppError, ErrorCode
 from app.core.models import RetrievedChunk
 from app.retrieval.configuration import RetrievalConfig

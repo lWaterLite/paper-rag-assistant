@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from app.api.schemas import (
+from app.api.contracts.retrieval import (
     CompareSearchRequest,
     CompareSearchResponse,
     SearchRequest,
     SearchResponse,
+)
+from app.api.presenters.retrieval import (
     compare_search_result_to_response,
     retrieved_chunk_to_response,
     trace_to_response,

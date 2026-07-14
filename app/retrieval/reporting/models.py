@@ -6,7 +6,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from app.core.models import RagTrace, RetrievedChunk
+from app.core.models import RetrievedChunk
+from app.core.tracing import RagTrace
 from app.retrieval.configuration.postprocessing import PostProcessingProfile
 
 

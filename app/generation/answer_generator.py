@@ -7,7 +7,8 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from app.core.models import RagAnswer, RagTrace, RetrievedChunk
+from app.core.models import RagAnswer, RetrievedChunk
+from app.core.tracing import RagTrace
 from app.generation.prompts import RagAnswerPrompt, build_rag_answer_prompt
 from app.retrieval.context import PackedContext
 

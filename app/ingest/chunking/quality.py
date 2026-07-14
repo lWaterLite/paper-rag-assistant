@@ -10,7 +10,8 @@ from dataclasses import dataclass, field
 from statistics import mean
 from typing import Any, Literal
 
-from app.core.models import DocumentChunk, ParsedDocument
+from app.ingest.chunking.models import DocumentChunk
+from app.ingest.models import ParsedDocument
 
 
 IssueSeverity = Literal["info", "warning", "error"]

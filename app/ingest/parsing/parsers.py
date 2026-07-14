@@ -13,14 +13,14 @@ from html.parser import HTMLParser
 from typing import Protocol
 
 from app.core.errors import AppError, ErrorCode
-from app.core.models import (
+from app.ingest.models import (
     BlockType,
     ParsedBlock,
     ParsedDocument,
     ParseIssue,
     RawDocument,
 )
-from app.ingest.cleaners import BasicTextCleaner, HtmlTextCleaner, PdfTextCleaner
+from app.ingest.parsing.cleaners import BasicTextCleaner, HtmlTextCleaner, PdfTextCleaner
 
 
 class DocumentParser(Protocol):

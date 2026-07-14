@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Protocol
 
-from app.core.models import ParsedDocument, RawDocument
+from app.ingest.models import ParsedDocument, RawDocument
 
 
 class DocumentCollection(Protocol):
