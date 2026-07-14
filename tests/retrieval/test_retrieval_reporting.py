@@ -23,6 +23,7 @@ from app.retrieval.configuration.postprocessing import (
     PostProcessingProfile,
 )
 from app.retrieval.context import ContextPackerConfig
+from app.retrieval.context.evidence_transformers import EvidenceTransformationConfig
 from app.retrieval.reporting import (
     RetrievalConfigSnapshot,
     RetrievalIndexSnapshot,
@@ -109,6 +110,7 @@ def build_runtime_snapshot() -> RetrievalRuntimeSnapshot:
                     retrieval=RetrievalConfig(strategy="vector", top_k=2),
                     reranking=RerankingConfig(enabled=False),
                     context_packing=ContextPackerConfig(),
+                    evidence_transformation=EvidenceTransformationConfig(),
                 )
             ),
             registered_strategies=("bm25", "hybrid", "vector"),

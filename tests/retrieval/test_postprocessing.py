@@ -20,6 +20,7 @@ from app.retrieval.configuration.postprocessing import (
     PostProcessingProfile,
 )
 from app.retrieval.context import ContextPackerConfig
+from app.retrieval.context.evidence_transformers import EvidenceTransformationConfig
 from app.retrieval.rerankers import RerankingConfig
 
 
@@ -42,6 +43,7 @@ class PostProcessingConfigTest(unittest.TestCase):
                 safety_margin_tokens=64,
                 max_chunks_per_document=2,
             ),
+            evidence_transformation=EvidenceTransformationConfig(),
         )
 
         PostProcessingConfigValidator.validate(config)
@@ -59,6 +61,7 @@ class PostProcessingConfigTest(unittest.TestCase):
             retrieval=RetrievalConfig(top_k=4),
             reranking=RerankingConfig(enabled=False, candidate_limit=12),
             context_packing=ContextPackerConfig(),
+            evidence_transformation=EvidenceTransformationConfig(),
         )
 
         PostProcessingConfigValidator.validate(config)
@@ -75,6 +78,7 @@ class PostProcessingConfigTest(unittest.TestCase):
             retrieval=RetrievalConfig(top_k=5),
             reranking=RerankingConfig(enabled=True, candidate_limit=3),
             context_packing=ContextPackerConfig(),
+            evidence_transformation=EvidenceTransformationConfig(),
         )
 
         with self.assertRaisesRegex(ValueError, "reranking.candidate_limit"):
@@ -92,6 +96,7 @@ class PostProcessingConfigTest(unittest.TestCase):
                 safety_margin_tokens=100,
                 max_chunks_per_document=2,
             ),
+            evidence_transformation=EvidenceTransformationConfig(),
         )
 
         with self.assertRaisesRegex(ValueError, "max_context_tokens"):

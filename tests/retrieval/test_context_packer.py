@@ -9,6 +9,7 @@ from app.retrieval.context import (
     ContextPackerConfig,
     ContextPackRequest,
     TokenAwareContextPacker,
+    passthrough_candidates,
 )
 from app.retrieval.context.token_estimators import RegexTokenEstimator
 
@@ -67,10 +68,10 @@ class TokenAwareContextPackerTest(unittest.TestCase):
         packed = build_packer().pack(
             ContextPackRequest(
                 query="RAG",
-                chunks=(
+                candidates=passthrough_candidates((
                     build_retrieved_chunk("chunk_1", "重复内容", chunk_index=0),
                     build_retrieved_chunk("chunk_2", "重复内容", chunk_index=1),
-                ),
+                )),
             )
         )
 
@@ -81,15 +82,19 @@ class TokenAwareContextPackerTest(unittest.TestCase):
         packed = build_packer().pack(
             ContextPackRequest(
                 query="RAG",
-                chunks=(
+                candidates=passthrough_candidates((
                     build_retrieved_chunk("chunk_1", "第一段", chunk_index=0),
                     build_retrieved_chunk("chunk_2", "第二段", chunk_index=1),
-                ),
+                )),
             )
         )
 
         self.assertEqual(len(packed.segments), 1)
         self.assertEqual(packed.segments[0].source_chunk_ids, ("chunk_1", "chunk_2"))
+        self.assertEqual(
+            [(item.chunk_id, item.char_start, item.char_end) for item in packed.segments[0].source_ranges],
+            [("chunk_1", 0, 3), ("chunk_2", 0, 3)],
+        )
         self.assertIn("第一段\n第二段", packed.context_text)
         self.assertEqual(packed.citations[0].citation_id, "C1")
 
@@ -97,7 +102,7 @@ class TokenAwareContextPackerTest(unittest.TestCase):
         packed = build_packer(max_chunks_per_document=1).pack(
             ContextPackRequest(
                 query="RAG",
-                chunks=(
+                candidates=passthrough_candidates((
                     build_retrieved_chunk("chunk_1", "第一段", chunk_index=0),
                     build_retrieved_chunk("chunk_2", "第二段", chunk_index=1),
                     build_retrieved_chunk(
@@ -105,7 +110,7 @@ class TokenAwareContextPackerTest(unittest.TestCase):
                         "另一篇论文内容",
                         doc_id="doc_other",
                     ),
-                ),
+                )),
             )
         )
 
@@ -122,14 +127,14 @@ class TokenAwareContextPackerTest(unittest.TestCase):
         packed = packer.pack(
             ContextPackRequest(
                 query="RAG",
-                chunks=(
+                candidates=passthrough_candidates((
                     build_retrieved_chunk("chunk_1", "alpha beta", chunk_index=0),
                     build_retrieved_chunk(
                         "chunk_2",
                         "gamma delta epsilon zeta eta theta",
                         doc_id="doc_other",
                     ),
-                ),
+                )),
             )
         )
 
@@ -146,12 +151,12 @@ class TokenAwareContextPackerTest(unittest.TestCase):
         packed = build_packer(max_context_tokens=12).pack(
             ContextPackRequest(
                 query="RAG",
-                chunks=(
+                candidates=passthrough_candidates((
                     build_retrieved_chunk(
                         "chunk_1",
                         "alpha beta gamma delta epsilon zeta eta theta iota kappa",
                     ),
-                ),
+                )),
             )
         )
 
@@ -170,7 +175,9 @@ class TokenAwareContextPackerTest(unittest.TestCase):
         ).pack(
             ContextPackRequest(
                 query="问题内容",
-                chunks=(build_retrieved_chunk("chunk_1", "alpha beta gamma"),),
+                candidates=passthrough_candidates(
+                    (build_retrieved_chunk("chunk_1", "alpha beta gamma"),)
+                ),
             )
         )
 

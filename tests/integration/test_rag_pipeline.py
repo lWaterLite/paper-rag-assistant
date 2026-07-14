@@ -102,6 +102,10 @@ class RagPipelineTest(unittest.TestCase):
         self.assertIsNotNone(answer_generator.trace)
         self.assertEqual(answer_generator.trace.final_status, "success")
         self.assertIsNone(answer_generator.trace.failure_type)
+        evidence_stage = answer_generator.trace.stages[1]
+        self.assertEqual(evidence_stage.stage, "evidence_transformation")
+        self.assertEqual(evidence_stage.detail["transformer"], "passthrough")
+        self.assertEqual(evidence_stage.detail["input_count"], evidence_stage.detail["output_count"])
 
     def test_pipeline_records_failure_trace_when_retrieval_fails(self) -> None:
         env_settings = EnvSettings()
@@ -133,7 +137,10 @@ class RagPipelineTest(unittest.TestCase):
         self.assertEqual(error.code, ErrorCode.RETRIEVAL_FAILED)
         self.assertEqual(error.trace.final_status, "error")
         self.assertEqual(error.trace.failure_type, "context_packing")
-        self.assertEqual([stage.stage for stage in error.trace.stages], ["retrieval", "context_packing"])
+        self.assertEqual(
+            [stage.stage for stage in error.trace.stages],
+            ["retrieval", "evidence_transformation", "context_packing"],
+        )
 
     def test_pipeline_records_failure_trace_when_generation_fails(self) -> None:
         env_settings = EnvSettings()
@@ -148,7 +155,15 @@ class RagPipelineTest(unittest.TestCase):
         self.assertEqual(error.code, ErrorCode.GENERATION_FAILED)
         self.assertEqual(error.trace.final_status, "error")
         self.assertEqual(error.trace.failure_type, "generation")
-        self.assertEqual([stage.stage for stage in error.trace.stages], ["retrieval", "context_packing", "generation"])
+        self.assertEqual(
+            [stage.stage for stage in error.trace.stages],
+            [
+                "retrieval",
+                "evidence_transformation",
+                "context_packing",
+                "generation",
+            ],
+        )
 
 
 class FailingRetriever:

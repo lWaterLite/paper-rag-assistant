@@ -21,6 +21,7 @@ from app.core.settings import (
     ChunkingSettings,
     ContextPackingSettings,
     EmbeddingSettings,
+    EvidenceTransformationSettings,
     EnvSettings,
     HybridRetrievalSettings,
     IndexBuilderSettings,
@@ -87,6 +88,13 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(settings.strategy, "lexical")
         with self.assertRaises(ValidationError):
             RerankingSettings(candidate_limit=0)
+
+    def test_evidence_transformation_settings_normalizes_strategy(self) -> None:
+        settings = EvidenceTransformationSettings(strategy=" passthrough ")
+
+        self.assertEqual(settings.strategy, "passthrough")
+        with self.assertRaises(ValidationError):
+            EvidenceTransformationSettings(strategy=" ")
 
     def test_settings_rejects_invalid_pdf_cleaner_ratio(self) -> None:
         with self.assertRaises(ValidationError) as context:
@@ -186,6 +194,11 @@ max_chunks_per_document = 3
 [retrieval.context_packing.token_estimator]
 strategy = "regex"
 
+[retrieval.context_packing.evidence_transformation]
+enabled = true
+strategy = "passthrough"
+failure_mode = "fail_closed"
+
 [retrieval.report]
 enabled = true
 output_dir = ".tmp_tests/retrieval-reports"
@@ -247,6 +260,17 @@ fail_on_write_error = true
             self.assertEqual(
                 project_settings.retrieval.context_packing.token_estimator.strategy,
                 "regex",
+            )
+            self.assertTrue(
+                project_settings.retrieval.context_packing.evidence_transformation.enabled
+            )
+            self.assertEqual(
+                project_settings.retrieval.context_packing.evidence_transformation.strategy,
+                "passthrough",
+            )
+            self.assertEqual(
+                project_settings.retrieval.context_packing.evidence_transformation.failure_mode,
+                "fail_closed",
             )
             self.assertTrue(project_settings.retrieval.reranking.enabled)
             self.assertEqual(project_settings.retrieval.reranking.candidate_limit, 15)
