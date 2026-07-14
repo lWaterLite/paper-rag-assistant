@@ -14,7 +14,9 @@ query
   -> ChunkIdDeduplicationStage
   -> RerankStage（可关闭）
   -> TopKLimitStage
-  -> RetrievedChunk[]
+  -> RetrievedChunk[]（检索 API 的最终结果）
+  -> EvidenceTransformStage（仅 RAG 上下文分支）
+  -> EvidenceCandidate[]
   -> TokenAwareContextPacker
   -> PackedContext / ContextSegment[]
   -> RagPipeline / AnswerGenerator
@@ -28,9 +30,11 @@ query
 4. `fail_open` 与 `fail_closed` 两种 rerank 失败策略。
 5. `TokenEstimator` Protocol 和 `TokenEstimatorRegistry`。
 6. `TokenAwareContextPacker`：token 预算、文档配额、去重、相邻合并、截断与 dropped reason。
-7. `ContextSegment`：合并或截断后仍保存完整 `source_chunk_ids`、页码范围与章节信息。
-8. 检索报告记录候选上限、rerank 阶段、策略、降级状态和最终结果。
-9. API 返回保留原始 retrieval score，同时可返回 `rerank_signal`，避免混淆不同分数的含义。
+7. `ContextSegment`：合并或截断后仍保存完整 `source_chunk_ids`、原始字符范围、页码范围与章节信息。
+8. `EvidenceTransformStage`：在不修改检索结果的前提下，将候选证据转换为可供上下文打包的 `EvidenceCandidate`。
+9. `EvidenceTransformerRegistry`：通过策略名创建可插拔的证据变换器；当前内置 `passthrough`。
+10. 检索报告记录候选上限、rerank 阶段、策略、降级状态和最终结果。
+11. API 返回保留原始 retrieval score，同时可返回 `rerank_signal`，避免混淆不同分数的含义。
 
 ## 2. 代码结构
 
@@ -55,7 +59,10 @@ app/retrieval/
 
   context/
     packer.py
-      ContextPackRequest、ContextSegment、TokenAwareContextPacker
+      ContextPackRequest、ContextSegment、ContextSourceRange、TokenAwareContextPacker
+    evidence_transformers/
+      EvidenceCandidate、EvidenceSource、EvidenceTransformer Protocol
+      EvidenceTransformStage、Registry、Passthrough 实现
     token_estimators/
       TokenEstimator Protocol、TokenEstimatorConfig、Registry、Regex 实现
 
@@ -293,6 +300,11 @@ max_chunks_per_document = 2
 
 [retrieval.context_packing.token_estimator]
 strategy = "regex"
+
+[retrieval.context_packing.evidence_transformation]
+enabled = true
+strategy = "passthrough"
+failure_mode = "fail_open"
 ```
 
 `.env` 不新增这些行为配置；它继续只放 API key 等敏感信息。
@@ -302,16 +314,18 @@ strategy = "regex"
 ```text
 settings.toml
   -> RerankingSettings / ContextPackingSettings / TokenEstimatorSettings
+     / EvidenceTransformationSettings
   -> ConfigFactory
   -> RerankingConfig / ContextPackerConfig / TokenEstimatorConfig
+     / EvidenceTransformationConfig
   -> PostProcessingConfig
   -> RetrievalFactory
   -> PostProcessingConfigValidator / PostProcessingProfile
-  -> RerankerRegistry / TokenEstimatorRegistry
-  -> SearchService / CompareSearchService / TokenAwareContextPacker
+  -> RerankerRegistry / TokenEstimatorRegistry / EvidenceTransformerRegistry
+  -> SearchService / CompareSearchService / EvidenceTransformStage / TokenAwareContextPacker
 ```
 
-`RetrievalFactory` 会先验证 `PostProcessingConfig`，再构建 `SearchService`、reporter 或 `TokenAwareContextPacker`。`PipelineFactory` 则把同一份已校验 Config 同时传给 SearchService 与 ContextPacker，保证一次 `RagPipeline` 组装不会混用不同配置快照。
+`RetrievalFactory` 会先验证 `PostProcessingConfig`，再构建 `SearchService`、reporter、`EvidenceTransformStage` 或 `TokenAwareContextPacker`。`PipelineFactory` 则把同一份已校验 Config 同时传给 SearchService、证据变换阶段和 ContextPacker，保证一次 `RagPipeline` 组装不会混用不同配置快照。
 
 `RerankStage`、`TokenAwareContextPacker` 和具体策略对象不会读取 `ProjectSettings`，也不会自己选择默认实现。所有对象由 Factory 组装。
 
@@ -334,13 +348,13 @@ results[].rerank_signal
 runtime.config.postprocessing
 ```
 
-`runtime.config.postprocessing` 是 `PostProcessingProfile` 的稳定快照。它会记录 rerank 是否启用、candidate limit 当前的实际语义、默认候选宽度、单文档上限、模型窗口、预留 token、静态可用预算和有效上下文上限。单次请求再扣除 question token 后的实际预算仍保留在 `context_packing` trace 中。
+`runtime.config.postprocessing` 是 `PostProcessingProfile` 的稳定快照。它会记录 rerank 与证据变换是否启用、对应策略与失败策略、candidate limit 当前的实际语义、默认候选宽度、单文档上限、模型窗口、预留 token、静态可用预算和有效上下文上限。单次请求再扣除 question token 后的实际预算仍保留在 `context_packing` trace 中。
 
 `RetrievedChunk.score` 仍表示原检索器给出的 score；rerank 的 score 放在独立的 `rerank_signal` 中。这样不会把 BM25、向量、RRF 与 rerank 分数误当作同一量纲。
 
 `/search` 和 `/search/compare` 的响应中的每个结果也可携带 `rerank_signal`。compare search 仍是并列观察工具，不会把多个策略的 score 直接相加。
 
-`RagPipeline` 的 `context_packing` trace 增加了：
+`RagPipeline` 会先记录 `evidence_transformation` trace，其中包含转换器名称、输入/输出数量、失败策略和是否降级；然后在 `context_packing` trace 中记录：
 
 ```text
 context_tokens
@@ -406,14 +420,17 @@ failure_mode = "fail_open"
 6. rerank 阶段写入 retrieval report。
 7. API 映射保留原始 retrieval score 并暴露 rerank signal。
 8. 后处理配置组合校验、Factory 的提前失败与 Profile 报告快照。
+9. 候选证据变换的来源范围、fail-open / fail-closed 与 RAG trace 接入。
 
-## 9. 工程练习
+## 9. 已完成工程实践的教学拆解
 
-本次练习不要求你接入真实模型、下载模型文件或新增第三方推理依赖，也不要求补测试；新增或改动功能时，对应测试由项目维护。
+本节的代码已由项目实现。建议按“配置如何成为运行时对象、对象如何由 Factory 统一组装、数据如何跨阶段保持契约”的顺序阅读，而不是孤立地记忆某个 rerank 或 token 算法。
 
-练习关注的是已经具备真实实现后的下一层问题：如何让后处理流程的配置组合能够被清晰校验与说明，以及如何在不破坏来源追溯与报告的前提下扩展证据处理阶段。这两项能力比替换某个具体 reranker 或 tokenizer 更值得在当前阶段掌握。
+两项实践分别建立了后处理流程的组合配置边界，以及 RAG 上下文分支的候选证据变换边界。它们共同说明：系统扩展时，新的行为不应散落在 handler、pipeline 或具体策略类中，而应通过 Config、Registry、Stage 和 Factory 进入既有流程。
 
-### 练习 1：定义后处理流程配置的有效组合（已实现）
+本节不引入真实模型、下载模型文件或新增第三方推理依赖；相关自动化测试由项目维护。学习重点是后处理配置与证据变换的工程边界，而不是替换某个具体 reranker 或 tokenizer。
+
+### 练习 1：后处理流程配置的实现讲解
 
 当前系统的后处理行为由 reranking、candidate limit、context packing 等多组配置共同决定。它们分散存在是合理的，但组合本身也有领域规则，例如：
 
@@ -435,7 +452,7 @@ app/retrieval/configuration/postprocessing/
     PostProcessingProfile
 ```
 
-推荐分工：
+当前代码的职责划分：
 
 ```text
 RerankingConfig / ContextPackerConfig
@@ -449,49 +466,129 @@ PostProcessingProfile
   它不构建 retriever、reranker 或 context packer。
 ```
 
-当前实现的规则与接入位置：
+实际运行的规则与接入位置：
 
 1. `ConfigFactory.build_postprocessing_config()` 聚合既有 Config，不新增 TOML 或新的 Settings 类。
 2. `PostProcessingConfigValidator` 拒绝启用 rerank 但 `candidate_limit < top_k` 的组合；同时拒绝预留 token 后没有资料预算、或 `max_context_tokens` 超出静态可用预算的组合。
-3. `RetrievalFactory` 在创建 SearchService、CompareSearchService 或 ContextPacker 前执行校验，并将错误统一转换为 `AppError(INVALID_CONFIG)`。
+3. `RetrievalFactory` 在创建 SearchService、CompareSearchService、EvidenceTransformStage 或 ContextPacker 前执行校验，并将错误统一转换为 `AppError(INVALID_CONFIG)`。
 4. `PostProcessingProfile` 不可变，记录启用状态、默认候选宽度及其来源、失败策略、文档配额和 token 预算；它被写入 `runtime.config.postprocessing`。
-5. `PipelineFactory` 使用同一份已验证的 `PostProcessingConfig` 组装 SearchService 与 ContextPacker，避免一次 RAG 请求混用不同快照。
+5. `PipelineFactory` 使用同一份已验证的 `PostProcessingConfig` 组装 SearchService、EvidenceTransformStage 与 ContextPacker，避免一次 RAG 请求混用不同快照。
 
-验收重点是：错误配置能在应用组装时尽早暴露；一份检索报告能够解释本次结果使用了哪一种完整的后处理方案。
-
-### 练习 2：设计证据变换阶段的边界
-
-未来可能需要对候选证据进行去模板、相邻段合并、抽取式压缩或格式规整，但这些步骤不能混入 `AnswerGenerator`，也不能丢失来源。请为“证据变换”设计一个可插拔阶段边界，而不是立刻接入 LLM 压缩。
-
-建议结构：
+#### 配置如何进入一次 ask 请求
 
 ```text
-app/retrieval/evidence_transformers/
-  base.py
-    EvidenceTransformer Protocol
-    EvidenceTransformRequest / EvidenceTransformResult
-  passthrough.py
-    PassthroughEvidenceTransformer
-  stage.py
-    EvidenceTransformStage
+settings.toml
+  -> ProjectSettings
+  -> ConfigFactory.build_postprocessing_config()
+  -> PostProcessingConfig
+  -> PostProcessingConfigValidator.validate(...)
+  -> RetrievalFactory
+      -> SearchService
+      -> EvidenceTransformStage
+      -> TokenAwareContextPacker
+  -> PipelineFactory
+      -> RagPipeline
 ```
 
-建议在 `TopKLimitStage` 之后、`TokenAwareContextPacker` 的合并与预算逻辑之前插入该阶段：
+这里最值得观察的是：`PipelineFactory` 只创建一份 `PostProcessingConfig`，并把同一对象传给 `SearchService`、`EvidenceTransformStage` 与 `TokenAwareContextPacker`。这避免了三个阶段各自重新读取 Settings 后，因配置热更新、默认值或调用遗漏而使用不同运行时快照。
+
+`PostProcessingProfile` 是该快照的只读说明，不参与对象创建。它被写入 retrieval report 的 `runtime.config.postprocessing`，因此报告既能展示最终结果，也能回答“这次结果是在什么后处理组合下得到的”。
+
+阅读这一部分后，应能区分三类职责：局部 Config 验证单字段，Validator 验证组合，Profile 解释已生效的组合。
+
+### 练习 2：候选证据变换阶段的实现讲解
+
+候选证据变换处理的是“检索已经完成后，如何将候选资料适配为模型上下文”的问题。它可以在未来承载去模板、抽取式压缩或格式规整，但不承担相关性排序，也不混入 `AnswerGenerator`。
+
+当前实现把它放在 `RagPipeline`，而不是 `RetrievalPipeline`。原因是 `/search` 需要向调用方返回原始的、按检索和 rerank 排序后的 `RetrievedChunk[]`；只有 `/ask` 需要将这些结果进一步组织为生成模型上下文。
+
+当前软件包结构：
 
 ```text
-retrieve -> dedup -> rerank -> top-k
-  -> evidence transform
+app/retrieval/context/evidence_transformers/
+  models.py
+    EvidenceSource、EvidenceCandidate、输入/输出模型
+  base.py
+    EvidenceTransformer Protocol
+  config.py / registry.py / passthrough.py / stage.py
+    Config、可插拔策略注册、内置实现、统一阶段边界
+```
+
+阶段位于 `TopKLimitStage` 之后、`TokenAwareContextPacker` 的合并与预算逻辑之前：
+
+```text
+retrieve -> dedup -> rerank -> top-k -> RetrievedChunk[]
+  -> RAG evidence transform -> EvidenceCandidate[]
   -> token-aware context packing
 ```
 
-实现要求：
+#### 关键对象与阶段契约
 
-1. 先只实现 `PassthroughEvidenceTransformer`，以验证完整组装、阶段 trace、错误处理和 provenance 契约，不实现细粒度的文本压缩算法。
-2. 输入输出必须能明确关联原始 `chunk_id`；若一个输出片段来自多个 chunk，必须保留完整 source id 集合和原文范围。
-3. 将阶段状态、输入/输出数量、是否降级及转换器名称写入已有 report；不要另起一套日志格式。
-4. future transformer 若产生无法追溯到原文的新表述，必须被接口契约禁止；LLM 摘要式压缩仍留到子模块 7 的 grounded generation 与 citation 校验之后。
+1. `EvidenceSource` 保存原始 `RetrievedChunk` 和 `[char_start, char_end)` 范围；它是最终 provenance 的最小单位。
+2. `EvidenceCandidate` 保存待打包文本、稳定 `evidence_id` 与一个或多个 `EvidenceSource`。未来一个候选可以来自多个 chunk，但来源集合不会丢失。
+3. `PassthroughEvidenceTransformer` 是当前默认策略。它把每个完整 chunk 包装为 `EvidenceCandidate(text=chunk.text, source=[0, len(text)))`，不改变任何文本。它的意义是先验证完整工程链路，而不是实现压缩算法。
+4. `EvidenceTransformStage` 统一执行 transformer，并校验 evidence id 不重复、来源属于本次输入、主来源 rank 不倒退、所有输入 chunk 仍有来源覆盖。证据变换因此只能改变证据形态，不能私自过滤或重排候选。
+5. 阶段状态、输入/输出数量、是否降级及转换器名称写入已有 `RagTrace`。检索 JSON report 在此阶段前已写入，所以它只通过 `PostProcessingProfile` 记录能力配置，不记录某次 ask 的实际变换结果。
 
-验收重点是：你可以在不修改 Reranker、Retriever、AnswerGenerator 的情况下新增任意证据变换器，并且最终 `ContextSegment` 仍能解释每一段上下文来自哪里。
+#### Factory、Registry 与失败策略
+
+```text
+[retrieval.context_packing.evidence_transformation]
+  -> EvidenceTransformationSettings
+  -> EvidenceTransformationConfig
+  -> EvidenceTransformerRegistry.create(strategy)
+  -> EvidenceTransformStage
+  -> RagPipeline.ask()
+```
+
+默认 TOML 配置是：
+
+```toml
+[retrieval.context_packing.evidence_transformation]
+enabled = true
+strategy = "passthrough"
+failure_mode = "fail_open"
+```
+
+`fail_open` 时，transformer 异常或输出违反契约会退回完整 chunk 的 passthrough 候选，并在 trace 中记录 `degraded = true`。`fail_closed` 时，阶段抛出 `EVIDENCE_TRANSFORM_FAILED`；`RagPipeline` 记录失败 trace 后终止请求。具体策略不自行决定错误语义，错误语义由 Stage 集中管理。
+
+#### EvidenceCandidate 如何进入 ContextPacker
+
+`ContextPackRequest` 已由 `query + RetrievedChunk[]` 改为 `query + EvidenceCandidate[]`。`TokenAwareContextPacker` 仍负责去重、文档配额、相邻合并、token 预算和截断；它通过候选的 `primary_chunk` 与 `source_chunks` 保留与原始检索结果的关联。
+
+对外兼容的边界保持不变：`PackedContext.used_chunks` 仍是 `RetrievedChunk[]`，`Citation` 仍引用首个来源 chunk。新增的 `ContextSegment.source_ranges` 则保留每个段对应的原始字符范围，供后续 citation 校验与诊断使用。
+
+#### 新策略的正确接入方式
+
+以后新增抽取式 transformer 时，应注册 provider，而不是在 pipeline 中新增策略名判断：
+
+```python
+registry.register("extractive", lambda config: ExtractiveEvidenceTransformer(...))
+```
+
+然后通过 `ApplicationFactory(evidence_transformer_registry=registry)` 注入外部 Registry，并在 TOML 中选择 `strategy = "extractive"`。`RagPipeline` 和 `ContextPacker` 不需要增加 `if strategy == ...` 分支。
+
+当前阶段不接入 LLM 摘要式压缩。摘要可能产生无法由原文字符范围直接定位的新表述；在 grounded generation 和回答级 citation 校验尚未完成前，保持抽取式、可追溯的证据边界更可靠。
+
+#### 推荐阅读顺序与测试
+
+1. 阅读 `app/retrieval/configuration/postprocessing/`，理解组合配置为什么独立于局部 Config。
+2. 阅读 `app/factory/configs.py`、`app/factory/retrieval.py` 与 `app/factory/pipelines.py`，追踪 Settings、Config、Registry 和 Pipeline 的组装路径。
+3. 阅读 `app/retrieval/context/evidence_transformers/models.py` 与 `stage.py`，理解来源模型和阶段契约。
+4. 阅读 `app/retrieval/context/packer.py` 与 `app/pipeline.py`，确认候选如何进入 token 预算流程以及 trace 在何处写入。
+
+相关测试位于：
+
+```text
+tests/retrieval/test_postprocessing.py
+tests/retrieval/test_evidence_transformers.py
+tests/retrieval/test_context_packer.py
+tests/integration/test_rag_pipeline.py
+```
+
+它们覆盖组合配置提前失败、passthrough 来源范围、两种失败策略、ContextPacker 新输入契约，以及证据变换阶段进入 RAG trace 的完整调用链。
+
+读完这一部分后，你应能在不修改 Reranker、Retriever、AnswerGenerator 的情况下新增证据变换器，并保证最终 `ContextSegment` 仍能解释每一段上下文来自哪个 chunk 的哪段字符范围。
 
 ## 10. 本子模块边界
 

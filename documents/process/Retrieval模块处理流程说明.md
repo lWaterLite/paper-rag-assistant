@@ -21,6 +21,8 @@ Retrieval 的职责不是“直接回答问题”，而是把用户 query 转换
 
 在线 RAG
   RetrievalPipelineResult.results
+    -> EvidenceTransformStage
+    -> EvidenceCandidate[]
     -> TokenAwareContextPacker
     -> PackedContext
     -> AnswerGenerator
@@ -31,9 +33,10 @@ Retrieval 的职责不是“直接回答问题”，而是把用户 query 转换
 
 1. `Retriever` 只负责召回候选，不负责 rerank、上下文预算、Citation 或回答生成。
 2. `RetrievalPipeline` 负责候选召回后的通用编排：去重、可选 rerank、最终 `top_k` 截断、trace 和检索报告。
-3. `TokenAwareContextPacker` 位于 retrieval 软件包，但它服务的是“检索结果进入生成模型前”的证据组织，不参与向量检索或 BM25 评分。
-4. `AnswerGenerator` 只接收已经组织好的 `PackedContext`，不应该自行访问向量集合或重新检索。
-5. 具体策略由 Registry 和 Factory 组装；pipeline 中不根据策略名编写 `if strategy == ...`。
+3. `EvidenceTransformStage` 仅位于 RAG 的上下文分支：它把检索结果包装或变换为 `EvidenceCandidate`，不改变 `/search` 返回的 `RetrievedChunk[]`。
+4. `TokenAwareContextPacker` 位于 retrieval 软件包，但它服务的是“检索结果进入生成模型前”的证据组织，不参与向量检索或 BM25 评分。
+5. `AnswerGenerator` 只接收已经组织好的 `PackedContext`，不应该自行访问向量集合或重新检索。
+6. 具体策略由 Registry 和 Factory 组装；pipeline 中不根据策略名编写 `if strategy == ...`。
 
 ## 2. 软件包分工
 
@@ -44,7 +47,7 @@ app/retrieval/
   comparison/          compare search 的领域结果模型
   configuration/       检索 Config 与跨配置后处理校验/Profile
   services/            SearchService、CompareSearchService 等应用服务
-  context/             ContextPacker 与 token estimator
+  context/             ContextPacker、token estimator 与 evidence transformers
   retrievers/          候选召回：vector、BM25、hybrid 与 RRF 融合
   rerankers/           已召回候选的相关性重排序
   tokenizers/          BM25 与 lexical reranker 使用的分词能力
@@ -69,6 +72,7 @@ flowchart TD
     E --> H[ContextPackerConfig]
     E --> I[TokenizerConfig]
     E --> J[TokenEstimatorConfig]
+    E --> J2[EvidenceTransformationConfig]
     F --> K[PostProcessingConfig]
     G --> K
     H --> K
@@ -80,8 +84,9 @@ flowchart TD
     N --> O[RetrieverRegistry]
     N --> P[RerankerRegistry]
     N --> Q[TokenEstimatorRegistry]
+    N --> Q2[EvidenceTransformerRegistry]
     N --> R[SearchService / CompareSearchService]
-    N --> S[TokenAwareContextPacker]
+    N --> S[EvidenceTransformStage / TokenAwareContextPacker]
     M --> T[RetrievalRuntimeSnapshot]
     T --> U[RetrievalReporter]
 ```
@@ -96,13 +101,14 @@ RerankingSettings         -> RerankingConfig
 ContextPackingSettings    -> ContextPackerConfig
 TokenizerSettings         -> TokenizerConfig
 TokenEstimatorSettings    -> TokenEstimatorConfig
+EvidenceTransformationSettings -> EvidenceTransformationConfig
 ```
 
-`PostProcessingConfig` 不新增配置字段。它只是聚合前三项 Config，以便集中表达“单个字段合法，但组合后没有意义”的规则。
+`PostProcessingConfig` 不新增配置字段。它只是聚合这些后处理 Config，以便集中表达“单个字段合法，但组合后没有意义”的规则。
 
 ### 3.2 后处理组合校验
 
-`RetrievalFactory.build_postprocessing_config()` 在构造 SearchService、CompareSearchService 或 ContextPacker 前执行 `PostProcessingConfigValidator`。当前校验规则如下：
+`RetrievalFactory.build_postprocessing_config()` 在构造 SearchService、CompareSearchService、EvidenceTransformStage 或 ContextPacker 前执行 `PostProcessingConfigValidator`。当前校验规则如下：
 
 1. 启用 rerank 时，`candidate_limit >= retrieval.top_k`；否则默认候选宽度小于最终返回数，配置语义自相矛盾。
 2. `model_context_window` 必须大于固定预留项 `reserved_prompt_tokens + reserved_output_tokens + safety_margin_tokens`；否则没有任何资料上下文空间。
@@ -116,10 +122,11 @@ TokenEstimatorSettings    -> TokenEstimatorConfig
 
 ```text
 SearchService
+EvidenceTransformStage
 TokenAwareContextPacker
 ```
 
-这保证一次在线问答中，检索阶段与上下文打包阶段使用同一份后处理配置快照。`PostProcessingProfile` 是该快照的只读描述，写入检索报告的 `runtime.config.postprocessing`。
+这保证一次在线问答中，检索阶段、证据变换阶段与上下文打包阶段使用同一份后处理配置快照。`PostProcessingProfile` 是该快照的只读描述，写入检索报告的 `runtime.config.postprocessing`。
 
 ## 4. 核心数据对象与数据流
 
@@ -128,11 +135,12 @@ TokenAwareContextPacker
 | `DocumentChunk` | 离线 ingest/chunking | 原文、文档身份、页码、章节、metadata | BM25Index、ChunkCollection |
 | 向量搜索命中 | `VectorCollection.search` | `chunk_id`、相似度、rank | `VectorRetriever` |
 | `BM25SearchHit` | `BM25Index.search` | `DocumentChunk`、BM25 分数、rank | `BM25Retriever` |
-| `RetrievedChunk` | `RetrievedChunkBuilder` 或 hybrid 融合 | 统一文本、来源、score、rank、signals | 后处理 stage、API、ContextPacker |
+| `RetrievedChunk` | `RetrievedChunkBuilder` 或 hybrid 融合 | 统一文本、来源、score、rank、signals | 后处理 stage、API、EvidenceTransformStage |
 | `RerankSignal` | `RerankStage` | reranker 名称、rerank 分数、rerank 后 rank | `RetrievedChunk.rerank_signal`、报告、API |
 | `RetrievalPipelineResult` | `RetrievalPipeline.search` | query、策略、candidate limit、top-k、结果、trace、报告路径 | SearchService、RagPipeline、compare pipeline |
-| `ContextCandidate` | ContextPacker 内部 | 一个或多个相邻 `RetrievedChunk` 的候选文本 | token 预算处理 |
-| `ContextSegment` | ContextPacker | 最终文本段、完整 source chunk id、页码范围、章节、token 数 | Citation、PackedContext、后续引用校验 |
+| `EvidenceCandidate` | EvidenceTransformStage | 待打包文本、一个或多个 `EvidenceSource`、来源字符范围 | ContextPacker |
+| `ContextCandidate` | ContextPacker 内部 | 一个或多个相邻 `EvidenceCandidate` 的候选文本 | token 预算处理 |
+| `ContextSegment` | ContextPacker | 最终文本段、完整 source chunk id、原始字符范围、页码范围、章节、token 数 | Citation、PackedContext、后续引用校验 |
 | `PackedContext` | ContextPacker | 上下文文本、Citation、已用/丢弃 chunk、segments、token usage | AnswerGenerator |
 
 `RetrievedChunk.score` 始终保留原召回器的分数：向量相似度、BM25 分数或 RRF 融合分数。rerank 分数不覆盖它，而是写入独立的 `rerank_signal`，避免把不同量纲的分数混为同一种指标。
@@ -360,18 +368,21 @@ CompareSearchService
 
 ## 7. RAG 问答中的 Context Packing 流程
 
-`RagPipeline.ask(question)` 复用 `SearchService.search()`。Retrieval 完成后，结果才进入 `TokenAwareContextPacker`：
+`RagPipeline.ask(question)` 复用 `SearchService.search()`。Retrieval 完成后，结果先进入证据变换阶段，再进入 `TokenAwareContextPacker`：
 
 ```mermaid
 flowchart LR
     A[question] --> B[SearchService]
     B --> C[RetrievalPipelineResult.results]
-    C --> D[ContextPackRequest]
+    C --> D[EvidenceTransformStage]
     A --> D
-    D --> E[TokenAwareContextPacker]
-    E --> F[PackedContext]
-    F --> G[AnswerGenerator]
-    G --> H[RagAnswer]
+    D --> E[EvidenceCandidate]
+    E --> F[ContextPackRequest]
+    A --> F
+    F --> G[TokenAwareContextPacker]
+    G --> H[PackedContext]
+    H --> I[AnswerGenerator]
+    I --> J[RagAnswer]
 ```
 
 ### 7.1 TokenEstimator 的触发位置
@@ -393,10 +404,15 @@ TokenEstimator 通过 `TokenEstimatorRegistry` 创建。当前内置 `RegexToken
 ### 7.2 ContextPacker 的内部数据流
 
 ```text
-ContextPackRequest(question, RetrievedChunk[])
+EvidenceTransformRequest(question, RetrievedChunk[])
+  -> EvidenceTransformer.transform
+  -> 验证来源属于输入候选、排序不倒退、没有静默遗漏候选
+  -> EvidenceCandidate[]（每项保留 EvidenceSource 的原始字符范围）
+
+ContextPackRequest(question, EvidenceCandidate[])
   -> 计算 question_tokens
   -> 推导 available_context_tokens
-  -> 按 chunk_id 与规范化文本去重
+  -> 按 evidence_id 与规范化文本去重
   -> 按 doc_id + version_id 应用单文档配额
   -> 合并同文档、同版本、chunk_index 相邻的 chunk
   -> 逐段尝试放入 token 预算
@@ -431,9 +447,9 @@ PackedContext
   token_usage       本次预算使用明细
 ```
 
-当相邻 chunk 合并时，`ContextSegment.source_chunk_ids` 会保留所有来源；`Citation` 为兼容现有回答格式引用首个 chunk。后续回答级 Citation 校验应以 `ContextSegment` 的完整来源为准，而不是误以为合并段只来自首个 chunk。
+当相邻 chunk 合并时，`ContextSegment.source_chunk_ids` 与 `source_ranges` 会保留所有来源及原始字符范围；`Citation` 为兼容现有回答格式引用首个 chunk。后续回答级 Citation 校验应以 `ContextSegment` 的完整来源为准，而不是误以为合并段只来自首个 chunk。
 
-`RagPipeline` 会额外维护自己的 RAG trace，并在 `context_packing` stage 中记录已用/丢弃 chunk 数、citation 数、实际 context token 和可用 token。它同时保留 retrieval 子 trace id 与 retrieval report path，形成跨层诊断关联。
+`RagPipeline` 会额外维护自己的 RAG trace：`evidence_transformation` 记录 transformer、输入/输出数量、failure mode 与 degraded 状态；`context_packing` 记录已用/丢弃 chunk 数、citation 数、实际 context token 和可用 token。它同时保留 retrieval 子 trace id 与 retrieval report path，形成跨层诊断关联。检索 JSON 报告在证据变换之前写入，因此通过 `PostProcessingProfile` 记录该功能的配置快照，而不记录一次 `ask` 请求的实际变换结果。
 
 ## 8. API、CLI 与应用服务入口
 
@@ -478,6 +494,7 @@ RetrievalPipeline.search
 RagPipeline.ask
   -> RAG trace
        retrieval（携带 retrieval_trace_id 与 retrieval_report_path）
+       evidence_transformation
        context_packing
        generation
 
@@ -493,8 +510,9 @@ RetrievalComparisonPipeline.compare
 1. Registry 找不到策略、后处理配置非法：`INVALID_CONFIG`。
 2. 向量命中缺少对应 chunk、query 不合法、普通检索失败：`RETRIEVAL_FAILED`。
 3. rerank 在 `fail_closed` 下失败，或返回违反候选集合契约的数据：`RERANK_FAILED`。
-4. ContextPacker 或生成器异常由 `RagPipeline` 记录到自身 trace，并转换为带 trace id 的 `AppError`。
-5. `fail_open` 不是静默吞错：它会保留原排序，同时在 RerankStage 的 trace/report detail 中记录 `degraded=true` 与错误信息。
+4. evidence transformer 在 `fail_closed` 下失败，或返回违反来源、排序、覆盖契约的数据：`EVIDENCE_TRANSFORM_FAILED`。
+5. ContextPacker 或生成器异常由 `RagPipeline` 记录到自身 trace，并转换为带 trace id 的 `AppError`。
+6. `fail_open` 不是静默吞错：它会保留原排序或原始完整候选，并在对应 stage 的 trace/report detail 中记录 `degraded=true` 与错误信息。
 
 ## 10. 扩展时应遵守的接入位置
 
@@ -505,15 +523,16 @@ RetrievalComparisonPipeline.compare
 | 新 reranker | `rerankers/` + `RerankerRegistry` provider | `RerankStage` 的通用契约校验 |
 | 模型专用 token estimator | `token_estimators/` + Registry provider | ContextPacker 的预算流程 |
 | 新报告输出介质 | `reporting/` 中的 writer 或 reporter adapter | Pipeline 中的 JSON 细节 |
-| 新证据变换阶段 | 子模块 6 练习 2 的 `evidence_transformers/` 边界 | Retriever、AnswerGenerator |
+| 新证据变换阶段 | `context/evidence_transformers/` + `EvidenceTransformerRegistry` provider | Retriever、AnswerGenerator |
 
 新增策略时应保持以下不变量：
 
 1. 所有召回策略向 pipeline 返回统一的 `RetrievedChunk[]`。
 2. Reranker 只能重排完整候选集合，不能私自增加、删除或重复 chunk。
 3. `RetrievedChunk.score` 不被 rerank 覆盖；rerank 结果写入 `rerank_signal`。
-4. ContextPacker 对最终上下文保留完整 provenance，不能因合并或截断失去 source chunk 关系。
-5. Settings 只描述外部配置，Config 才是功能类接受的运行时对象；Factory 是两者之间的适配和组装边界。
+4. EvidenceTransformer 只能输出可追溯到原候选的文本，不能静默遗漏来源或产生无来源的新表述。
+5. ContextPacker 对最终上下文保留完整 provenance，不能因合并或截断失去 source chunk 与原始字符范围关系。
+6. Settings 只描述外部配置，Config 才是功能类接受的运行时对象；Factory 是两者之间的适配和组装边界。
 
 ## 11. 一次 `ask` 请求的完整压缩视图
 
@@ -528,6 +547,8 @@ RetrievalComparisonPipeline.compare
        -> RetrievedChunk 候选集合
        -> 去重 -> rerank（可选）-> top-k
        -> RetrievalPipelineResult + retrieval trace + retrieval report
+  -> EvidenceTransformStage
+       -> EvidenceCandidate（来源字符范围不丢失）
   -> TokenAwareContextPacker
        -> token 预算 -> 去重 -> 文档配额 -> 相邻合并 -> 截断
        -> PackedContext + citations + segments + dropped reasons
