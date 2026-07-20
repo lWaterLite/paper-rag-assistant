@@ -19,6 +19,7 @@ from app.indexing.embeddings import (
     EmbeddingClient,
     validate_embedding_vectors,
 )
+from app.indexing.integrity import validate_index_artifact_integrity
 from app.indexing.manifests import (
     BUILDING_INDEX_STATUS,
     FAILED_INDEX_STATUS,
@@ -219,6 +220,23 @@ class IndexBuilder:
                 status=READY_INDEX_STATUS,
                 chunk_count=latest_chunk_count,
                 vector_count=latest_vector_count,
+            )
+            integrity_started = time.perf_counter()
+            validate_index_artifact_integrity(
+                manifest=manifest,
+                vector_collection=self._vector_collection,
+                document_collection=self._document_collection,
+                chunk_collection=self._chunk_collection,
+            )
+            trace.record_stage(
+                "artifact_integrity",
+                "success",
+                integrity_started,
+                {
+                    "document_count": manifest.document_count,
+                    "chunk_count": manifest.chunk_count,
+                    "vector_count": manifest.vector_count,
+                },
             )
             manifest_path = self._write_manifest(manifest)
             self._record_manifest_stage(
