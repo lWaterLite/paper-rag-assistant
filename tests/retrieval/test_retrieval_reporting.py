@@ -90,7 +90,7 @@ def build_runtime_snapshot() -> RetrievalRuntimeSnapshot:
             embedding_provider="mock",
             embedding_model="mock-hash-embedding",
             embedding_dimension=16,
-            vector_repository_type="memory",
+            vector_repository_type="local_json",
             vector_collection_name="test",
             distance_metric="cosine",
         ),

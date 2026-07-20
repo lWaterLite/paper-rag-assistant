@@ -114,7 +114,12 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
     def test_same_builder_skips_chunks_already_in_vector_collection(self) -> None:
         env_settings = EnvSettings()
         client = CountingEmbeddingClient()
-        builder = create_index_builder(env_settings, ProjectSettings(), embedding_client=client)
+        builder = create_index_builder(
+            env_settings,
+            ProjectSettings(),
+            embedding_client=client,
+            embedding_cache=InMemoryEmbeddingCache(),
+        )
 
         _, first_result = builder.build_from_directory(Path("data/raw/papers"))
         index, second_result = builder.build_from_directory(Path("data/raw/papers"))
@@ -175,7 +180,6 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
                     type="local_json",
                     index_dir=index_dir,
                     collection_name="papers_test",
-                    persist=True,
                 ),
                 builder=IndexBuilderSettings(
                     manifest_filename="manifest.json",
@@ -228,7 +232,6 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
                     type="local_json",
                     index_dir=index_dir,
                     collection_name="papers_test",
-                    persist=True,
                 ),
                 builder=IndexBuilderSettings(
                     manifest_filename="manifest.json",

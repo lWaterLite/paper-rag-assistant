@@ -18,7 +18,7 @@ SAMPLE_SOURCE_DIR = Path("data/raw/papers")
 class RagPipelineTest(unittest.TestCase):
     """验证离线索引流程与在线问答流程。"""
 
-    def test_index_builder_builds_in_memory_index(self) -> None:
+    def test_index_builder_builds_runtime_vector_collection(self) -> None:
         env_settings = EnvSettings()
         project_settings = ProjectSettings()
         index, result = create_factory(env_settings, project_settings).build_index_builder().build_from_directory(SAMPLE_SOURCE_DIR)

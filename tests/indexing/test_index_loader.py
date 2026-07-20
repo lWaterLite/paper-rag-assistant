@@ -30,7 +30,6 @@ class IndexLoaderTest(unittest.TestCase):
                     type="local_json",
                     index_dir=index_dir,
                     collection_name="papers_test",
-                    persist=True,
                 )
             )
         )
@@ -64,7 +63,6 @@ class IndexLoaderTest(unittest.TestCase):
                     type="local_json",
                     index_dir=index_dir,
                     collection_name="papers_test",
-                    persist=True,
                 )
             )
         )
@@ -87,34 +85,6 @@ class IndexLoaderTest(unittest.TestCase):
             self.assertIn("向量数量", context.exception.message)
         finally:
             shutil.rmtree(index_dir, ignore_errors=True)
-
-    def test_build_rag_index_from_storage_rejects_memory_repository(self) -> None:
-        with self.assertRaises(AppError) as context:
-            ApplicationFactory(project_settings=ProjectSettings()).build_rag_index_from_storage()
-
-        self.assertEqual(context.exception.code, ErrorCode.INVALID_CONFIG)
-        self.assertIn("加载已有索引", context.exception.message)
-        self.assertIn("local_json", context.exception.message)
-
-    def test_build_rag_index_from_storage_rejects_non_persistent_local_json_repository(self) -> None:
-        project_settings = ProjectSettings(
-            indexing=IndexingSettings(
-                vector_repository=VectorRepositorySettings(
-                    type="local_json",
-                    index_dir=Path(".tmp_tests")
-                    / f"non_persistent_index_{uuid.uuid4().hex}",
-                    collection_name="papers_test",
-                    persist=False,
-                )
-            )
-        )
-
-        with self.assertRaises(AppError) as context:
-            ApplicationFactory(project_settings=project_settings).build_rag_index_from_storage()
-
-        self.assertEqual(context.exception.code, ErrorCode.INVALID_CONFIG)
-        self.assertIn("persist=true", context.exception.message)
-
 
 if __name__ == "__main__":
     unittest.main()

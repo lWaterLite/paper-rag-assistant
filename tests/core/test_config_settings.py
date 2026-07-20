@@ -150,7 +150,6 @@ type = "local_json"
 index_dir = ".tmp_tests/indexes"
 collection_name = "test_collection"
 distance_metric = "cosine"
-persist = true
 
 [indexing.builder]
 manifest_filename = "test_manifest.json"
@@ -228,7 +227,6 @@ fail_on_write_error = true
             self.assertEqual(project_settings.indexing.vector_repository.type, "local_json")
             self.assertEqual(project_settings.indexing.vector_repository.index_dir, Path(".tmp_tests/indexes"))
             self.assertEqual(project_settings.indexing.vector_repository.collection_name, "test_collection")
-            self.assertTrue(project_settings.indexing.vector_repository.persist)
             self.assertEqual(project_settings.indexing.builder.manifest_filename, "test_manifest.json")
             self.assertEqual(project_settings.indexing.builder.build_report_filename, "test_index_report.json")
             self.assertFalse(project_settings.indexing.builder.skip_existing)
@@ -335,6 +333,12 @@ fail_on_write_error = true
             VectorRepositorySettings(collection_name=" ")
 
         self.assertIn("collection_name", str(context.exception))
+
+    def test_vector_repository_settings_rejects_removed_memory_type(self) -> None:
+        with self.assertRaises(ValidationError) as context:
+            VectorRepositorySettings(type="memory")
+
+        self.assertIn("local_json", str(context.exception))
 
     def test_indexing_settings_rejects_blank_manifest_filename(self) -> None:
         with self.assertRaises(ValidationError) as context:
