@@ -86,5 +86,86 @@ class IndexLoaderTest(unittest.TestCase):
         finally:
             shutil.rmtree(index_dir, ignore_errors=True)
 
+    def test_build_rag_index_from_storage_rejects_vector_with_missing_chunk(self) -> None:
+        index_dir = Path(".tmp_tests") / f"orphan_vector_{uuid.uuid4().hex}"
+        try:
+            factory = _create_persistent_factory(index_dir)
+            factory.build_index_builder().build_from_directory(Path("data/raw/papers"))
+            vector_path = index_dir / "papers_test" / "vector_collection.json"
+            vector_data = json.loads(vector_path.read_text(encoding="utf-8"))
+            vector_data["records"][0]["chunk_id"] = "chunk_orphaned_by_test"
+            vector_path.write_text(
+                json.dumps(vector_data, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+
+            with self.assertRaises(AppError) as context:
+                factory.build_rag_index_from_storage()
+
+            self.assertEqual(context.exception.code, ErrorCode.INDEX_FAILED)
+            self.assertIn("不存在的 Chunk", context.exception.message)
+        finally:
+            shutil.rmtree(index_dir, ignore_errors=True)
+
+    def test_build_rag_index_from_storage_rejects_chunk_with_missing_document(self) -> None:
+        index_dir = Path(".tmp_tests") / f"orphan_chunk_{uuid.uuid4().hex}"
+        try:
+            factory = _create_persistent_factory(index_dir)
+            factory.build_index_builder().build_from_directory(Path("data/raw/papers"))
+            chunk_path = index_dir / "papers_test" / "chunk_collection.json"
+            chunk_data = json.loads(chunk_path.read_text(encoding="utf-8"))
+            chunk_data["chunks"][0]["doc_id"] = "document_orphaned_by_test"
+            chunk_path.write_text(
+                json.dumps(chunk_data, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+
+            with self.assertRaises(AppError) as context:
+                factory.build_rag_index_from_storage()
+
+            self.assertEqual(context.exception.code, ErrorCode.INDEX_FAILED)
+            self.assertIn("不存在的解析文档", context.exception.message)
+        finally:
+            shutil.rmtree(index_dir, ignore_errors=True)
+
+    def test_build_rag_index_from_storage_rejects_document_version_drift(self) -> None:
+        index_dir = Path(".tmp_tests") / f"document_version_drift_{uuid.uuid4().hex}"
+        try:
+            factory = _create_persistent_factory(index_dir)
+            factory.build_index_builder().build_from_directory(Path("data/raw/papers"))
+            document_path = index_dir / "papers_test" / "document_collection.json"
+            document_data = json.loads(document_path.read_text(encoding="utf-8"))
+            document_data["raw_documents"][0]["version_id"] = "version_drifted_by_test"
+            document_path.write_text(
+                json.dumps(document_data, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+
+            with self.assertRaises(AppError) as context:
+                factory.build_rag_index_from_storage()
+
+            self.assertEqual(context.exception.code, ErrorCode.INDEX_FAILED)
+            self.assertIn("原始文档版本映射", context.exception.message)
+        finally:
+            shutil.rmtree(index_dir, ignore_errors=True)
+
+
+def _create_persistent_factory(index_dir: Path) -> ApplicationFactory:
+    """为单个测试创建隔离的本地 JSON 索引工厂。"""
+
+    project_settings = ProjectSettings(
+        indexing=IndexingSettings(
+            vector_repository=VectorRepositorySettings(
+                type="local_json",
+                index_dir=index_dir,
+                collection_name="papers_test",
+            )
+        )
+    )
+    return ApplicationFactory(
+        env_settings=EnvSettings(),
+        project_settings=project_settings,
+    )
+
 if __name__ == "__main__":
     unittest.main()

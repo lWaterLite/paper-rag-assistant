@@ -216,6 +216,7 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
             self.assertEqual(build_report["index_id"], result.manifest.index_id)
             self.assertEqual(build_report["vector_count"], result.vector_count)
             self.assertEqual(result.trace.stages[1].stage, "manifest_building")
+            self.assertIsNotNone(_find_trace_stage(result, "artifact_integrity"))
             self.assertEqual(result.trace.stages[-1].stage, "manifest_ready")
         finally:
             shutil.rmtree(index_dir, ignore_errors=True)
