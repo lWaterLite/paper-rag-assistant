@@ -48,7 +48,7 @@
 9. `app/factory/`
    - 项目的 composition root。
    - 把 `ProjectSettings` 转换成各功能类接收的 `Config`。
-   - 根据配置选择 mock/openai、memory/local_json 等实现。
+   - 根据配置选择 mock/openai embedding，并通过 Registry 创建 `local_json` 向量 Repository。
 10. `app/core/settings.py`
    - 增加 `EmbeddingSettings`、`VectorRepositorySettings`、`IndexBuilderSettings`。
 11. `settings.toml`
@@ -117,7 +117,6 @@ type = "local_json"
 index_dir = "data/indexes"
 collection_name = "papers_baseline"
 distance_metric = "cosine"
-persist = true
 
 [indexing.builder]
 manifest_filename = "manifest.json"
@@ -150,7 +149,6 @@ type
 index_dir
 collection_name
 distance_metric
-persist
 ```
 
 `VectorRepositoryConfig` 则提供运行时需要的路径推导：
@@ -175,9 +173,9 @@ data/indexes/papers_baseline/
   index_build_report.json
 ```
 
-### 为什么类默认值是 memory，但 settings.toml 是 local_json
+### 为什么默认值也是 local_json
 
-`ProjectSettings()` 的类默认值使用内存模式，主要是为了单元测试和无配置场景不污染真实 `data/indexes`。
+向量索引的运行时数据由 `InMemoryVectorCollection` 管理；只要需要跨进程复用，持久化边界就必须是 Repository。因此 `VectorRepositorySettings` 的默认值与 `settings.toml` 一样，均为 `local_json`。
 
 真实项目运行时会调用：
 
@@ -229,7 +227,6 @@ repository_type
 index_dir
 collection_name
 distance_metric
-persist
 ```
 
 它额外提供三个路径属性：
@@ -851,29 +848,11 @@ ChunkCollection / DocumentCollection
 4. `LocalJsonVectorRepository`、`LocalJsonChunkRepository`、`LocalJsonDocumentRepository` 分别负责持久化。
 5. 检索时先查 vector collection，再根据 `chunk_id` 从 chunk collection 补全内容。
 
-### 为什么 manifest 和 build report 只有 persist=true 才写文件
+### 为什么 manifest 和 build report 始终写入索引目录
 
-`ProjectSettings()` 默认用于测试，应该尽量无副作用。
+`VectorCollection` 只负责进程内向量管理，`VectorRepository` 则是持久化边界。一次成功的索引构建必须同时写入向量、文档、Chunk、Manifest 与构建报告，才能成为可恢复的索引版本。
 
-所以：
-
-```text
-ProjectSettings()
-  -> memory vector collection
-  -> persist=false
-  -> 不写 index manifest/report 到 data/indexes
-```
-
-真实运行时：
-
-```text
-ProjectSettings.from_toml()
-  -> local_json vector repository
-  -> persist=true
-  -> 写 manifest/report
-```
-
-这样测试不会污染项目数据目录，真实命令又能产生完整索引产物。
+测试应显式提供临时 `index_dir`，而不是依赖不存在的 memory Repository 或关闭持久化来规避文件输出。
 
 ## 练习 1：实现索引加载入口
 
@@ -1165,7 +1144,7 @@ index_build_report.json
 
 1. 用 mock embedding 跑通索引构建，不依赖外部服务。
 2. 通过配置切换 embedding provider。
-3. 通过配置选择 memory 或 local_json vector repository。
+3. 通过配置和 Registry 创建可替换的向量 Repository；当前内置 `local_json` 实现。
 4. 索引构建能复用 embedding cache。
 5. 重复构建不会无意义重复写入同一批 chunk。
 6. manifest 能说明索引由哪些配置生成。
