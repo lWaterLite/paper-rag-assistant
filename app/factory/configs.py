@@ -11,7 +11,7 @@ from app.indexing.configuration import (
     VectorRepositoryConfig,
 )
 from app.ingest.chunking.strategies import ChunkerConfig
-from app.ingest.loading import LocalDocumentLoaderConfig
+from app.ingest.loading import DocumentSourceAccessConfig, LocalDocumentLoaderConfig
 from app.ingest.parsing import PdfTextCleanerConfig
 from app.ingest.reporting import ChunkingReportConfig, IngestionReportConfig
 from app.pipeline import RagPipelineConfig
@@ -51,6 +51,13 @@ class ConfigFactory:
             skip_hidden_paths=settings.skip_hidden_paths,
             temporary_file_prefixes=settings.temporary_file_prefixes,
             temporary_file_suffixes=settings.temporary_file_suffixes,
+        )
+
+    def build_document_source_access_config(self) -> DocumentSourceAccessConfig:
+        """从结构化 ProjectSettings 转换成受限导入入口的目录访问配置。"""
+
+        return DocumentSourceAccessConfig(
+            allowed_source_dirs=self.project_settings.ingestion.access.allowed_source_dirs
         )
 
     def build_pdf_text_cleaner_config(self) -> PdfTextCleanerConfig:

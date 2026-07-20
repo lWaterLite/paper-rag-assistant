@@ -7,7 +7,11 @@ from dataclasses import dataclass, field
 from app.factory.configs import ConfigFactory
 from app.ingest.chunking.registry import ChunkerRegistry, build_default_chunker_registry
 from app.ingest.chunking.strategies import Chunker
-from app.ingest.loading import DocumentIdentityBuilder, LocalDocumentLoader
+from app.ingest.loading import (
+    DocumentIdentityBuilder,
+    DocumentSourceAccessService,
+    LocalDocumentLoader,
+)
 from app.ingest.parsing import (
     BasicTextCleaner,
     HtmlDocumentParser,
@@ -70,6 +74,13 @@ class IngestionFactory:
         """创建文档身份生成器。"""
 
         return DocumentIdentityBuilder()
+
+    def build_document_source_access_service(self) -> DocumentSourceAccessService:
+        """创建 API 等受限入口使用的文档目录访问服务。"""
+
+        return DocumentSourceAccessService(
+            config=self.configs.build_document_source_access_config()
+        )
 
     def build_local_document_loader(self) -> LocalDocumentLoader:
         """创建完整 ingestion 使用的本地文档 loader。"""

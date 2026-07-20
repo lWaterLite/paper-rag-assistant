@@ -18,7 +18,11 @@ class DocumentIngestRequest(ApiModel):
     @field_validator("source_dir")
     @classmethod
     def validate_source_dir(cls, value: str) -> str:
-        """文档目录不能为空白字符串。"""
+        """文档目录不能为空白字符串。
+
+        允许目录白名单依赖运行时 Settings，应由 DocumentSourceAccessService 在
+        应用服务层校验，而不是由静态 API 契约直接访问文件系统。
+        """
 
         return ensure_not_blank(value, "source_dir")
 

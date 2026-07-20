@@ -20,6 +20,9 @@ skip_hidden_paths = true
 temporary_file_prefixes = ["~$"]
 temporary_file_suffixes = [".tmp", ".part", ".crdownload"]
 
+[ingestion.access]
+allowed_source_dirs = ["data/raw"]
+
 [ingestion.cleaning.pdf]
 edge_line_count = 2
 min_repeat_ratio = 0.6

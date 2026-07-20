@@ -77,6 +77,29 @@ class LoaderSettings(BaseModel):
     temporary_file_suffixes: tuple[str, ...] = (".tmp", ".part", ".crdownload")
 
 
+class DocumentSourceAccessSettings(BaseModel):
+    """文档导入入口允许访问的本地目录。"""
+
+    allowed_source_dirs: tuple[Path, ...] = Field(
+        default=(Path("data/raw"),),
+        min_length=1,
+        description="API 或其他受限入口允许导入的文档根目录",
+    )
+
+    @field_validator("allowed_source_dirs", mode="before")
+    @classmethod
+    def validate_allowed_source_dirs(cls, value: object) -> object:
+        """拒绝空白目录项，避免它被 Path 转换为当前工作目录。"""
+
+        if not isinstance(value, (list, tuple)):
+            return value
+        if not value:
+            raise ValueError("allowed_source_dirs 至少需要一个目录")
+        if any(not str(item).strip() for item in value):
+            raise ValueError("allowed_source_dirs 不能包含空白目录")
+        return value
+
+
 class PdfCleanerSettings(BaseModel):
     """PDF 文本清洗器的结构化配置。"""
 
@@ -442,6 +465,9 @@ class IngestionSettings(BaseModel):
     """文档加载、清洗、切分与摄取报告配置。"""
 
     loader: LoaderSettings = Field(default_factory=LoaderSettings)
+    access: DocumentSourceAccessSettings = Field(
+        default_factory=DocumentSourceAccessSettings
+    )
     cleaning: CleaningSettings = Field(default_factory=CleaningSettings)
     chunking: ChunkingSettings = Field(default_factory=ChunkingSettings)
     report: IngestionReportSettings = Field(default_factory=IngestionReportSettings)

@@ -20,6 +20,7 @@ from app.core.settings import (
     ChunkingReportSettings,
     ChunkingSettings,
     ContextPackingSettings,
+    DocumentSourceAccessSettings,
     EmbeddingSettings,
     EvidenceTransformationSettings,
     EnvSettings,
@@ -119,6 +120,9 @@ recursive = false
 ignored_dir_names = [".git", "__pycache__"]
 temporary_file_suffixes = [".tmp"]
 
+[ingestion.access]
+allowed_source_dirs = [".tmp_tests/source-a", ".tmp_tests/source-b"]
+
 [ingestion.cleaning.pdf]
 edge_line_count = 3
 min_repeat_ratio = 0.75
@@ -213,6 +217,10 @@ fail_on_write_error = true
             self.assertFalse(project_settings.ingestion.loader.recursive)
             self.assertEqual(project_settings.ingestion.loader.ignored_dir_names, frozenset({".git", "__pycache__"}))
             self.assertEqual(project_settings.ingestion.loader.temporary_file_suffixes, (".tmp",))
+            self.assertEqual(
+                project_settings.ingestion.access.allowed_source_dirs,
+                (Path(".tmp_tests/source-a"), Path(".tmp_tests/source-b")),
+            )
             self.assertEqual(project_settings.ingestion.cleaning.pdf.edge_line_count, 3)
             self.assertEqual(project_settings.ingestion.cleaning.pdf.min_repeat_ratio, 0.75)
             self.assertEqual(project_settings.ingestion.cleaning.pdf.max_line_length, 80)
@@ -327,6 +335,12 @@ fail_on_write_error = true
         settings = VectorRepositorySettings(collection_name=" papers ")
 
         self.assertEqual(settings.collection_name, "papers")
+
+    def test_document_source_access_settings_rejects_blank_root(self) -> None:
+        with self.assertRaises(ValidationError) as context:
+            DocumentSourceAccessSettings(allowed_source_dirs=[" "])
+
+        self.assertIn("allowed_source_dirs", str(context.exception))
 
     def test_vector_repository_settings_rejects_blank_collection_name(self) -> None:
         with self.assertRaises(ValidationError) as context:

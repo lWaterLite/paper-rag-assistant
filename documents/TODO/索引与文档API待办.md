@@ -36,7 +36,8 @@
 ### 1. Documents Handler
 
 - 放置位置：`app/api/handlers/documents.py`
-- 依赖注入 `IndexBuildService` 与 `DocumentCatalogService`。
+- 依赖注入 `IndexBuildService`、`DocumentCatalogService` 与 `DocumentSourceAccessService`。
+- 处理导入请求时，先用 `DocumentSourceAccessService.resolve_directory()` 解析并授权 `source_dir`，再把返回的规范化目录转换为索引构建命令；Handler 不直接访问文件系统。
 - 仅负责把 API Request 转换为应用命令、调用 Service、交给 Presenter 返回 Response。
 - 不在 Handler 内构造 Builder、Loader、Repository 或 Factory。
 
