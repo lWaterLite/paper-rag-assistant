@@ -111,7 +111,6 @@ class ConfigFactory:
             index_dir=settings.index_dir,
             collection_name=settings.collection_name,
             distance_metric=settings.distance_metric,
-            persist=settings.persist,
         )
 
     def build_index_builder_config(self) -> IndexBuilderConfig:

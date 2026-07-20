@@ -1,46 +1,6 @@
-"""索引构建、索引恢复与索引运行时组件。"""
+"""索引构建、索引恢复与索引运行时软件包。
 
-from app.indexing.collections import (
-    InMemoryVectorCollection,
-    VectorCollection,
-    VectorRecord,
-    VectorSearchResult,
-)
-from app.indexing.configuration import (
-    EmbeddingConfig,
-    IndexBuilderConfig,
-    VectorRepositoryConfig,
-)
-from app.indexing.embeddings import (
-    EmbeddingCache,
-    EmbeddingClient,
-    EmbeddingClientRegistry,
-    FileEmbeddingCache,
-    InMemoryEmbeddingCache,
-    build_default_embedding_client_registry,
-)
-from app.indexing.manifests import IndexManifest
-from app.indexing.pipeline import IndexBuildResult, IndexBuilder, IndexLoader, RagIndex
-from app.indexing.reporting import IndexBuildReportWriter
-
-__all__ = [
-    "EmbeddingCache",
-    "EmbeddingClient",
-    "EmbeddingClientRegistry",
-    "EmbeddingConfig",
-    "FileEmbeddingCache",
-    "InMemoryEmbeddingCache",
-    "InMemoryVectorCollection",
-    "IndexBuildReportWriter",
-    "IndexBuildResult",
-    "IndexBuilder",
-    "IndexBuilderConfig",
-    "IndexLoader",
-    "IndexManifest",
-    "RagIndex",
-    "VectorCollection",
-    "VectorRecord",
-    "VectorRepositoryConfig",
-    "VectorSearchResult",
-    "build_default_embedding_client_registry",
-]
+调用方应从具体职责子包导入对象，例如 `app.indexing.pipeline` 或
+`app.indexing.collections`。本包不聚合导出实现，避免导入 Collection 或
+Repository 时触发 Builder、Manifest 等无关模块的初始化。
+"""

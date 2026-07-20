@@ -31,6 +31,16 @@ from app.retrieval.context.evidence_transformers import EvidenceTransformerRegis
 from app.retrieval.context.evidence_transformers import (
     build_default_evidence_transformer_registry,
 )
+from app.repositories.registries import (
+    ChunkRepositoryRegistry,
+    DocumentRepositoryRegistry,
+    ManifestRepositoryRegistry,
+    VectorRepositoryRegistry,
+    build_default_chunk_repository_registry,
+    build_default_document_repository_registry,
+    build_default_manifest_repository_registry,
+    build_default_vector_repository_registry,
+)
 
 
 @dataclass(slots=True)
@@ -49,6 +59,10 @@ class ApplicationFactory:
     token_estimator_registry: TokenEstimatorRegistry | None = None
     evidence_transformer_registry: EvidenceTransformerRegistry | None = None
     embedding_registry: EmbeddingClientRegistry | None = None
+    vector_repository_registry: VectorRepositoryRegistry | None = None
+    document_repository_registry: DocumentRepositoryRegistry | None = None
+    chunk_repository_registry: ChunkRepositoryRegistry | None = None
+    manifest_repository_registry: ManifestRepositoryRegistry | None = None
     configs: ConfigFactory = field(init=False)
     ingestion: IngestionFactory = field(init=False)
     indexing: IndexingFactory = field(init=False)
@@ -75,6 +89,26 @@ class ApplicationFactory:
                 self.embedding_registry
                 if self.embedding_registry is not None
                 else build_default_embedding_client_registry()
+            ),
+            vector_repository_registry=(
+                self.vector_repository_registry
+                if self.vector_repository_registry is not None
+                else build_default_vector_repository_registry()
+            ),
+            document_repository_registry=(
+                self.document_repository_registry
+                if self.document_repository_registry is not None
+                else build_default_document_repository_registry()
+            ),
+            chunk_repository_registry=(
+                self.chunk_repository_registry
+                if self.chunk_repository_registry is not None
+                else build_default_chunk_repository_registry()
+            ),
+            manifest_repository_registry=(
+                self.manifest_repository_registry
+                if self.manifest_repository_registry is not None
+                else build_default_manifest_repository_registry()
             ),
         )
         self.retrieval = RetrievalFactory(

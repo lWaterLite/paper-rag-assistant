@@ -9,7 +9,7 @@ from app.indexing.manifests.compatibility import validate_manifest_compatible
 from app.indexing.pipeline.types import RagIndex
 from app.repositories.chunk_repository import ChunkRepository
 from app.repositories.document_repository import DocumentRepository
-from app.repositories.index_manifest_repository import IndexManifestRepository
+from app.repositories.index_manifest_repository import ManifestRepository
 from app.repositories.vector_repository import VectorRepository
 
 
@@ -25,7 +25,7 @@ class IndexLoader:
         vector_repository: VectorRepository,
         document_repository: DocumentRepository,
         chunk_repository: ChunkRepository,
-        manifest_repository: IndexManifestRepository,
+        manifest_repository: ManifestRepository,
     ) -> None:
         self._embedding_config = embedding_config
         self._vector_repository_config = vector_repository_config
@@ -38,7 +38,6 @@ class IndexLoader:
     def load(self) -> RagIndex:
         """加载索引产物，校验兼容性后构造运行时索引。"""
 
-        self._validate_loadable_configuration()
         vector_collection = self._vector_repository.load()
         manifest = self._manifest_repository.read()
         self._validate_loaded_artifacts(manifest=manifest, vector_collection=vector_collection)
@@ -49,17 +48,6 @@ class IndexLoader:
             embedding_client=self._embedding_client,
             manifest=manifest,
         )
-
-    def _validate_loadable_configuration(self) -> None:
-        """确认当前配置确实指向可恢复的持久化索引。"""
-
-        config = self._vector_repository_config
-        if config.repository_type != "local_json" or not config.persist:
-            raise AppError(
-                ErrorCode.INVALID_CONFIG,
-                "加载已有索引要求 vector_repository.type='local_json' 且 persist=true；"
-                "memory 或未持久化配置没有可恢复的索引产物",
-            )
 
     def _validate_loaded_artifacts(self, *, manifest, vector_collection) -> None:
         """校验 Manifest 与已加载向量集合是否一致。"""

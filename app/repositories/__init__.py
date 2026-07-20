@@ -1,22 +1,6 @@
-"""持久化 Repository 实现。"""
+"""持久化 Repository 软件包。
 
-from app.repositories.chunk_repository import ChunkRepository, LocalJsonChunkRepository
-from app.repositories.document_repository import (
-    DocumentRepository,
-    LocalJsonDocumentRepository,
-)
-from app.repositories.index_manifest_repository import IndexManifestRepository
-from app.repositories.vector_repository import (
-    LocalJsonVectorRepository,
-    VectorRepository,
-)
-
-__all__ = [
-    "ChunkRepository",
-    "DocumentRepository",
-    "IndexManifestRepository",
-    "LocalJsonChunkRepository",
-    "LocalJsonDocumentRepository",
-    "LocalJsonVectorRepository",
-    "VectorRepository",
-]
+Repository 实现必须从具体模块导入，例如
+`app.repositories.vector_repository`。本包不聚合导出实现，避免持久化层在
+导入阶段反向初始化 indexing、manifest 等业务模块。
+"""

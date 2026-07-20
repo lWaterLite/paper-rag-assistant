@@ -12,7 +12,6 @@ from app.indexing.embeddings import (
     EmbeddingClient,
     EmbeddingClientRegistry,
     FileEmbeddingCache,
-    InMemoryEmbeddingCache,
     build_default_embedding_client_registry,
 )
 from app.indexing.pipeline import IndexBuilder, IndexLoader, RagIndex
@@ -22,16 +21,20 @@ from app.ingest.collections import (
     DocumentCollection,
     InMemoryDocumentCollection,
 )
-from app.repositories.chunk_repository import ChunkRepository, LocalJsonChunkRepository
-from app.repositories.document_repository import (
-    DocumentRepository,
-    LocalJsonDocumentRepository,
+from app.repositories.chunk_repository import ChunkRepository
+from app.repositories.document_repository import DocumentRepository
+from app.repositories.index_manifest_repository import ManifestRepository
+from app.repositories.registries import (
+    ChunkRepositoryRegistry,
+    DocumentRepositoryRegistry,
+    ManifestRepositoryRegistry,
+    VectorRepositoryRegistry,
+    build_default_chunk_repository_registry,
+    build_default_document_repository_registry,
+    build_default_manifest_repository_registry,
+    build_default_vector_repository_registry,
 )
-from app.repositories.index_manifest_repository import IndexManifestRepository
-from app.repositories.vector_repository import (
-    LocalJsonVectorRepository,
-    VectorRepository,
-)
+from app.repositories.vector_repository import VectorRepository
 
 
 @dataclass(slots=True)
@@ -42,6 +45,18 @@ class IndexingFactory:
     ingestion: IngestionFactory
     embedding_registry: EmbeddingClientRegistry = field(
         default_factory=build_default_embedding_client_registry
+    )
+    vector_repository_registry: VectorRepositoryRegistry = field(
+        default_factory=build_default_vector_repository_registry
+    )
+    document_repository_registry: DocumentRepositoryRegistry = field(
+        default_factory=build_default_document_repository_registry
+    )
+    chunk_repository_registry: ChunkRepositoryRegistry = field(
+        default_factory=build_default_chunk_repository_registry
+    )
+    manifest_repository_registry: ManifestRepositoryRegistry = field(
+        default_factory=build_default_manifest_repository_registry
     )
     embedding_cache: EmbeddingCache | None = None
 
@@ -61,12 +76,7 @@ class IndexingFactory:
             return self.embedding_cache
 
         vector_repository_config = self.configs.build_vector_repository_config()
-        if (
-            vector_repository_config.repository_type == "local_json"
-            and vector_repository_config.persist
-        ):
-            return FileEmbeddingCache(vector_repository_config.embedding_cache_path)
-        return InMemoryEmbeddingCache()
+        return FileEmbeddingCache(vector_repository_config.embedding_cache_path)
 
     @staticmethod
     def _build_vector_collection() -> VectorCollection:
@@ -78,9 +88,10 @@ class IndexingFactory:
         """根据配置创建向量集合持久化 Repository。"""
 
         config = self.configs.build_vector_repository_config()
-        if config.repository_type in {"memory", "local_json"}:
-            return LocalJsonVectorRepository(config.vector_collection_path)
-        raise ValueError(f"不支持的 vector repository 类型：{config.repository_type}")
+        return self.vector_repository_registry.create(
+            config.repository_type,
+            path=config.vector_collection_path,
+        )
 
     @staticmethod
     def _build_document_collection() -> DocumentCollection:
@@ -98,13 +109,29 @@ class IndexingFactory:
         """根据配置创建文档集合持久化 Repository。"""
 
         config = self.configs.build_vector_repository_config()
-        return LocalJsonDocumentRepository(config.document_collection_path)
+        return self.document_repository_registry.create(
+            config.repository_type,
+            path=config.document_collection_path,
+        )
 
     def _build_chunk_repository(self) -> ChunkRepository:
         """根据配置创建 chunk 集合持久化 Repository。"""
 
         config = self.configs.build_vector_repository_config()
-        return LocalJsonChunkRepository(config.chunk_collection_path)
+        return self.chunk_repository_registry.create(
+            config.repository_type,
+            path=config.chunk_collection_path,
+        )
+
+    def _build_manifest_repository(self) -> ManifestRepository:
+        """根据配置创建索引 Manifest 持久化 Repository。"""
+
+        vector_repository_config = self.configs.build_vector_repository_config()
+        return self.manifest_repository_registry.create(
+            vector_repository_config.repository_type,
+            index_dir=vector_repository_config.collection_dir,
+            config=self.configs.build_index_builder_config(),
+        )
 
     def build_index_builder(
         self,
@@ -129,9 +156,7 @@ class IndexingFactory:
             vector_repository=self._build_vector_repository(),
             document_repository=self._build_document_repository(),
             chunk_repository=self._build_chunk_repository(),
-            manifest_repository=IndexManifestRepository(
-                vector_repository_config.collection_dir, index_builder_config
-            ),
+            manifest_repository=self._build_manifest_repository(),
             build_report_writer=IndexBuildReportWriter(),
             ingestion_report_writer=ingestion_dependencies.ingestion_report_writer,
             ingestion_report_config=ingestion_dependencies.ingestion_report_config,
@@ -144,7 +169,6 @@ class IndexingFactory:
 
         embedding_config = self.configs.build_embedding_config()
         vector_repository_config = self.configs.build_vector_repository_config()
-        index_builder_config = self.configs.build_index_builder_config()
         loader = IndexLoader(
             embedding_config=embedding_config,
             vector_repository_config=vector_repository_config,
@@ -152,9 +176,6 @@ class IndexingFactory:
             vector_repository=self._build_vector_repository(),
             document_repository=self._build_document_repository(),
             chunk_repository=self._build_chunk_repository(),
-            manifest_repository=IndexManifestRepository(
-                vector_repository_config.collection_dir,
-                index_builder_config,
-            ),
+            manifest_repository=self._build_manifest_repository(),
         )
         return loader.load()

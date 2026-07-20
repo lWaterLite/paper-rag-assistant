@@ -41,7 +41,7 @@ from app.ingest.models import RawDocument
 from app.ingest.pipeline import IngestionPipeline
 from app.repositories.chunk_repository import ChunkRepository
 from app.repositories.document_repository import DocumentRepository
-from app.repositories.index_manifest_repository import IndexManifestRepository
+from app.repositories.index_manifest_repository import ManifestRepository
 from app.repositories.vector_repository import VectorRepository
 
 from app.indexing.pipeline.types import IndexBuildResult, RagIndex
@@ -66,7 +66,7 @@ class IndexBuilder:
         vector_repository: VectorRepository,
         document_repository: DocumentRepository,
         chunk_repository: ChunkRepository,
-        manifest_repository: IndexManifestRepository,
+        manifest_repository: ManifestRepository,
         build_report_writer: IndexBuildReportWriter,
         ingestion_report_writer: IngestionReportWriter,
         ingestion_report_config: IngestionReportConfig,
@@ -137,9 +137,7 @@ class IndexBuilder:
                 vector_count=0,
                 status=BUILDING_INDEX_STATUS,
             )
-            building_manifest_path = self._write_manifest_if_persistent(
-                building_manifest
-            )
+            building_manifest_path = self._write_manifest(building_manifest)
             self._record_manifest_stage(
                 trace=trace,
                 stage="manifest_building",
@@ -198,11 +196,10 @@ class IndexBuilder:
             for chunk, vector in zip(chunks_to_index, vectors, strict=True):
                 self._vector_collection.add(_build_vector_record(chunk, vector))
             latest_vector_count = self._vector_collection.count()
-            if self._vector_repository_config.persist:
-                self._embedding_cache.persist()
-                self._vector_repository.save(self._vector_collection)
-                self._document_repository.save(self._document_collection)
-                self._chunk_repository.save(self._chunk_collection)
+            self._embedding_cache.persist()
+            self._vector_repository.save(self._vector_collection)
+            self._document_repository.save(self._document_collection)
+            self._chunk_repository.save(self._chunk_collection)
             trace.record_stage(
                 "indexing",
                 "success",
@@ -223,7 +220,7 @@ class IndexBuilder:
                 chunk_count=latest_chunk_count,
                 vector_count=latest_vector_count,
             )
-            manifest_path = self._write_manifest_if_persistent(manifest)
+            manifest_path = self._write_manifest(manifest)
             self._record_manifest_stage(
                 trace=trace,
                 stage="manifest_ready",
@@ -255,11 +252,7 @@ class IndexBuilder:
                 chunking_report_path=chunking_report_path,
                 manifest_path=manifest_path,
             )
-            build_report_path = (
-                self._write_build_report(result)
-                if self._vector_repository_config.persist
-                else None
-            )
+            build_report_path = self._write_build_report(result)
             result = replace(result, build_report_path=build_report_path)
             return index, result
         except Exception as exc:
@@ -275,10 +268,7 @@ class IndexBuilder:
     def _prepare_output_directories(self) -> None:
         """准备索引构建会写入的目录。"""
 
-        if self._vector_repository_config.persist:
-            self._vector_repository_config.collection_dir.mkdir(
-                parents=True, exist_ok=True
-            )
+        self._vector_repository_config.collection_dir.mkdir(parents=True, exist_ok=True)
         self._ingestion_report_config.output_path.parent.mkdir(
             parents=True, exist_ok=True
         )
@@ -344,11 +334,9 @@ class IndexBuilder:
             status=status,
         )
 
-    def _write_manifest_if_persistent(self, manifest: IndexManifest) -> Path | None:
-        """在启用持久化时写入 manifest。"""
+    def _write_manifest(self, manifest: IndexManifest) -> Path:
+        """写入当前索引构建状态的 Manifest。"""
 
-        if not self._vector_repository_config.persist:
-            return None
         return self._manifest_repository.write(manifest)
 
     def _record_manifest_stage(
@@ -390,7 +378,7 @@ class IndexBuilder:
         失败状态写入不能掩盖原始异常，所以这里会吞掉写 failed manifest 时的异常。
         """
 
-        if building_manifest is None or not self._vector_repository_config.persist:
+        if building_manifest is None:
             return
         failed_manifest = replace(
             building_manifest,

@@ -61,7 +61,7 @@ class IndexManifest:
         vector_count: int,
         document_versions: dict[str, str],
         embedding_batch_size: int = 1,
-        vector_repository_type: str = "memory",
+        vector_repository_type: str = "local_json",
         vector_collection_name: str = "default",
         distance_metric: str = "cosine",
         parent_index_id: str | None = None,
