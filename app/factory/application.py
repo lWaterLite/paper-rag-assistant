@@ -21,6 +21,7 @@ from app.pipeline import RagPipeline
 from app.retrieval.context import ContextPacker
 from app.retrieval.retrievers import Retriever, RetrieverRegistry
 from app.retrieval.services.search import CompareSearchService, SearchService
+from app.runtime.application import ApplicationRuntime
 from app.retrieval.tokenizers import TokenizerRegistry, build_default_tokenizer_registry
 from app.retrieval.rerankers import RerankerRegistry
 from app.retrieval.context.token_estimators import (
@@ -143,6 +144,20 @@ class ApplicationFactory:
         """从已有持久化索引加载在线 RAG 索引。"""
 
         return self.indexing.build_rag_index_from_storage()
+
+    def build_runtime(
+        self,
+        *,
+        retriever_registry: RetrieverRegistry | None = None,
+        answer_generator: AnswerGenerator | None = None,
+    ) -> ApplicationRuntime:
+        """创建管理在线索引与服务复用的 Application Runtime。"""
+
+        return ApplicationRuntime(
+            factory=self,
+            retriever_registry=retriever_registry,
+            answer_generator=answer_generator,
+        )
 
     def build_search_service(
         self,
