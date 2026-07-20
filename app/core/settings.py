@@ -177,8 +177,8 @@ class EmbeddingSettings(BaseModel):
 class VectorRepositorySettings(BaseModel):
     """向量持久化的结构化配置。"""
 
-    type: Literal["memory", "local_json"] = Field(
-        default="memory", description="向量存储类型"
+    type: Literal["local_json"] = Field(
+        default="local_json", description="向量持久化 Repository 类型"
     )
     index_dir: Path = Field(default=Path("data/indexes"), description="索引根目录")
     collection_name: str = Field(
@@ -187,8 +187,6 @@ class VectorRepositorySettings(BaseModel):
     distance_metric: Literal["cosine"] = Field(
         default="cosine", description="向量相似度算法"
     )
-    persist: bool = Field(default=False, description="是否持久化向量索引")
-
     @model_validator(mode="after")
     def validate_collection_name(self) -> "VectorRepositorySettings":
         """清理并校验 collection 名称。"""

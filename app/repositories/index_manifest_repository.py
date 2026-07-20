@@ -4,9 +4,35 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Protocol
 
 from app.indexing.configuration import IndexBuilderConfig
 from app.indexing.manifests import IndexManifest
+
+
+class ManifestRepository(Protocol):
+    """索引 Manifest 的持久化协议。"""
+
+    @property
+    def manifest_path(self) -> Path:
+        """manifest 文件路径。"""
+
+        ...
+
+    def write(self, manifest: IndexManifest) -> Path:
+        """写入 manifest 并返回文件路径。"""
+
+        ...
+
+    def read(self) -> IndexManifest:
+        """读取 manifest。"""
+
+        ...
+
+    def exists(self) -> bool:
+        """判断 manifest 是否存在。"""
+
+        ...
 
 
 class IndexManifestRepository:

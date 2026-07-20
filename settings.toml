@@ -56,7 +56,6 @@ type = "local_json"
 index_dir = "data/indexes"
 collection_name = "papers_baseline"
 distance_metric = "cosine"
-persist = true
 
 [indexing.builder]
 manifest_filename = "manifest.json"

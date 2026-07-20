@@ -12,7 +12,7 @@ from typing import Literal
 
 
 EmbeddingProvider = str
-VectorRepositoryType = Literal["memory", "local_json"]
+VectorRepositoryType = Literal["local_json"]
 DistanceMetric = Literal["cosine"]
 
 
@@ -46,13 +46,16 @@ class EmbeddingConfig:
 class VectorRepositoryConfig:
     """向量持久化运行时配置。"""
 
-    repository_type: VectorRepositoryType = "memory"
+    repository_type: VectorRepositoryType = "local_json"
     index_dir: Path = Path("data/indexes")
     collection_name: str = "papers_baseline"
     distance_metric: DistanceMetric = "cosine"
-    persist: bool = False
-
     def __post_init__(self) -> None:
+        if self.repository_type != "local_json":
+            raise ValueError(
+                "当前仅支持 local_json 向量 Repository；"
+                "运行时向量请使用 VectorCollection 管理"
+            )
         if not self.collection_name.strip():
             raise ValueError("vector repository collection_name 不能为空")
 
