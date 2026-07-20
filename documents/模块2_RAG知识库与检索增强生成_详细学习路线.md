@@ -72,9 +72,9 @@ paper-rag-assistant/
       bm25_store.py
       index_builder.py
     repositories/
-      vector_repository.py
-      chunk_repository.py
-      document_repository.py
+      vector.py
+      chunk.py
+      document.py
     retrieval/
       retrievers.py
       hybrid.py

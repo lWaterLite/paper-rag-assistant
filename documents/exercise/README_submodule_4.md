@@ -37,7 +37,7 @@
 5. `app/indexing/manifest.py`
    - 定义 `IndexManifest`。
    - 提供 manifest 与当前配置的兼容性校验。
-6. `app/repositories/index_manifest_repository.py`
+6. `app/repositories/manifest.py`
    - 定义 `IndexManifestRepository`，负责 manifest JSON 文件读写。
 7. `app/indexing/report.py`
    - 定义 `IndexBuildReportWriter`。
@@ -453,7 +453,7 @@ metadata
 
 它不是生产级向量库，但它是一个完整、可运行、可测试、无第三方依赖的 baseline。
 
-## `app/repositories/vector_repository.py` 代码讲解
+## `app/repositories/vector.py` 代码讲解
 
 ### `VectorRepository`
 
@@ -934,9 +934,9 @@ DocumentRepository
 app/indexing/vector_collection.py
 app/ingest/chunking/collection.py
 app/ingest/document_collection.py
-app/repositories/vector_repository.py
-app/repositories/chunk_repository.py
-app/repositories/document_repository.py
+app/repositories/vector.py
+app/repositories/chunk.py
+app/repositories/document.py
 ```
 
 构建阶段会生成：
