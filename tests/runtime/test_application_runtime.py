@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import shutil
 import unittest
 import uuid
@@ -14,7 +15,7 @@ from app.core.settings import (
     VectorRepositorySettings,
 )
 from app.factory import ApplicationFactory
-from app.runtime import RuntimeState
+from app.runtime import ApplicationRuntimeState, create_web_lifespan
 
 
 class ApplicationRuntimeTest(unittest.TestCase):
@@ -29,13 +30,13 @@ class ApplicationRuntimeTest(unittest.TestCase):
             )
             runtime = factory.build_runtime()
 
-            self.assertEqual(runtime.state, RuntimeState.CREATED)
+            self.assertEqual(runtime.state, ApplicationRuntimeState.CREATED)
             with self.assertRaisesRegex(RuntimeError, "尚未运行"):
                 _ = runtime.search_service
 
             runtime.start()
 
-            self.assertEqual(runtime.state, RuntimeState.RUNNING)
+            self.assertEqual(runtime.state, ApplicationRuntimeState.RUNNING)
             self.assertEqual(runtime.index.manifest.index_id, build_result.manifest.index_id)
             self.assertIs(runtime.search_service, runtime.search_service)
             self.assertIs(runtime.compare_search_service, runtime.compare_search_service)
@@ -46,7 +47,7 @@ class ApplicationRuntimeTest(unittest.TestCase):
 
             runtime.shutdown()
 
-            self.assertEqual(runtime.state, RuntimeState.STOPPED)
+            self.assertEqual(runtime.state, ApplicationRuntimeState.STOPPED)
             with self.assertRaisesRegex(RuntimeError, "尚未运行"):
                 _ = runtime.rag_pipeline
         finally:
@@ -59,9 +60,31 @@ class ApplicationRuntimeTest(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             runtime.start()
 
-        self.assertEqual(runtime.state, RuntimeState.FAILED)
+        self.assertEqual(runtime.state, ApplicationRuntimeState.FAILED)
         runtime.shutdown()
-        self.assertEqual(runtime.state, RuntimeState.STOPPED)
+        self.assertEqual(runtime.state, ApplicationRuntimeState.STOPPED)
+
+    def test_web_lifespan_adapter_manages_application_runtime(self) -> None:
+        index_dir = Path(".tmp_tests") / f"web_lifespan_{uuid.uuid4().hex}"
+        try:
+            factory = _create_factory(index_dir)
+            factory.build_index_builder().build_from_directory(Path("data/raw/papers"))
+            runtime = factory.build_runtime()
+            lifespan = create_web_lifespan(runtime)
+
+            async def run_lifespan() -> None:
+                async with lifespan(object()):
+                    self.assertEqual(runtime.state, ApplicationRuntimeState.RUNNING)
+                    self.assertGreater(
+                        len(runtime.search_service.search("RAG citation", top_k=1).results),
+                        0,
+                    )
+
+            asyncio.run(run_lifespan())
+
+            self.assertEqual(runtime.state, ApplicationRuntimeState.STOPPED)
+        finally:
+            shutil.rmtree(index_dir, ignore_errors=True)
 
 
 def _create_factory(index_dir: Path) -> ApplicationFactory:

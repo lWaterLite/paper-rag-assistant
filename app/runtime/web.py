@@ -5,11 +5,11 @@ from __future__ import annotations
 from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 
-from app.runtime.manager import RuntimeManager
+from app.runtime.application import ApplicationRuntime
 
 
 def create_web_lifespan(
-    manager: RuntimeManager,
+    runtime: ApplicationRuntime,
 ) -> Callable[[object], AbstractAsyncContextManager[None]]:
     """创建兼容 FastAPI lifespan 约定的异步上下文工厂。
 
@@ -20,7 +20,7 @@ def create_web_lifespan(
 
     @asynccontextmanager
     async def lifespan(_: object) -> AsyncIterator[None]:
-        async with manager.lifespan():
+        async with runtime.lifespan():
             yield
 
     return lifespan

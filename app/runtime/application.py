@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
+from enum import StrEnum
 from threading import RLock
 from typing import TYPE_CHECKING
 
@@ -11,10 +14,19 @@ from app.indexing.pipeline import RagIndex
 from app.pipeline import RagPipeline
 from app.retrieval.retrievers import RetrieverRegistry
 from app.retrieval.services.search import CompareSearchService, SearchService
-from app.runtime.base import RuntimeState
-
 if TYPE_CHECKING:
     from app.factory.application import ApplicationFactory
+
+
+class ApplicationRuntimeState(StrEnum):
+    """Application Runtime 的生命周期状态。"""
+
+    CREATED = "created"
+    STARTING = "starting"
+    RUNNING = "running"
+    STOPPING = "stopping"
+    STOPPED = "stopped"
+    FAILED = "failed"
 
 
 @dataclass(slots=True)
@@ -29,7 +41,10 @@ class ApplicationRuntime:
     factory: ApplicationFactory
     retriever_registry: RetrieverRegistry | None = None
     answer_generator: AnswerGenerator | None = None
-    _state: RuntimeState = field(default=RuntimeState.CREATED, init=False)
+    _state: ApplicationRuntimeState = field(
+        default=ApplicationRuntimeState.CREATED,
+        init=False,
+    )
     _lock: RLock = field(default_factory=RLock, init=False, repr=False)
     _index: RagIndex | None = field(default=None, init=False, repr=False)
     _search_service: SearchService | None = field(default=None, init=False, repr=False)
@@ -41,13 +56,7 @@ class ApplicationRuntime:
     _rag_pipeline: RagPipeline | None = field(default=None, init=False, repr=False)
 
     @property
-    def name(self) -> str:
-        """返回 Application Runtime 的稳定名称。"""
-
-        return "application"
-
-    @property
-    def state(self) -> RuntimeState:
+    def state(self) -> ApplicationRuntimeState:
         """返回当前 Runtime 状态。"""
 
         with self._lock:
@@ -88,12 +97,15 @@ class ApplicationRuntime:
         """加载持久化索引并一次性初始化在线服务。"""
 
         with self._lock:
-            if self._state == RuntimeState.RUNNING:
+            if self._state == ApplicationRuntimeState.RUNNING:
                 return
-            if self._state in {RuntimeState.STARTING, RuntimeState.STOPPING}:
+            if self._state in {
+                ApplicationRuntimeState.STARTING,
+                ApplicationRuntimeState.STOPPING,
+            }:
                 raise RuntimeError(f"ApplicationRuntime 当前不能启动：{self._state}")
 
-            self._state = RuntimeState.STARTING
+            self._state = ApplicationRuntimeState.STARTING
             try:
                 index = self.factory.build_rag_index_from_storage()
                 search_service = self.factory.build_search_service(
@@ -111,27 +123,37 @@ class ApplicationRuntime:
                 )
             except Exception:
                 self._clear_services()
-                self._state = RuntimeState.FAILED
+                self._state = ApplicationRuntimeState.FAILED
                 raise
 
             self._index = index
             self._search_service = search_service
             self._compare_search_service = compare_search_service
             self._rag_pipeline = rag_pipeline
-            self._state = RuntimeState.RUNNING
+            self._state = ApplicationRuntimeState.RUNNING
 
     def shutdown(self) -> None:
         """清理在线服务引用，为未来外部资源释放保留统一出口。"""
 
         with self._lock:
-            if self._state == RuntimeState.STOPPED:
+            if self._state == ApplicationRuntimeState.STOPPED:
                 return
-            if self._state == RuntimeState.STOPPING:
+            if self._state == ApplicationRuntimeState.STOPPING:
                 return
 
-            self._state = RuntimeState.STOPPING
+            self._state = ApplicationRuntimeState.STOPPING
             self._clear_services()
-            self._state = RuntimeState.STOPPED
+            self._state = ApplicationRuntimeState.STOPPED
+
+    @asynccontextmanager
+    async def lifespan(self) -> AsyncIterator["ApplicationRuntime"]:
+        """提供可直接交给 Web 框架适配层的异步生命周期上下文。"""
+
+        self.start()
+        try:
+            yield self
+        finally:
+            self.shutdown()
 
     def _clear_services(self) -> None:
         """清空由 Runtime 管理的在线对象。"""
@@ -144,7 +166,7 @@ class ApplicationRuntime:
     def _require_running[T](self, name: str, value: T | None) -> T:
         """确保调用方不会在 Runtime 未启动时取得内部对象。"""
 
-        if self._state != RuntimeState.RUNNING or value is None:
+        if self._state != ApplicationRuntimeState.RUNNING or value is None:
             raise RuntimeError(
                 f"ApplicationRuntime 尚未运行，不能读取 {name}；当前状态：{self._state}"
             )
