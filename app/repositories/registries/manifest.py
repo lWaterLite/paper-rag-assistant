@@ -6,7 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from app.indexing.configuration import IndexBuilderConfig
-from app.repositories.index_manifest_repository import (
+from app.repositories.manifest import (
     IndexManifestRepository,
     ManifestRepository,
 )

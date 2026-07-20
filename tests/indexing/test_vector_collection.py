@@ -10,7 +10,7 @@ from pathlib import Path
 
 from app.core.errors import AppError, ErrorCode
 from app.indexing.collections import InMemoryVectorCollection, VectorRecord
-from app.repositories.vector_repository import LocalJsonVectorRepository
+from app.repositories.vector import LocalJsonVectorRepository
 
 
 def build_record(chunk_id: str = "chunk_test", vector: list[float] | None = None) -> VectorRecord:

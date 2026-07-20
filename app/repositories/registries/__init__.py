@@ -12,7 +12,7 @@ from app.repositories.registries.manifest import (
     ManifestRepositoryRegistry,
     build_default_manifest_repository_registry,
 )
-from app.repositories.index_manifest_repository import ManifestRepository
+from app.repositories.manifest import ManifestRepository
 from app.repositories.registries.vector import (
     VectorRepositoryRegistry,
     build_default_vector_repository_registry,

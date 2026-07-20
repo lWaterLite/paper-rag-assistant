@@ -7,10 +7,10 @@ from app.indexing.configuration import EmbeddingConfig, VectorRepositoryConfig
 from app.indexing.embeddings.base import EmbeddingClient
 from app.indexing.manifests.compatibility import validate_manifest_compatible
 from app.indexing.pipeline.types import RagIndex
-from app.repositories.chunk_repository import ChunkRepository
-from app.repositories.document_repository import DocumentRepository
-from app.repositories.index_manifest_repository import ManifestRepository
-from app.repositories.vector_repository import VectorRepository
+from app.repositories.chunk import ChunkRepository
+from app.repositories.document import DocumentRepository
+from app.repositories.manifest import ManifestRepository
+from app.repositories.vector import VectorRepository
 
 
 class IndexLoader:

@@ -6,7 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from app.repositories.registries._base import RepositoryRegistryBase
-from app.repositories.vector_repository import (
+from app.repositories.vector import (
     LocalJsonVectorRepository,
     VectorRepository,
 )

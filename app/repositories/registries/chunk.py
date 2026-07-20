@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from app.repositories.chunk_repository import ChunkRepository, LocalJsonChunkRepository
+from app.repositories.chunk import ChunkRepository, LocalJsonChunkRepository
 from app.repositories.registries._base import RepositoryRegistryBase
 
 ChunkRepositoryBuilder = Callable[[Path], ChunkRepository]

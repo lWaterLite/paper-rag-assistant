@@ -18,7 +18,7 @@ from app.indexing.manifests import (
     IndexManifest,
     validate_manifest_compatible,
 )
-from app.repositories.index_manifest_repository import IndexManifestRepository
+from app.repositories.manifest import IndexManifestRepository
 
 
 class IndexManifestTest(unittest.TestCase):

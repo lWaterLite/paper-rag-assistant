@@ -39,10 +39,10 @@ from app.ingest.chunking.strategies import Chunker
 from app.ingest.collections import DocumentCollection
 from app.ingest.models import RawDocument
 from app.ingest.pipeline import IngestionPipeline
-from app.repositories.chunk_repository import ChunkRepository
-from app.repositories.document_repository import DocumentRepository
-from app.repositories.index_manifest_repository import ManifestRepository
-from app.repositories.vector_repository import VectorRepository
+from app.repositories.chunk import ChunkRepository
+from app.repositories.document import DocumentRepository
+from app.repositories.manifest import ManifestRepository
+from app.repositories.vector import VectorRepository
 
 from app.indexing.pipeline.types import IndexBuildResult, RagIndex
 

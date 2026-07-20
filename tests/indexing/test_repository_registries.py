@@ -6,9 +6,9 @@ import unittest
 from pathlib import Path
 
 from app.indexing.configuration import IndexBuilderConfig
-from app.repositories.chunk_repository import LocalJsonChunkRepository
-from app.repositories.document_repository import LocalJsonDocumentRepository
-from app.repositories.index_manifest_repository import IndexManifestRepository
+from app.repositories.chunk import LocalJsonChunkRepository
+from app.repositories.document import LocalJsonDocumentRepository
+from app.repositories.manifest import IndexManifestRepository
 from app.repositories.registries import (
     ChunkRepositoryRegistry,
     VectorRepositoryRegistry,
@@ -17,7 +17,7 @@ from app.repositories.registries import (
     build_default_manifest_repository_registry,
     build_default_vector_repository_registry,
 )
-from app.repositories.vector_repository import LocalJsonVectorRepository
+from app.repositories.vector import LocalJsonVectorRepository
 
 
 class RepositoryRegistriesTest(unittest.TestCase):

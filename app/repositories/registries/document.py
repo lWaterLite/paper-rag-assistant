@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from app.repositories.document_repository import (
+from app.repositories.document import (
     DocumentRepository,
     LocalJsonDocumentRepository,
 )

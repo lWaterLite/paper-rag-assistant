@@ -21,9 +21,9 @@ from app.ingest.collections import (
     DocumentCollection,
     InMemoryDocumentCollection,
 )
-from app.repositories.chunk_repository import ChunkRepository
-from app.repositories.document_repository import DocumentRepository
-from app.repositories.index_manifest_repository import ManifestRepository
+from app.repositories.chunk import ChunkRepository
+from app.repositories.document import DocumentRepository
+from app.repositories.manifest import ManifestRepository
 from app.repositories.registries import (
     ChunkRepositoryRegistry,
     DocumentRepositoryRegistry,
@@ -34,7 +34,7 @@ from app.repositories.registries import (
     build_default_manifest_repository_registry,
     build_default_vector_repository_registry,
 )
-from app.repositories.vector_repository import VectorRepository
+from app.repositories.vector import VectorRepository
 
 
 @dataclass(slots=True)

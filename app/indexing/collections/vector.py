@@ -1,7 +1,7 @@
 """向量运行时集合。
 
 Collection 只管理已经加载到内存中的向量记录，负责相似度搜索，不负责文件或数据库读写。
-持久化读写由 app.repositories.vector_repository 中的 Repository 负责。
+持久化读写由 app.repositories.vector 中的 Repository 负责。
 """
 
 from __future__ import annotations
