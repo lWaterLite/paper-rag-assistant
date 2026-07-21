@@ -395,6 +395,8 @@ class RetrievalFactory:
         """构建单策略与比较报告共同使用的运行时快照。"""
 
         manifest = index.manifest
+        artifact_definition = manifest.artifact_definition
+        runtime_compatibility = artifact_definition.runtime_compatibility
         retrieval_config = self.configs.build_retrieval_config()
         hybrid_config = self.configs.build_hybrid_retrieval_config()
         return RetrievalRuntimeSnapshot(
@@ -402,17 +404,19 @@ class RetrievalFactory:
                 index_id=manifest.index_id,
                 schema_version=manifest.schema_version,
                 status=manifest.status,
-                config_hash=manifest.config_hash,
+                artifact_definition_hash=manifest.artifact_definition_hash,
                 document_set_hash=manifest.document_set_hash,
                 document_count=manifest.document_count,
                 chunk_count=manifest.chunk_count,
                 vector_count=manifest.vector_count,
-                embedding_provider=manifest.embedding_provider,
-                embedding_model=manifest.embedding_model,
-                embedding_dimension=manifest.embedding_dimension,
-                vector_repository_type=manifest.vector_repository_type,
-                vector_collection_name=manifest.vector_collection_name,
-                distance_metric=manifest.distance_metric,
+                embedding_provider=runtime_compatibility.embedding.provider,
+                embedding_model=runtime_compatibility.embedding.model,
+                embedding_dimension=runtime_compatibility.embedding.dimension,
+                vector_repository_type=(
+                    runtime_compatibility.vector_collection.repository_type
+                ),
+                vector_collection_name=manifest.storage_locator.collection_name,
+                distance_metric=runtime_compatibility.vector_collection.distance_metric,
             ),
             config=RetrievalConfigSnapshot(
                 default_strategy=retrieval_config.strategy,

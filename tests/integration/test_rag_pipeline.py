@@ -31,14 +31,17 @@ class RagPipelineTest(unittest.TestCase):
         self.assertEqual(result.manifest.chunk_count, result.chunk_count)
         self.assertEqual(result.manifest.vector_count, result.vector_count)
         self.assertEqual(
-            result.manifest.chunk_size,
+            result.manifest.artifact_definition.chunk_size,
             project_settings.ingestion.chunking.chunk_size,
         )
         self.assertEqual(
-            result.manifest.chunk_overlap,
+            result.manifest.artifact_definition.chunk_overlap,
             project_settings.ingestion.chunking.chunk_overlap,
         )
-        self.assertEqual(result.manifest.embedding_provider, "mock")
+        self.assertEqual(
+            result.manifest.artifact_definition.runtime_compatibility.embedding.provider,
+            "mock",
+        )
         self.assertGreater(len(result.manifest.document_versions), 0)
 
     def test_pipeline_returns_structured_answer(self) -> None:

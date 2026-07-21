@@ -18,7 +18,7 @@ class RetrievalIndexSnapshot:
     index_id: str
     schema_version: int
     status: str
-    config_hash: str
+    artifact_definition_hash: str
     document_set_hash: str
     document_count: int
     chunk_count: int

@@ -82,7 +82,7 @@ def build_runtime_snapshot() -> RetrievalRuntimeSnapshot:
             index_id="idx_test",
             schema_version=3,
             status="ready",
-            config_hash="config_hash",
+            artifact_definition_hash="artifact_definition_hash",
             document_set_hash="document_hash",
             document_count=2,
             chunk_count=3,

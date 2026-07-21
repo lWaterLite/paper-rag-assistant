@@ -1085,7 +1085,7 @@ SearchService 时构造 `RetrievalRuntimeSnapshot`：
 ```text
 index
   index_id、schema_version、status
-  config_hash、document_set_hash
+  artifact_definition_hash、document_set_hash
   document/chunk/vector count
   embedding provider/model/dimension
   vector repository、collection、distance metric

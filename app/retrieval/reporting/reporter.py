@@ -57,7 +57,7 @@ class RetrievalReporter:
                     index_id="unavailable",
                     schema_version=0,
                     status="unavailable",
-                    config_hash="",
+                    artifact_definition_hash="",
                     document_set_hash="",
                     document_count=0,
                     chunk_count=0,

@@ -10,6 +10,7 @@ from pathlib import Path
 
 from app.core.errors import AppError, ErrorCode
 from app.core.settings import (
+    EmbeddingSettings,
     EnvSettings,
     IndexingSettings,
     ProjectSettings,
@@ -52,6 +53,34 @@ class IndexLoaderTest(unittest.TestCase):
             self.assertEqual(loaded_index.vector_collection.count(), build_result.vector_count)
             self.assertLessEqual(len(results), 2)
             self.assertGreater(len(results), 0)
+        finally:
+            shutil.rmtree(index_dir, ignore_errors=True)
+
+    def test_load_allows_embedding_execution_config_change(self) -> None:
+        index_dir = Path(".tmp_tests") / f"load_execution_change_{uuid.uuid4().hex}"
+        try:
+            build_factory = _create_persistent_factory(
+                index_dir,
+                embedding_batch_size=4,
+            )
+            _, build_result = build_factory.build_index_builder().build_from_directory(
+                Path("data/raw/papers")
+            )
+            load_factory = _create_persistent_factory(
+                index_dir,
+                embedding_batch_size=64,
+            )
+
+            loaded_index = load_factory.build_rag_index_from_storage()
+
+            self.assertEqual(
+                loaded_index.manifest.index_id,
+                build_result.manifest.index_id,
+            )
+            self.assertEqual(
+                loaded_index.manifest.build_provenance.embedding_batch_size,
+                4,
+            )
         finally:
             shutil.rmtree(index_dir, ignore_errors=True)
 
@@ -150,11 +179,16 @@ class IndexLoaderTest(unittest.TestCase):
             shutil.rmtree(index_dir, ignore_errors=True)
 
 
-def _create_persistent_factory(index_dir: Path) -> ApplicationFactory:
+def _create_persistent_factory(
+    index_dir: Path,
+    *,
+    embedding_batch_size: int = 32,
+) -> ApplicationFactory:
     """为单个测试创建隔离的本地 JSON 索引工厂。"""
 
     project_settings = ProjectSettings(
         indexing=IndexingSettings(
+            embedding=EmbeddingSettings(batch_size=embedding_batch_size),
             vector_repository=VectorRepositorySettings(
                 type="local_json",
                 index_dir=index_dir,

@@ -150,11 +150,13 @@ def _validate_vector_artifacts(
         )
     if (
         manifest.vector_count > 0
-        and vector_collection.dimension != manifest.embedding_dimension
+        and vector_collection.dimension
+        != manifest.artifact_definition.runtime_compatibility.embedding.dimension
     ):
         _raise_integrity_error(
             "索引向量维度与 manifest 不一致："
-            f"manifest={manifest.embedding_dimension}，"
+            "manifest="
+            f"{manifest.artifact_definition.runtime_compatibility.embedding.dimension}，"
             f"vector_collection={vector_collection.dimension}"
         )
 

@@ -497,35 +497,26 @@ records:
 2. 结构透明，方便学习。
 3. 运行时集合与持久化边界已经拆开，后续更容易替换实现。
 
-## `app/indexing/manifest.py` 代码讲解
+## `app/indexing/manifests/` 代码讲解
 
 ### `IndexManifest`
 
-manifest 记录索引如何生成：
+Manifest 将索引的运行条件、产物定义和构建过程分开记录：
 
 ```text
-index_id
-schema_version
-status
-parent_index_id
-source_dir
-created_at
-chunker
-chunk_size
-chunk_overlap
-embedding_provider
-embedding_model
-embedding_dimension
-embedding_batch_size
-vector_repository_type
-vector_collection_name
-distance_metric
-document_count
-chunk_count
-vector_count
-config_hash
-document_set_hash
-document_versions
+index_id / schema_version / status / parent_index_id
+artifact_definition
+  source_dir / chunker / chunk_size / chunk_overlap
+  runtime_compatibility
+    embedding(provider / model / dimension)
+    vector_collection(repository_type / distance_metric / schema_version)
+build_provenance
+  built_at / application_package / application_version
+  embedding_batch_size / embedding_timeout_seconds / embedding_max_retries
+storage_locator
+  collection_name
+document_count / chunk_count / vector_count
+artifact_definition_hash / document_set_hash / document_versions
 ```
 
 这比只保存一个 `index_id` 更有价值，因为你能追溯：
@@ -536,11 +527,11 @@ document_versions
 4. 用了什么 vector repository。
 5. 文档版本是否变化。
 
-### `config_hash`
+### `artifact_definition_hash`
 
-`config_hash` 只由索引构建配置生成，不包含 `document_versions`。
+`artifact_definition_hash` 只由会改变索引产物内容与语义的定义生成，不包含 `document_versions`，也不包含 batch size、超时和重试次数。
 
-其中 `source_dir` 会先规范化为绝对 POSIX 路径，再进入 `config_hash`。这样 `data/raw/papers` 和它对应的绝对路径不会被误判成两个不同索引配置。
+其中 `source_dir` 会先规范化为绝对 POSIX 路径，再进入 hash。这样 `data/raw/papers` 和它对应的绝对路径不会被误判成两个不同索引配置。
 
 它解决的问题是：
 
@@ -548,7 +539,7 @@ document_versions
 同一个 collection 名称下，构建配置是否发生变化？
 ```
 
-如果文档内容变化但 chunker、embedding、vector repository 等配置不变，`config_hash` 仍然应该保持不变。
+如果文档内容变化但 chunker、embedding 语义和向量距离度量不变，`artifact_definition_hash` 仍然保持不变。
 
 ### `document_set_hash`
 
@@ -560,7 +551,13 @@ document_versions
 同一个 collection 名称下，输入文档集合是否发生变化？
 ```
 
-把它和 `config_hash` 拆开后，我们可以判断索引变化到底来自配置变化，还是来自语料变化。
+把它和 `artifact_definition_hash` 拆开后，我们可以判断索引变化到底来自产物定义，还是来自语料。
+
+### 运行兼容性与构建溯源
+
+`runtime_compatibility` 决定当前运行时是否可以安全加载索引，只比较 embedding provider、model、dimension、向量 Repository 类型、距离度量和向量集合 Schema。
+
+`build_provenance` 用于复现、审计和排障，记录构建时间、应用版本、batch size、超时和重试次数。改变这些执行参数不应阻止索引加载，也不应改变 `index_id`。
 
 后续做实验比较时，manifest 是非常重要的证据。
 
@@ -581,6 +578,7 @@ document_versions
 3. embedding dimension。
 4. vector repository type。
 5. distance metric。
+6. vector collection schema version。
 
 如果不兼容，应拒绝加载旧索引，避免把不同语义空间的向量混在一起。
 
@@ -988,26 +986,22 @@ pgvector
 这次实现的核心思想是：
 
 ```text
-index version = schema_version + config_hash + document_set_hash + status
+index version = schema_version + artifact_definition_hash + document_set_hash
 ```
 
 其中：
 
 ```text
-index_id
-schema_version
-status
-parent_index_id
-config_hash
-document_set_hash
-document_versions
+index_id / schema_version / status / parent_index_id
+artifact_definition / build_provenance / storage_locator
+artifact_definition_hash / document_set_hash / document_versions
 ```
 
 ### 字段含义
 
 1. `schema_version`
    - 表示 manifest 和索引产物的内部结构版本。
-   - 当前值为 `3`。
+   - 当前值为 `4`。
    - 如果后续 JSON 结构、字段含义或持久化布局发生破坏性变化，就应该提升它。
    - 加载已有索引时，如果 schema version 不匹配，系统会拒绝加载。
 
@@ -1025,12 +1019,12 @@ document_versions
    - 当前构建流程默认是 `None`。
    - 后续做增量索引、实验分支、回滚链路时，可以用它建立版本关系。
 
-4. `config_hash`
-   - 只由构建配置生成。
-   - 包括 source directory、chunker、chunk size、chunk overlap、embedding provider、embedding model、embedding dimension、embedding batch size、vector repository type、collection name、distance metric。
+4. `artifact_definition_hash`
+   - 只由会改变索引产物内容或运行语义的定义生成。
+   - 包括 source directory、chunker、chunk size、chunk overlap、embedding provider、model、dimension、vector repository type、distance metric 与向量集合 Schema。
+   - 不包括 collection name、batch size、超时、重试、构建时间和应用版本。
    - source directory 会先规范化为绝对 POSIX 路径，再参与 hash。
-   - 它不包含文档版本。
-   - 所以当文档内容变化但构建配置不变时，`config_hash` 不变。
+   - 当文档内容变化但产物定义不变时，`artifact_definition_hash` 不变。
 
 5. `document_set_hash`
    - 只由 `document_versions` 生成。
@@ -1039,36 +1033,39 @@ document_versions
 
 6. `index_id`
    - 是最终索引版本 ID。
-   - 由 `schema_version`、`config_hash`、`document_set_hash` 一起生成。
-   - 只要索引结构、构建配置或输入文档集合任意一项发生变化，就会得到新的 `index_id`。
+   - 由 `schema_version`、`artifact_definition_hash`、`document_set_hash` 一起生成。
+   - 只要索引结构、产物定义或输入文档集合任意一项发生变化，就会得到新的 `index_id`。
 
-### 为什么要拆成两个 hash
+### 为什么要拆成三类信息
 
-旧设计中 `config_hash` 同时包含构建配置和 `document_versions`。这能判断“索引是否变化”，但无法解释“为什么变化”。
+旧设计把运行兼容性、产物定义和构建执行参数混在扁平字段中，甚至把 batch size 当成加载条件。它无法区分“索引不能加载”和“构建方式不同”。
 
 现在拆成：
 
 ```text
-config_hash
+runtime_compatibility
+artifact_definition_hash
 document_set_hash
+build_provenance
 ```
 
 好处是：
 
-1. 同一批文档、同一配置会生成同一个稳定 `index_id`。
+1. 同一批文档、同一产物定义会生成同一个稳定 `index_id`。
 2. 文档内容变化后，只有 `document_set_hash` 和 `index_id` 变化。
-3. chunker 或 embedding 配置变化后，只有 `config_hash` 和 `index_id` 变化。
-4. 评测结果可以引用具体 `index_id`，同时解释实验差异来自配置还是语料。
-5. 后续做增量索引时，可以先比较 `config_hash`，再比较 `document_set_hash`，判断是全量重建还是只处理文档变化。
+3. chunker 或 embedding 模型、维度变化后，`artifact_definition_hash` 和 `index_id` 变化。
+4. 仅改变 batch size、超时或重试次数时，`build_provenance` 变化，但索引仍可加载，`index_id` 不变。
+5. 评测结果可以引用具体 `index_id`，同时解释差异来自语料、产物定义还是构建执行方式。
 
 ### 当前代码位置
 
 相关实现位于：
 
 ```text
-app/indexing/manifest.py
-tests/test_index_manifest.py
-tests/test_index_builder_embedding_cache.py
+app/indexing/manifests/models.py
+app/indexing/manifests/compatibility.py
+tests/indexing/test_index_manifest.py
+tests/indexing/test_index_loader.py
 ```
 
 构建流程会在 `manifest_building` 和 `manifest_ready` 阶段记录：
@@ -1077,7 +1074,7 @@ tests/test_index_builder_embedding_cache.py
 index_id
 schema_version
 status
-config_hash
+artifact_definition_hash
 document_set_hash
 ```
 
@@ -1085,8 +1082,10 @@ document_set_hash
 
 1. schema version 不匹配的索引。
 2. status 不是 `ready` 的索引。
-3. embedding provider/model/dimension/batch size 不匹配的索引。
-4. vector repository type、collection name、distance metric 不匹配的索引。
+3. embedding provider/model/dimension 不匹配的索引。
+4. vector repository type、distance metric、vector collection schema 不匹配的索引。
+
+`collection_name` 是存储定位信息，不是运行兼容性。它决定从哪里读取索引，不参与同一索引版本的语义身份计算。
 
 这个练习的重点是实验可追溯性和生产环境的索引安全加载。
 

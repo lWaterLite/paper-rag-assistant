@@ -211,8 +211,16 @@ class IndexBuilderEmbeddingCacheTest(unittest.TestCase):
             manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
             build_report = json.loads(result.build_report_path.read_text(encoding="utf-8"))
             self.assertEqual(manifest["status"], "ready")
-            self.assertEqual(manifest["vector_repository_type"], "local_json")
-            self.assertEqual(manifest["vector_collection_name"], "papers_test")
+            self.assertEqual(
+                manifest["artifact_definition"]["runtime_compatibility"][
+                    "vector_collection"
+                ]["repository_type"],
+                "local_json",
+            )
+            self.assertEqual(
+                manifest["storage_locator"]["collection_name"],
+                "papers_test",
+            )
             self.assertEqual(build_report["index_id"], result.manifest.index_id)
             self.assertEqual(build_report["vector_count"], result.vector_count)
             self.assertEqual(result.trace.stages[1].stage, "manifest_building")

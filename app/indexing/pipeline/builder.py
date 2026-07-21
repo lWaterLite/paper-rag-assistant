@@ -340,6 +340,8 @@ class IndexBuilder:
             embedding_model=self._embedding_client.model_name,
             embedding_dimension=self._embedding_client.dimension,
             embedding_batch_size=self._embedding_config.batch_size,
+            embedding_timeout_seconds=self._embedding_config.timeout_seconds,
+            embedding_max_retries=self._embedding_config.max_retries,
             vector_repository_type=self._vector_repository_config.repository_type,
             vector_collection_name=self._vector_repository_config.collection_name,
             distance_metric=self._vector_repository_config.distance_metric,
@@ -379,7 +381,7 @@ class IndexBuilder:
                 "index_id": manifest.index_id,
                 "schema_version": manifest.schema_version,
                 "status": manifest.status,
-                "config_hash": manifest.config_hash,
+                "artifact_definition_hash": manifest.artifact_definition_hash,
                 "document_set_hash": manifest.document_set_hash,
             },
         )
