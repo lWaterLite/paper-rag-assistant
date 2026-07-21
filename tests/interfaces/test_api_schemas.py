@@ -20,14 +20,9 @@ from app.api.presenters.retrieval import (
     retrieved_chunk_to_response,
     trace_to_response,
 )
-from app.core.models import (
-    Citation,
-    RagAnswer,
-    RerankSignal,
-    RetrievalSignal,
-    RetrievedChunk,
-)
 from app.core.tracing import RagTrace
+from app.generation.models import Citation, RagAnswer
+from app.retrieval.models import RerankSignal, RetrievalSignal, RetrievedChunk
 
 
 def build_retrieved_chunk() -> RetrievedChunk:

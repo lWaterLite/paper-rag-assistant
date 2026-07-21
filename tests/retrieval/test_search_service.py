@@ -7,7 +7,7 @@ import unittest
 from app.api.handlers import handle_search_request
 from app.api.contracts.retrieval import SearchRequest
 from app.core.errors import AppError, ErrorCode
-from app.core.models import RetrievedChunk
+from app.retrieval.models import RetrievedChunk
 from app.retrieval.configuration import RetrievalConfig
 from app.retrieval.retrievers import RetrieverRegistry
 from app.retrieval.reporting import RetrievalReporter

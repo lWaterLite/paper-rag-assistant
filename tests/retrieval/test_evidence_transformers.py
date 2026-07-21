@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 
 from app.core.errors import AppError, ErrorCode
-from app.core.models import RetrievedChunk
+from app.retrieval.models import RetrievedChunk
 from app.retrieval.context.evidence_transformers import (
     EvidenceCandidate,
     EvidenceSource,

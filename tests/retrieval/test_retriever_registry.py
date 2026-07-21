@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from typing import cast
 
-from app.core.models import RetrievedChunk
+from app.retrieval.models import RetrievedChunk
 from app.core.settings import EnvSettings, ProjectSettings, RetrievalSettings
 from app.factory.configs import ConfigFactory
 from app.factory.retrieval import RetrievalFactory

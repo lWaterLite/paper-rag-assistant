@@ -9,7 +9,7 @@ import uuid
 from pathlib import Path
 
 from app.core.errors import AppError, ErrorCode
-from app.core.models import RetrievedChunk
+from app.retrieval.models import RetrievedChunk
 from app.core.settings import (
     EnvSettings,
     ProjectSettings,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from app.core.models import RetrievedChunk
+from app.retrieval.models import RetrievedChunk
 from app.retrieval.configuration import RetrievalConfig
 from app.retrieval.pipeline import RetrievalPipeline
 from app.retrieval.reporting import RetrievalReporter

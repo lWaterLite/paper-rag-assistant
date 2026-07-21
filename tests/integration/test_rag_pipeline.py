@@ -7,8 +7,8 @@ from pathlib import Path
 
 from app.core.settings import EnvSettings, ProjectSettings, RetrievalSettings
 from app.core.errors import AppError, ErrorCode
-from app.core.models import RagAnswer
 from app.factory import ApplicationFactory
+from app.generation.models import RagAnswer
 from app.retrieval.context import PackedContext
 
 

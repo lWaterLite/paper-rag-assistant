@@ -4,14 +4,17 @@ from __future__ import annotations
 
 import unittest
 
-from app.core.models import Citation, RetrievedChunk
 from app.generation.answer_generator import MockAnswerGenerator
+from app.generation.models import Citation
 from app.generation.prompts import build_rag_answer_prompt
+from app.core.tracing import RagTrace
 from app.retrieval.context import (
+    ContextCitation,
     ContextTokenUsage,
     DroppedChunk,
     PackedContext,
 )
+from app.retrieval.models import RetrievedChunk
 
 
 def build_packed_context() -> PackedContext:
@@ -30,7 +33,7 @@ def build_packed_context() -> PackedContext:
         section="Evaluation",
         metadata={},
     )
-    citation = Citation(
+    citation = ContextCitation(
         citation_id="C1",
         chunk_id="chunk_1",
         doc_id="doc_1",
@@ -120,6 +123,22 @@ class RagAnswerPromptTest(unittest.TestCase):
 
         self.assertIn("<question>", prompt.user_prompt)
         self.assertIn("问题", prompt.user_prompt)
+
+    def test_mock_answer_generator_converts_context_citations_to_answer_citations(
+        self,
+    ) -> None:
+        packed_context = build_packed_context()
+
+        answer = MockAnswerGenerator().generate(
+            question="问题",
+            packed_context=packed_context,
+            retrieved_chunks=packed_context.used_chunks,
+            trace=RagTrace(),
+        )
+
+        self.assertIsInstance(answer.citations[0], Citation)
+        self.assertEqual(answer.citations[0].citation_id, "C1")
+        self.assertEqual(answer.citations[0].chunk_id, "chunk_1")
 
 
 if __name__ == "__main__":
