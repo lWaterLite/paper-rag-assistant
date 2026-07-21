@@ -122,21 +122,18 @@ python -m unittest discover -s tests
 
 ## 4. 当前代码的重要文件
 
-### `app/core/models.py`
+### 按领域归位的数据模型
 
-定义 RAG 系统的核心数据模型：
+当前代码不再使用一个汇总所有业务模型的 `app/core/models.py`，而是按所属阶段组织：
 
-- `RawDocument`
-- `ParsedDocument`
-- `DocumentChunk`
-- `RetrievedChunk`
-- `Citation`
-- `RagAnswer`
-- `RagTrace`
+- `app/ingest/models.py`：`RawDocument`、`ParsedDocument`、`DocumentChunk`。
+- `app/retrieval/models.py`：`RetrievedChunk`、`RetrievalSignal`、`RerankSignal`。
+- `app/generation/models.py`：`Citation`、`RagAnswer`。
+- `app/core/tracing.py`：跨阶段的 `RagTrace`。
 
 学习重点：
 
-- 每个模型属于 pipeline 的哪个阶段。
+- 每个模型属于 pipeline 的哪个阶段，以及为什么不应全部放入 `core`。
 - 每个模型为什么需要 metadata。
 - 为什么最终回答不能只是字符串。
 

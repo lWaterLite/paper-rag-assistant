@@ -53,7 +53,7 @@
 位置：
 
 ```text
-app/core/models.py
+app/ingest/models.py
 ```
 
 新增：

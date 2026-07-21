@@ -899,7 +899,7 @@ app/factory/retrieval.py
   向 registry 注册 vector、BM25 和 hybrid provider
   provider 闭包负责持有当前 RagIndex
 
-app/core/models.py
+app/retrieval/models.py
   RetrievalSignal
   保存 vector、BM25 各自的原始 rank 和 score
 ```

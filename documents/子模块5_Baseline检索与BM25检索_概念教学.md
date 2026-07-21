@@ -928,7 +928,7 @@ packed_context
 当前项目已经有这些相关对象：
 
 ```text
-app/core/models.py
+app/retrieval/models.py
   RetrievedChunk
 
 app/retrieval/retrievers.py
