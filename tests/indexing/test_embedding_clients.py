@@ -7,7 +7,6 @@ import unittest
 from app.core.errors import AppError, ErrorCode
 from app.indexing.configuration import EmbeddingConfig
 from app.indexing.embeddings.mock import MockEmbeddingClient
-from app.indexing.embeddings.openai import OpenAIEmbeddingClient
 from app.indexing.embeddings.registry import build_default_embedding_client_registry
 from app.indexing.embeddings.validation import validate_embedding_vectors
 
@@ -63,15 +62,6 @@ class EmbeddingClientTest(unittest.TestCase):
 
         self.assertEqual(context.exception.code, ErrorCode.INDEX_FAILED)
         self.assertIn("维度不一致", context.exception.message)
-
-    def test_openai_embedding_client_rejects_missing_api_key(self) -> None:
-        config = EmbeddingConfig(provider="openai", model="text-embedding-3-small", dimension=1536)
-        with self.assertRaises(AppError) as context:
-            OpenAIEmbeddingClient(config)
-
-        self.assertEqual(context.exception.code, ErrorCode.INVALID_CONFIG)
-        self.assertIn("OPENAI_API_KEY", context.exception.message)
-
 
 if __name__ == "__main__":
     unittest.main()

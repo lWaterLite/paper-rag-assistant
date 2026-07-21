@@ -44,7 +44,6 @@ import sys
 import app.indexing.embeddings
 import app.retrieval.context
 import app.retrieval.tokenizers
-assert 'app.indexing.embeddings.openai' not in sys.modules
 assert 'app.indexing.embeddings.mock' not in sys.modules
 assert 'app.retrieval.context.token_estimators.regex' not in sys.modules
 assert 'app.retrieval.tokenizers.regex' not in sys.modules

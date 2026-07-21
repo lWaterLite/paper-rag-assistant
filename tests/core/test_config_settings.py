@@ -6,12 +6,10 @@ python -m unittest discover -s tests
 
 from __future__ import annotations
 
-import os
 import shutil
 import unittest
 import uuid
 from pathlib import Path
-from unittest.mock import patch
 
 from pydantic import ValidationError
 
@@ -23,7 +21,6 @@ from app.core.settings import (
     DocumentSourceAccessSettings,
     EmbeddingSettings,
     EvidenceTransformationSettings,
-    EnvSettings,
     HybridRetrievalSettings,
     IndexBuilderSettings,
     IngestionReportSettings,
@@ -38,32 +35,7 @@ from app.core.settings import (
 
 
 class SettingsTest(unittest.TestCase):
-    """验证 EnvSettings 与 ProjectSettings 配置读取与校验。"""
-
-    def test_env_settings_reads_openai_api_key_as_secret(self) -> None:
-        with patch.dict(
-            os.environ,
-            {"OPENAI_API_KEY": "test-secret"},
-            clear=False,
-        ):
-            env_settings = EnvSettings.from_env()
-
-        self.assertEqual(
-            env_settings.openai_api_key.get_secret_value(),
-            "test-secret",
-        )
-        self.assertNotIn("test-secret", str(env_settings))
-
-    def test_env_settings_treats_blank_secret_as_missing(self) -> None:
-        settings = EnvSettings(OPENAI_API_KEY="")
-
-        self.assertIsNone(settings.openai_api_key)
-
-    def test_env_settings_rejects_legacy_non_secret_fields(self) -> None:
-        with self.assertRaises(ValidationError) as context:
-            EnvSettings(RAG_TOP_K="5")
-
-        self.assertIn("RAG_TOP_K", str(context.exception))
+    """验证 ProjectSettings 配置读取与校验。"""
 
     def test_retrieval_settings_accepts_external_strategy_name(self) -> None:
         settings = RetrievalSettings(strategy=" external ")
@@ -330,6 +302,12 @@ fail_on_write_error = true
             EmbeddingSettings(batch_size=0)
 
         self.assertIn("batch_size", str(context.exception))
+
+    def test_embedding_settings_rejects_removed_external_provider(self) -> None:
+        with self.assertRaises(ValidationError) as context:
+            EmbeddingSettings(provider="openai")
+
+        self.assertIn("provider", str(context.exception))
 
     def test_vector_repository_settings_strips_collection_name(self) -> None:
         settings = VectorRepositorySettings(collection_name=" papers ")

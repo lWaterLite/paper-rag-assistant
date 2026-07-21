@@ -301,7 +301,7 @@ def create_index_builder(
     if embedding_client is not None:
         embedding_registry.register(
             "mock",
-            lambda _, __: embedding_client,
+            lambda _: embedding_client,
             replace=True,
         )
     return IndexingFactory(
