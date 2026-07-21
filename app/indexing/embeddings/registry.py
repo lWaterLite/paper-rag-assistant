@@ -7,7 +7,7 @@ from collections.abc import Callable
 from app.indexing.configuration import EmbeddingConfig
 from app.indexing.embeddings.base import EmbeddingClient
 
-EmbeddingClientBuilder = Callable[[EmbeddingConfig, str | None], EmbeddingClient]
+EmbeddingClientBuilder = Callable[[EmbeddingConfig], EmbeddingClient]
 
 
 class EmbeddingClientRegistry:
@@ -33,8 +33,6 @@ class EmbeddingClientRegistry:
     def create(
         self,
         config: EmbeddingConfig,
-        *,
-        api_key: str | None = None,
     ) -> EmbeddingClient:
         """根据运行时配置创建 embedding 客户端。"""
 
@@ -45,21 +43,16 @@ class EmbeddingClientRegistry:
             raise ValueError(
                 f"不支持的 embedding provider：{provider}；已注册：{available}"
             )
-        return builder(config, api_key)
+        return builder(config)
 
 
 def build_default_embedding_client_registry() -> EmbeddingClientRegistry:
     """创建项目内置 embedding provider 注册表。"""
 
     from app.indexing.embeddings.mock import MockEmbeddingClient
-    from app.indexing.embeddings.openai import OpenAIEmbeddingClient
 
     registry = EmbeddingClientRegistry()
-    registry.register("mock", lambda config, _: MockEmbeddingClient(config))
-    registry.register(
-        "openai",
-        lambda config, api_key: OpenAIEmbeddingClient(config, api_key=api_key),
-    )
+    registry.register("mock", MockEmbeddingClient)
     return registry
 
 

@@ -13,6 +13,7 @@ from app.retrieval.models import RetrievedChunk
 from app.core.tracing import RagTrace
 from app.retrieval.comparison import RetrievalComparisonResult
 from app.retrieval.comparison.models import (
+    ComparisonStatus,
     ComparedChunkOverlap,
     ComparedStrategyResult,
 )
@@ -731,7 +732,7 @@ class RetrievalComparisonPipeline:
     @staticmethod
     def _resolve_status(
         strategy_results: Sequence[ComparedStrategyResult],
-    ) -> str:
+    ) -> ComparisonStatus:
         """根据各策略执行结果计算整体比较状态。"""
 
         success_count = sum(result.status == "success" for result in strategy_results)

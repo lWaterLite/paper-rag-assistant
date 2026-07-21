@@ -66,11 +66,7 @@ class IndexingFactory:
     def _build_embedding_client(self, config: EmbeddingConfig) -> EmbeddingClient:
         """通过注册表创建当前配置指定的 embedding 客户端。"""
 
-        secret = self.configs.env_settings.openai_api_key
-        return self.embedding_registry.create(
-            config,
-            api_key=secret.get_secret_value() if secret is not None else None,
-        )
+        return self.embedding_registry.create(config)
 
     def _build_embedding_cache(
         self,

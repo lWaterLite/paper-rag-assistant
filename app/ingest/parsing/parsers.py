@@ -390,9 +390,15 @@ class PdfDocumentParser:
         pages: list[tuple[int, str]] = []
         metadata: dict[str, str] = {}
         with fitz.open(stream=raw_bytes, filetype="pdf") as pdf:
-            metadata = {key: str(value) for key, value in pdf.metadata.items() if value}
-            for index, page in enumerate(pdf, start=1):
-                pages.append((index, page.get_text("text")))
+            raw_metadata = pdf.metadata or {}
+            metadata = {
+                key: str(value)
+                for key, value in raw_metadata.items()
+                if value
+            }
+            for page_index in range(pdf.page_count):
+                page = pdf.load_page(page_index)
+                pages.append((page_index + 1, str(page.get_text("text"))))
         return pages, metadata
 
     def _build_pdf_blocks(

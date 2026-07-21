@@ -11,7 +11,10 @@ from pydantic import BaseModel, Field, model_validator
 class EmbeddingSettings(BaseModel):
     """Embedding 模型的结构化配置。"""
 
-    provider: str = Field(default="mock", description="embedding 服务提供方")
+    provider: Literal["mock"] = Field(
+        default="mock",
+        description="当前内置 embedding 服务提供方",
+    )
     model: str = Field(
         default="mock-hash-embedding",
         min_length=1,
@@ -30,10 +33,7 @@ class EmbeddingSettings(BaseModel):
     def validate_text_fields(self) -> "EmbeddingSettings":
         """清理并校验字符串字段。"""
 
-        self.provider = self.provider.strip().lower()
         self.model = self.model.strip()
-        if not self.provider:
-            raise ValueError("provider 不能为空")
         if not self.model:
             raise ValueError("model 不能为空")
         return self
