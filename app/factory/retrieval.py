@@ -16,6 +16,7 @@ from app.retrieval.retrievers import (
     RetrieverRegistry,
     VectorRetriever,
 )
+from app.retrieval.configuration import HybridRetrievalConfig, RetrievalConfig
 from app.retrieval.retrievers.fusion import ReciprocalRankFusion
 from app.retrieval.rerankers import (
     Reranker,
@@ -35,11 +36,13 @@ from app.retrieval.reporting import (
 from app.retrieval.services.search import CompareSearchService, SearchService
 from app.retrieval.tokenizers import (
     Tokenizer,
+    TokenizerConfig,
     TokenizerRegistry,
     build_default_tokenizer_registry,
 )
 from app.retrieval.context.token_estimators import (
     TokenEstimator,
+    TokenEstimatorConfig,
     TokenEstimatorRegistry,
     build_default_token_estimator_registry,
 )
@@ -84,23 +87,42 @@ class RetrievalFactory:
             index.chunk_collection,
         )
 
-    def build_bm25_retriever(self, index: RagIndex) -> BM25Retriever:
+    def build_bm25_retriever(
+        self,
+        index: RagIndex,
+        *,
+        retrieval_config: RetrievalConfig | None = None,
+        tokenizer: Tokenizer | None = None,
+    ) -> BM25Retriever:
         """根据当前 chunk collection 创建 BM25 检索器。"""
 
-        retrieval_config = self.configs.build_retrieval_config()
+        active_config = (
+            retrieval_config
+            if retrieval_config is not None
+            else self.configs.retrieval.retrieval
+        )
         bm25_index = BM25Index.from_chunks(
             index.chunk_collection.iter_chunks(),
-            config=retrieval_config.bm25,
-            tokenizer=self.build_tokenizer(),
+            config=active_config.bm25,
+            tokenizer=(
+                tokenizer
+                if tokenizer is not None
+                else self.build_tokenizer(config=self.configs.retrieval.tokenizer)
+            ),
         )
         return BM25Retriever(bm25_index)
 
-    def build_tokenizer(self) -> Tokenizer:
+    def build_tokenizer(
+        self,
+        *,
+        config: TokenizerConfig | None = None,
+    ) -> Tokenizer:
         """根据当前配置创建 BM25 使用的分词器。"""
 
-        return self.tokenizer_registry.create(
-            self.configs.build_tokenizer_config()
+        active_config = (
+            config if config is not None else self.configs.retrieval.tokenizer
         )
+        return self.tokenizer_registry.create(active_config)
 
     def build_reranker(
         self,
@@ -109,27 +131,36 @@ class RetrievalFactory:
         """根据配置创建 reranker；禁用时显式返回 None。"""
 
         active_config = (
-            config if config is not None else self.configs.build_reranking_config()
+            config if config is not None else self.configs.retrieval.reranking
         )
         if not active_config.enabled:
             return None
         active_registry = (
             self.reranker_registry
             if self.reranker_registry is not None
-            else build_default_reranker_registry(self.build_tokenizer())
+            else build_default_reranker_registry(
+                self.build_tokenizer(config=self.configs.retrieval.tokenizer)
+            )
         )
         try:
             return active_registry.create(active_config)
         except ValueError as exc:
             raise AppError(ErrorCode.INVALID_CONFIG, str(exc)) from exc
 
-    def build_token_estimator(self) -> TokenEstimator:
+    def build_token_estimator(
+        self,
+        *,
+        config: TokenEstimatorConfig | None = None,
+    ) -> TokenEstimator:
         """根据配置创建生成模型窗口使用的 token estimator。"""
 
         try:
-            return self.token_estimator_registry.create(
-                self.configs.build_token_estimator_config()
+            active_config = (
+                config
+                if config is not None
+                else self.configs.retrieval.token_estimator
             )
+            return self.token_estimator_registry.create(active_config)
         except ValueError as exc:
             raise AppError(ErrorCode.INVALID_CONFIG, str(exc)) from exc
 
@@ -137,13 +168,14 @@ class RetrievalFactory:
         self,
         *,
         postprocessing_config: PostProcessingConfig | None = None,
+        token_estimator_config: TokenEstimatorConfig | None = None,
     ) -> ContextPacker:
         """创建 token-aware ContextPacker。"""
 
         active_config = self._resolve_postprocessing_config(postprocessing_config)
         return TokenAwareContextPacker(
             config=active_config.context_packing,
-            token_estimator=self.build_token_estimator(),
+            token_estimator=self.build_token_estimator(config=token_estimator_config),
         )
 
     def build_evidence_transformer(
@@ -155,7 +187,7 @@ class RetrievalFactory:
         active_config = (
             config
             if config is not None
-            else self.configs.build_evidence_transformation_config()
+            else self.configs.retrieval.evidence_transformation
         )
         if not active_config.enabled:
             return None
@@ -181,7 +213,7 @@ class RetrievalFactory:
     def build_postprocessing_config(self) -> PostProcessingConfig:
         """构建并校验检索后处理流程的组合配置。"""
 
-        config = self.configs.build_postprocessing_config()
+        config = self.configs.retrieval.postprocessing
         self._validate_postprocessing_config(config)
         return config
 
@@ -219,40 +251,53 @@ class RetrievalFactory:
         *,
         vector_retriever: Retriever,
         bm25_retriever: Retriever,
+        config: HybridRetrievalConfig | None = None,
     ) -> HybridRetriever:
         """使用现有的向量和 BM25 检索器创建 hybrid 检索器。"""
 
-        config = self.configs.build_hybrid_retrieval_config()
+        active_config = (
+            config if config is not None else self.configs.retrieval.hybrid
+        )
         return HybridRetriever(
             sources=(
                 HybridRetrievalSource(
                     name="vector",
                     retriever=vector_retriever,
-                    weight=config.vector_weight,
+                    weight=active_config.vector_weight,
                 ),
                 HybridRetrievalSource(
                     name="bm25",
                     retriever=bm25_retriever,
-                    weight=config.bm25_weight,
+                    weight=active_config.bm25_weight,
                 ),
             ),
             fusion_strategy=ReciprocalRankFusion(
-                rank_constant=config.rrf_rank_constant
+                rank_constant=active_config.rrf_rank_constant
             ),
-            config=config,
+            config=active_config,
         )
 
     def build_retriever_registry(self, index: RagIndex) -> RetrieverRegistry:
         """为一个 RagIndex 创建内置检索策略的惰性注册表。"""
 
+        config = self.configs.retrieval
+        tokenizer = self.build_tokenizer(config=config.tokenizer)
         registry = RetrieverRegistry()
         registry.register("vector", lambda: self.build_vector_retriever(index))
-        registry.register("bm25", lambda: self.build_bm25_retriever(index))
+        registry.register(
+            "bm25",
+            lambda: self.build_bm25_retriever(
+                index,
+                retrieval_config=config.retrieval,
+                tokenizer=tokenizer,
+            ),
+        )
         registry.register(
             "hybrid",
             lambda: self.build_hybrid_retriever(
                 vector_retriever=registry.resolve("vector"),
                 bm25_retriever=registry.resolve("bm25"),
+                config=config.hybrid,
             ),
         )
         return registry
@@ -268,7 +313,7 @@ class RetrievalFactory:
         active_registry = (
             registry if registry is not None else self.build_retriever_registry(index)
         )
-        strategy = self.configs.build_retrieval_config().strategy
+        strategy = self.configs.retrieval.retrieval.strategy
         try:
             return active_registry.resolve(strategy)
         except ValueError as exc:
@@ -353,7 +398,7 @@ class RetrievalFactory:
         """根据索引、配置和已注册策略创建 retrieval reporter。"""
 
         reporter = RetrievalReporter(
-            config=self.configs.build_retrieval_report_config(),
+            config=self.configs.retrieval.report,
             runtime_snapshot=self.build_retrieval_runtime_snapshot(
                 index,
                 registry,
@@ -374,7 +419,7 @@ class RetrievalFactory:
         """根据索引、配置和已注册策略创建 compare search 聚合报告组件。"""
 
         reporter = RetrievalComparisonReporter(
-            config=self.configs.build_retrieval_report_config(),
+            config=self.configs.retrieval.report,
             runtime_snapshot=self.build_retrieval_runtime_snapshot(
                 index,
                 registry,
@@ -397,8 +442,9 @@ class RetrievalFactory:
         manifest = index.manifest
         artifact_definition = manifest.artifact_definition
         runtime_compatibility = artifact_definition.runtime_compatibility
-        retrieval_config = self.configs.build_retrieval_config()
-        hybrid_config = self.configs.build_hybrid_retrieval_config()
+        config = self.configs.retrieval
+        retrieval_config = config.retrieval
+        hybrid_config = config.hybrid
         return RetrievalRuntimeSnapshot(
             index=RetrievalIndexSnapshot(
                 index_id=manifest.index_id,
@@ -422,7 +468,7 @@ class RetrievalFactory:
                 default_strategy=retrieval_config.strategy,
                 default_top_k=retrieval_config.top_k,
                 deduplicate_by_chunk_id=retrieval_config.deduplicate_by_chunk_id,
-                tokenizer_strategy=self.configs.build_tokenizer_config().strategy,
+                tokenizer_strategy=config.tokenizer.strategy,
                 bm25_k1=retrieval_config.bm25.k1,
                 bm25_b=retrieval_config.bm25.b,
                 hybrid_candidate_multiplier=hybrid_config.candidate_multiplier,

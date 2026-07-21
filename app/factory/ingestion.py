@@ -6,11 +6,13 @@ from dataclasses import dataclass, field
 
 from app.factory.configs import ConfigFactory
 from app.ingest.chunking.registry import ChunkerRegistry, build_default_chunker_registry
-from app.ingest.chunking.strategies import Chunker
+from app.ingest.chunking.strategies import Chunker, ChunkerConfig
 from app.ingest.loading import (
     DocumentIdentityBuilder,
     DocumentSourceAccessService,
+    DocumentSourceAccessConfig,
     LocalDocumentLoader,
+    LocalDocumentLoaderConfig,
 )
 from app.ingest.parsing import (
     BasicTextCleaner,
@@ -20,6 +22,7 @@ from app.ingest.parsing import (
     ParserRegistry,
     PdfDocumentParser,
     PdfTextCleaner,
+    PdfTextCleanerConfig,
     PlainTextParser,
 )
 from app.ingest.pipeline import IngestionPipeline
@@ -59,6 +62,7 @@ class IngestionFactory:
         self,
         *,
         chunker_registry: ChunkerRegistry | None = None,
+        config: ChunkerConfig | None = None,
     ) -> Chunker:
         """根据项目配置创建 chunker。
 
@@ -68,34 +72,60 @@ class IngestionFactory:
         registry = (
             chunker_registry if chunker_registry is not None else self.chunker_registry
         )
-        return registry.create(self.configs.build_chunker_config())
+        active_config = (
+            config if config is not None else self.configs.ingestion.chunker
+        )
+        return registry.create(active_config)
 
     def build_document_identity_builder(self) -> DocumentIdentityBuilder:
         """创建文档身份生成器。"""
 
         return DocumentIdentityBuilder()
 
-    def build_document_source_access_service(self) -> DocumentSourceAccessService:
+    def build_document_source_access_service(
+        self,
+        *,
+        config: DocumentSourceAccessConfig | None = None,
+    ) -> DocumentSourceAccessService:
         """创建 API 等受限入口使用的文档目录访问服务。"""
 
-        return DocumentSourceAccessService(
-            config=self.configs.build_document_source_access_config()
+        active_config = (
+            config
+            if config is not None
+            else self.configs.ingestion.document_source_access
         )
+        return DocumentSourceAccessService(config=active_config)
 
-    def build_local_document_loader(self) -> LocalDocumentLoader:
+    def build_local_document_loader(
+        self,
+        *,
+        config: LocalDocumentLoaderConfig | None = None,
+    ) -> LocalDocumentLoader:
         """创建完整 ingestion 使用的本地文档 loader。"""
 
+        active_config = config if config is not None else self.configs.ingestion.loader
         return LocalDocumentLoader(
-            config=self.configs.build_loader_config(),
+            config=active_config,
             identity_builder=self.build_document_identity_builder(),
         )
 
-    def build_pdf_text_cleaner(self) -> PdfTextCleaner:
+    def build_pdf_text_cleaner(
+        self,
+        *,
+        config: PdfTextCleanerConfig | None = None,
+    ) -> PdfTextCleaner:
         """创建 PDF 文本清洗器。"""
 
-        return PdfTextCleaner(config=self.configs.build_pdf_text_cleaner_config())
+        active_config = (
+            config if config is not None else self.configs.ingestion.pdf_text_cleaner
+        )
+        return PdfTextCleaner(config=active_config)
 
-    def build_parser_registry(self) -> ParserRegistry:
+    def build_parser_registry(
+        self,
+        *,
+        pdf_text_cleaner_config: PdfTextCleanerConfig | None = None,
+    ) -> ParserRegistry:
         """创建文档解析器注册表。"""
 
         text_cleaner = BasicTextCleaner()
@@ -103,17 +133,28 @@ class IngestionFactory:
             parsers=[
                 MarkdownParser(cleaner=text_cleaner),
                 HtmlDocumentParser(cleaner=HtmlTextCleaner()),
-                PdfDocumentParser(cleaner=self.build_pdf_text_cleaner()),
+                PdfDocumentParser(
+                    cleaner=self.build_pdf_text_cleaner(
+                        config=pdf_text_cleaner_config
+                    )
+                ),
                 PlainTextParser(cleaner=text_cleaner),
             ]
         )
 
-    def build_ingestion_pipeline(self) -> IngestionPipeline:
+    def build_ingestion_pipeline(
+        self,
+        *,
+        loader_config: LocalDocumentLoaderConfig | None = None,
+        pdf_text_cleaner_config: PdfTextCleanerConfig | None = None,
+    ) -> IngestionPipeline:
         """创建文档摄取 pipeline。"""
 
         return IngestionPipeline(
-            loader=self.build_local_document_loader(),
-            parser_registry=self.build_parser_registry(),
+            loader=self.build_local_document_loader(config=loader_config),
+            parser_registry=self.build_parser_registry(
+                pdf_text_cleaner_config=pdf_text_cleaner_config
+            ),
         )
 
     @staticmethod
@@ -131,11 +172,15 @@ class IngestionFactory:
     def build_indexing_dependencies(self) -> IngestionIndexingDependencies:
         """组装索引构建所需要的 ingest 组件。"""
 
+        config = self.configs.ingestion
         return IngestionIndexingDependencies(
-            pipeline=self.build_ingestion_pipeline(),
-            chunker=self.build_configured_chunker(),
+            pipeline=self.build_ingestion_pipeline(
+                loader_config=config.loader,
+                pdf_text_cleaner_config=config.pdf_text_cleaner,
+            ),
+            chunker=self.build_configured_chunker(config=config.chunker),
             ingestion_report_writer=self.build_ingestion_report_writer(),
-            ingestion_report_config=self.configs.build_ingestion_report_config(),
+            ingestion_report_config=config.ingestion_report,
             chunking_report_writer=self.build_chunking_report_writer(),
-            chunking_report_config=self.configs.build_chunking_report_config(),
+            chunking_report_config=config.chunking_report,
         )

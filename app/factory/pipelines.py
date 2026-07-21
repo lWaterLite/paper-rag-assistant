@@ -37,13 +37,13 @@ class PipelineFactory:
         active_registry = retriever_registry
         if retriever is not None:
             configured_retriever = retriever
-            strategy = self.configs.build_retrieval_config().strategy
+            strategy = self.configs.retrieval.retrieval.strategy
             active_registry = RetrieverRegistry()
             active_registry.register(strategy, lambda: configured_retriever)
 
         postprocessing_config = self.retrieval.build_postprocessing_config()
         return RagPipeline(
-            config=self.configs.build_rag_pipeline_config(),
+            config=self.configs.pipeline.rag_pipeline,
             retrieval_service=self.retrieval.build_search_service(
                 index,
                 registry=active_registry,
