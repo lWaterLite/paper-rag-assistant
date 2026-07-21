@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from app.factory.configs import ConfigFactory
 from app.factory.retrieval import RetrievalFactory
 from app.generation.answer_generator import AnswerGenerator, MockAnswerGenerator
-from app.indexing.pipeline import RagIndex
+from app.indexing.pipeline.types import RagIndex
 from app.pipeline import RagPipeline
 from app.retrieval.context import ContextPacker
 from app.retrieval.retrievers import Retriever, RetrieverRegistry

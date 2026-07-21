@@ -6,8 +6,6 @@ from collections.abc import Callable
 
 from app.indexing.configuration import EmbeddingConfig
 from app.indexing.embeddings.base import EmbeddingClient
-from app.indexing.embeddings.mock import MockEmbeddingClient
-from app.indexing.embeddings.openai import OpenAIEmbeddingClient
 
 EmbeddingClientBuilder = Callable[[EmbeddingConfig, str | None], EmbeddingClient]
 
@@ -52,6 +50,9 @@ class EmbeddingClientRegistry:
 
 def build_default_embedding_client_registry() -> EmbeddingClientRegistry:
     """创建项目内置 embedding provider 注册表。"""
+
+    from app.indexing.embeddings.mock import MockEmbeddingClient
+    from app.indexing.embeddings.openai import OpenAIEmbeddingClient
 
     registry = EmbeddingClientRegistry()
     registry.register("mock", lambda config, _: MockEmbeddingClient(config))

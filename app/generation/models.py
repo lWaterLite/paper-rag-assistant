@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from app.retrieval.models import RetrievedChunk
 
 if TYPE_CHECKING:
-    from app.retrieval.context import ContextCitation
+    from app.retrieval.context.packer import ContextCitation
 
 
 @dataclass(frozen=True, slots=True)

@@ -6,7 +6,6 @@ from collections.abc import Callable
 
 from app.retrieval.tokenizers.base import Tokenizer
 from app.retrieval.tokenizers.config import TokenizerConfig
-from app.retrieval.tokenizers.regex import RegexTokenizer
 
 TokenizerProvider = Callable[[], Tokenizer]
 
@@ -51,6 +50,8 @@ class TokenizerRegistry:
 
 def build_default_tokenizer_registry() -> TokenizerRegistry:
     """创建包含项目内置策略的分词器注册表。"""
+
+    from app.retrieval.tokenizers.regex import RegexTokenizer
 
     registry = TokenizerRegistry()
     registry.register("regex", RegexTokenizer)

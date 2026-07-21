@@ -7,7 +7,7 @@ import unittest
 from app.retrieval.models import RetrievedChunk
 from app.retrieval.configuration import RetrievalConfig
 from app.retrieval.pipeline import RetrievalPipeline
-from app.retrieval.reporting import RetrievalReporter
+from app.retrieval.reporting.reporter import RetrievalReporter
 from app.retrieval.rerankers import RerankingConfig
 from app.retrieval.retrievers import RetrieverRegistry
 

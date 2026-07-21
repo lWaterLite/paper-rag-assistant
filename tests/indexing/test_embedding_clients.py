@@ -6,12 +6,10 @@ import unittest
 
 from app.core.errors import AppError, ErrorCode
 from app.indexing.configuration import EmbeddingConfig
-from app.indexing.embeddings import (
-    MockEmbeddingClient,
-    OpenAIEmbeddingClient,
-    build_default_embedding_client_registry,
-    validate_embedding_vectors,
-)
+from app.indexing.embeddings.mock import MockEmbeddingClient
+from app.indexing.embeddings.openai import OpenAIEmbeddingClient
+from app.indexing.embeddings.registry import build_default_embedding_client_registry
+from app.indexing.embeddings.validation import validate_embedding_vectors
 
 
 class EmbeddingClientTest(unittest.TestCase):

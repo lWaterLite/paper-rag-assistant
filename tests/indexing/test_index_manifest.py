@@ -13,10 +13,10 @@ from app.indexing.configuration import (
     IndexBuilderConfig,
     VectorRepositoryConfig,
 )
-from app.indexing.manifests import (
+from app.indexing.manifests import IndexManifest
+from app.indexing.manifests.compatibility import validate_manifest_compatible
+from app.indexing.manifests.models import (
     CURRENT_INDEX_SCHEMA_VERSION,
-    IndexManifest,
-    validate_manifest_compatible,
 )
 from app.repositories.manifest import IndexManifestRepository
 

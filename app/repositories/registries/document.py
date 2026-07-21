@@ -5,10 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from app.repositories.document import (
-    DocumentRepository,
-    LocalJsonDocumentRepository,
-)
+from app.repositories.document import DocumentRepository
 from app.repositories.registries._base import RepositoryRegistryBase
 
 DocumentRepositoryBuilder = Callable[[Path], DocumentRepository]
@@ -28,6 +25,8 @@ class DocumentRepositoryRegistry(RepositoryRegistryBase[DocumentRepositoryBuilde
 
 def build_default_document_repository_registry() -> DocumentRepositoryRegistry:
     """创建项目内置的文档 Repository 注册表。"""
+
+    from app.repositories.document import LocalJsonDocumentRepository
 
     registry = DocumentRepositoryRegistry()
     registry.register("local_json", LocalJsonDocumentRepository)

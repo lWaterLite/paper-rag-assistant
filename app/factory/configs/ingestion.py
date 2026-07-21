@@ -6,9 +6,10 @@ from dataclasses import dataclass, field
 
 from app.core.settings import IngestionSettings
 from app.ingest.chunking.strategies import ChunkerConfig
-from app.ingest.loading import DocumentSourceAccessConfig, LocalDocumentLoaderConfig
-from app.ingest.parsing import PdfTextCleanerConfig
-from app.ingest.reporting import ChunkingReportConfig, IngestionReportConfig
+from app.ingest.loading.access import DocumentSourceAccessConfig
+from app.ingest.loading.local import LocalDocumentLoaderConfig
+from app.ingest.parsing.cleaners import PdfTextCleanerConfig
+from app.ingest.reporting.configuration import ChunkingReportConfig, IngestionReportConfig
 
 
 @dataclass(frozen=True, slots=True)

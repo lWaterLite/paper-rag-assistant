@@ -11,9 +11,10 @@ from app.factory.configs.pipeline import PipelineConfigAdapter
 from app.factory.configs.retrieval import RetrievalConfigAdapter
 from app.indexing.configuration import EmbeddingConfig, IndexBuilderConfig, VectorRepositoryConfig
 from app.ingest.chunking.strategies import ChunkerConfig
-from app.ingest.loading import DocumentSourceAccessConfig, LocalDocumentLoaderConfig
-from app.ingest.parsing import PdfTextCleanerConfig
-from app.ingest.reporting import ChunkingReportConfig, IngestionReportConfig
+from app.ingest.loading.access import DocumentSourceAccessConfig
+from app.ingest.loading.local import LocalDocumentLoaderConfig
+from app.ingest.parsing.cleaners import PdfTextCleanerConfig
+from app.ingest.reporting.configuration import ChunkingReportConfig, IngestionReportConfig
 from app.pipeline import RagPipelineConfig
 from app.retrieval.configuration import HybridRetrievalConfig, RetrievalConfig
 from app.retrieval.configuration.postprocessing import PostProcessingConfig

@@ -14,26 +14,26 @@ from app.indexing.configuration import (
     IndexBuilderConfig,
     VectorRepositoryConfig,
 )
-from app.indexing.embeddings import (
-    EmbeddingCache,
-    EmbeddingClient,
-    validate_embedding_vectors,
-)
+from app.indexing.embeddings.base import EmbeddingClient
+from app.indexing.embeddings.cache import EmbeddingCache
+from app.indexing.embeddings.validation import validate_embedding_vectors
 from app.indexing.integrity import validate_index_artifact_integrity
-from app.indexing.manifests import (
+from app.indexing.manifests.models import (
     BUILDING_INDEX_STATUS,
     FAILED_INDEX_STATUS,
     IndexManifest,
     IndexVersionStatus,
     READY_INDEX_STATUS,
 )
-from app.indexing.reporting import IndexBuildReportWriter
+from app.indexing.reporting.build import IndexBuildReportWriter
 from app.indexing.collections import VectorCollection, VectorRecord
 from app.ingest.chunking.collection import ChunkCollection
-from app.ingest.reporting import (
+from app.ingest.reporting.chunking import ChunkingReportWriter
+from app.ingest.reporting.configuration import (
     ChunkingReportConfig,
-    ChunkingReportWriter,
     IngestionReportConfig,
+)
+from app.ingest.reporting.ingestion import (
     IngestionReportWriter,
 )
 from app.ingest.chunking.strategies import Chunker

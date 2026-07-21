@@ -11,7 +11,8 @@ from app.retrieval.pipeline import (
     RetrievalPipeline,
     RetrievalPipelineResult,
 )
-from app.retrieval.reporting import RetrievalComparisonReporter, RetrievalReporter
+from app.retrieval.reporting.comparison_reporter import RetrievalComparisonReporter
+from app.retrieval.reporting.reporter import RetrievalReporter
 from app.retrieval.rerankers import Reranker, RerankingConfig
 from app.retrieval.retrievers.registry import RetrieverRegistry
 

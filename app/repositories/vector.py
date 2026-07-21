@@ -8,11 +8,8 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from app.core.errors import AppError, ErrorCode
-from app.indexing.collections import (
-    InMemoryVectorCollection,
-    VectorCollection,
-    VectorRecord,
-)
+from app.indexing.collections import VectorCollection, VectorRecord
+from app.indexing.collections.vector import InMemoryVectorCollection
 
 
 class VectorRepository(Protocol):

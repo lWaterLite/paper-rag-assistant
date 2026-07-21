@@ -7,29 +7,35 @@ from dataclasses import dataclass, field
 from app.factory.configs import ConfigFactory
 from app.ingest.chunking.registry import ChunkerRegistry, build_default_chunker_registry
 from app.ingest.chunking.strategies import Chunker, ChunkerConfig
-from app.ingest.loading import (
-    DocumentIdentityBuilder,
-    DocumentSourceAccessService,
+from app.ingest.loading.access import (
     DocumentSourceAccessConfig,
+    DocumentSourceAccessService,
+)
+from app.ingest.loading.local import (
+    DocumentIdentityBuilder,
     LocalDocumentLoader,
     LocalDocumentLoaderConfig,
 )
-from app.ingest.parsing import (
+from app.ingest.parsing.cleaners import (
     BasicTextCleaner,
-    HtmlDocumentParser,
     HtmlTextCleaner,
+    PdfTextCleaner,
+    PdfTextCleanerConfig,
+)
+from app.ingest.parsing.parsers import (
+    HtmlDocumentParser,
     MarkdownParser,
     ParserRegistry,
     PdfDocumentParser,
-    PdfTextCleaner,
-    PdfTextCleanerConfig,
     PlainTextParser,
 )
 from app.ingest.pipeline import IngestionPipeline
-from app.ingest.reporting import (
+from app.ingest.reporting.chunking import ChunkingReportWriter
+from app.ingest.reporting.configuration import (
     ChunkingReportConfig,
-    ChunkingReportWriter,
     IngestionReportConfig,
+)
+from app.ingest.reporting.ingestion import (
     IngestionReportWriter,
 )
 

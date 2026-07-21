@@ -6,10 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from app.repositories.registries._base import RepositoryRegistryBase
-from app.repositories.vector import (
-    LocalJsonVectorRepository,
-    VectorRepository,
-)
+from app.repositories.vector import VectorRepository
 
 VectorRepositoryBuilder = Callable[[Path], VectorRepository]
 
@@ -28,6 +25,8 @@ class VectorRepositoryRegistry(RepositoryRegistryBase[VectorRepositoryBuilder]):
 
 def build_default_vector_repository_registry() -> VectorRepositoryRegistry:
     """创建项目内置的向量 Repository 注册表。"""
+
+    from app.repositories.vector import LocalJsonVectorRepository
 
     registry = VectorRepositoryRegistry()
     registry.register("local_json", LocalJsonVectorRepository)

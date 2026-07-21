@@ -10,8 +10,9 @@ from app.core.settings import ProjectSettings
 from app.core.errors import AppError, ErrorCode
 from app.factory import ApplicationFactory
 from app.ingest.chunking.strategies import CharacterChunker, ChunkerConfig
-from app.ingest.loading import DocumentIdentityBuilder
-from app.ingest.parsing import BasicTextCleaner, MarkdownParser
+from app.ingest.loading.local import DocumentIdentityBuilder
+from app.ingest.parsing.cleaners import BasicTextCleaner
+from app.ingest.parsing.parsers import MarkdownParser
 
 
 SAMPLE_DOCUMENT = Path("data/raw/papers/rag_intro_note.md")

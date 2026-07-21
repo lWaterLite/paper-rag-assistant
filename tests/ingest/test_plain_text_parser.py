@@ -5,7 +5,8 @@ from __future__ import annotations
 import unittest
 
 from app.ingest.models import RawDocument
-from app.ingest.parsing import BasicTextCleaner, PlainTextParser
+from app.ingest.parsing.cleaners import BasicTextCleaner
+from app.ingest.parsing.parsers import PlainTextParser
 
 
 class PlainTextParserTest(unittest.TestCase):

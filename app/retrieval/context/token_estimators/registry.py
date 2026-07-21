@@ -6,7 +6,6 @@ from collections.abc import Callable
 
 from app.retrieval.context.token_estimators.base import TokenEstimator
 from app.retrieval.context.token_estimators.config import TokenEstimatorConfig
-from app.retrieval.context.token_estimators.regex import RegexTokenEstimator
 
 TokenEstimatorProvider = Callable[[], TokenEstimator]
 
@@ -60,6 +59,8 @@ class TokenEstimatorRegistry:
 
 def build_default_token_estimator_registry() -> TokenEstimatorRegistry:
     """创建包含项目内置策略的 token estimator registry。"""
+
+    from app.retrieval.context.token_estimators.regex import RegexTokenEstimator
 
     registry = TokenEstimatorRegistry()
     registry.register("regex", RegexTokenEstimator)

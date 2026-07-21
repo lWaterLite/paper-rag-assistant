@@ -8,14 +8,14 @@ from app.core.errors import AppError, ErrorCode
 from app.retrieval.models import RetrievedChunk
 from app.retrieval.configuration import RetrievalConfig
 from app.retrieval.pipeline import RetrievalPipeline
-from app.retrieval.reporting import RetrievalReporter
+from app.retrieval.reporting.reporter import RetrievalReporter
 from app.retrieval.rerankers import (
-    LexicalReranker,
     RerankingConfig,
-    build_default_reranker_registry,
 )
+from app.retrieval.rerankers.lexical import LexicalReranker
+from app.retrieval.rerankers.registry import build_default_reranker_registry
 from app.retrieval.retrievers import RetrieverRegistry
-from app.retrieval.tokenizers import RegexTokenizer
+from app.retrieval.tokenizers.regex import RegexTokenizer
 
 
 def build_chunk(chunk_id: str, text: str, *, rank: int) -> RetrievedChunk:

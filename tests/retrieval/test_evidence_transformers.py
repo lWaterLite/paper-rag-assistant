@@ -11,10 +11,12 @@ from app.retrieval.context.evidence_transformers import (
     EvidenceSource,
     EvidenceTransformRequest,
     EvidenceTransformResult,
-    EvidenceTransformStage,
     EvidenceTransformationConfig,
+)
+from app.retrieval.context.evidence_transformers.registry import (
     build_default_evidence_transformer_registry,
 )
+from app.retrieval.context.evidence_transformers.stage import EvidenceTransformStage
 
 
 def build_chunk(chunk_id: str, text: str, *, rank: int = 1) -> RetrievedChunk:

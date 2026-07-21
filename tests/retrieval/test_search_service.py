@@ -10,7 +10,7 @@ from app.core.errors import AppError, ErrorCode
 from app.retrieval.models import RetrievedChunk
 from app.retrieval.configuration import RetrievalConfig
 from app.retrieval.retrievers import RetrieverRegistry
-from app.retrieval.reporting import RetrievalReporter
+from app.retrieval.reporting.reporter import RetrievalReporter
 from app.retrieval.rerankers import RerankingConfig
 from app.retrieval.services.search import SearchService
 

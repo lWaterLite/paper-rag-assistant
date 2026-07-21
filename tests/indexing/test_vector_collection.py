@@ -9,7 +9,8 @@ import uuid
 from pathlib import Path
 
 from app.core.errors import AppError, ErrorCode
-from app.indexing.collections import InMemoryVectorCollection, VectorRecord
+from app.indexing.collections import VectorRecord
+from app.indexing.collections.vector import InMemoryVectorCollection
 from app.repositories.vector import LocalJsonVectorRepository
 
 

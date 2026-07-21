@@ -11,23 +11,25 @@ from app.core.settings import IngestionSettings, LoaderSettings, ProjectSettings
 from app.core.errors import AppError, ErrorCode
 from app.ingest.models import RawDocument
 from app.factory import ApplicationFactory
-from app.ingest.loading import (
+from app.ingest.loading.local import (
     DocumentIdentityBuilder,
     LocalDocumentLoader,
     LocalDocumentLoaderConfig,
 )
-from app.ingest.parsing import (
+from app.ingest.parsing.cleaners import (
     BasicTextCleaner,
-    HtmlDocumentParser,
     HtmlTextCleaner,
-    MarkdownParser,
-    ParserRegistry,
-    PdfDocumentParser,
     PdfTextCleaner,
     PdfTextCleanerConfig,
 )
+from app.ingest.parsing.parsers import (
+    HtmlDocumentParser,
+    MarkdownParser,
+    ParserRegistry,
+    PdfDocumentParser,
+)
 from app.ingest.pipeline import IngestionPipeline
-from app.ingest.reporting import IngestionReportWriter
+from app.ingest.reporting.ingestion import IngestionReportWriter
 
 
 class IngestionPipelineTest(unittest.TestCase):

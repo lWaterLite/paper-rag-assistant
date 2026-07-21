@@ -8,9 +8,6 @@ from app.retrieval.context.evidence_transformers.base import EvidenceTransformer
 from app.retrieval.context.evidence_transformers.config import (
     EvidenceTransformationConfig,
 )
-from app.retrieval.context.evidence_transformers.passthrough import (
-    PassthroughEvidenceTransformer,
-)
 
 
 EvidenceTransformerProvider = Callable[[EvidenceTransformationConfig], EvidenceTransformer]
@@ -61,6 +58,10 @@ class EvidenceTransformerRegistry:
 
 def build_default_evidence_transformer_registry() -> EvidenceTransformerRegistry:
     """创建包含项目内置 transformer 的注册表。"""
+
+    from app.retrieval.context.evidence_transformers.passthrough import (
+        PassthroughEvidenceTransformer,
+    )
 
     registry = EvidenceTransformerRegistry()
     registry.register("passthrough", lambda config: PassthroughEvidenceTransformer())

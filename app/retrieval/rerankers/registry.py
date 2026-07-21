@@ -6,7 +6,6 @@ from collections.abc import Callable
 
 from app.retrieval.rerankers.base import Reranker
 from app.retrieval.rerankers.config import RerankingConfig
-from app.retrieval.rerankers.lexical import LexicalReranker
 from app.retrieval.tokenizers.base import Tokenizer
 
 RerankerProvider = Callable[[RerankingConfig], Reranker]
@@ -67,6 +66,8 @@ def _normalize_name(name: str) -> str:
 
 def build_default_reranker_registry(tokenizer: Tokenizer) -> RerankerRegistry:
     """创建项目内置 reranker registry，并注入 lexical 所需 tokenizer。"""
+
+    from app.retrieval.rerankers.lexical import LexicalReranker
 
     registry = RerankerRegistry()
     registry.register(

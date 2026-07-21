@@ -18,23 +18,22 @@ from app.core.settings import (
 )
 from app.factory import ApplicationFactory
 from app.retrieval.configuration import RetrievalConfig
-from app.retrieval.configuration.postprocessing import (
-    PostProcessingConfig,
-    PostProcessingProfile,
-)
+from app.retrieval.configuration.postprocessing import PostProcessingConfig
+from app.retrieval.configuration.postprocessing.profile import PostProcessingProfile
 from app.retrieval.context import ContextPackerConfig
 from app.retrieval.context.evidence_transformers import EvidenceTransformationConfig
-from app.retrieval.reporting import (
+from app.retrieval.reporting import RetrievalReportConfig
+from app.retrieval.reporting.models import (
     RetrievalConfigSnapshot,
     RetrievalIndexSnapshot,
-    RetrievalReportConfig,
-    RetrievalReporter,
-    RetrievalReportWriter,
     RetrievalRuntimeSnapshot,
 )
+from app.retrieval.reporting.reporter import RetrievalReporter
+from app.retrieval.reporting.writer import RetrievalReportWriter
 from app.retrieval.retrievers import RetrieverRegistry
-from app.retrieval.rerankers import LexicalReranker, RerankingConfig
-from app.retrieval.tokenizers import RegexTokenizer
+from app.retrieval.rerankers import RerankingConfig
+from app.retrieval.rerankers.lexical import LexicalReranker
+from app.retrieval.tokenizers.regex import RegexTokenizer
 from app.retrieval.services.search import SearchService
 
 

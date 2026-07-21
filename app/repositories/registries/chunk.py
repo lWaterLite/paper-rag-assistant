@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from app.repositories.chunk import ChunkRepository, LocalJsonChunkRepository
+from app.repositories.chunk import ChunkRepository
 from app.repositories.registries._base import RepositoryRegistryBase
 
 ChunkRepositoryBuilder = Callable[[Path], ChunkRepository]
@@ -25,6 +25,8 @@ class ChunkRepositoryRegistry(RepositoryRegistryBase[ChunkRepositoryBuilder]):
 
 def build_default_chunk_repository_registry() -> ChunkRepositoryRegistry:
     """创建项目内置的 Chunk Repository 注册表。"""
+
+    from app.repositories.chunk import LocalJsonChunkRepository
 
     registry = ChunkRepositoryRegistry()
     registry.register("local_json", LocalJsonChunkRepository)

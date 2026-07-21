@@ -7,7 +7,7 @@ import shutil
 import uuid
 from pathlib import Path
 
-from app.indexing.embeddings import FileEmbeddingCache, InMemoryEmbeddingCache
+from app.indexing.embeddings.cache import FileEmbeddingCache, InMemoryEmbeddingCache
 
 
 class FakeEmbeddingClient:

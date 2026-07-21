@@ -8,7 +8,7 @@ from dataclasses import replace
 
 from pydantic import ValidationError
 
-from app.api.routes import api_contract, planned_routes
+from app.api.routes.catalog import api_contract, planned_routes
 from app.api.contracts.documents import DocumentIngestRequest
 from app.api.contracts.retrieval import (
     AskRequest,

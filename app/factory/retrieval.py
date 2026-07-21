@@ -6,59 +6,53 @@ from dataclasses import dataclass, field
 
 from app.core.errors import AppError, ErrorCode
 from app.factory.configs import ConfigFactory
-from app.indexing.pipeline import RagIndex
-from app.retrieval.retrievers import (
-    BM25Index,
-    BM25Retriever,
-    HybridRetrievalSource,
-    HybridRetriever,
-    Retriever,
-    RetrieverRegistry,
-    VectorRetriever,
-)
+from app.indexing.pipeline.types import RagIndex
+from app.retrieval.retrievers import Retriever, RetrieverRegistry
+from app.retrieval.retrievers.bm25 import BM25Index, BM25Retriever
+from app.retrieval.retrievers.hybrid import HybridRetrievalSource, HybridRetriever
+from app.retrieval.retrievers.vector import VectorRetriever
 from app.retrieval.configuration import HybridRetrievalConfig, RetrievalConfig
-from app.retrieval.retrievers.fusion import ReciprocalRankFusion
+from app.retrieval.retrievers.fusion.rrf import ReciprocalRankFusion
 from app.retrieval.rerankers import (
     Reranker,
     RerankerRegistry,
     RerankingConfig,
-    build_default_reranker_registry,
 )
-from app.retrieval.reporting import (
-    RetrievalComparisonReporter,
-    RetrievalComparisonReportWriter,
+from app.retrieval.rerankers.registry import build_default_reranker_registry
+from app.retrieval.reporting.comparison_reporter import RetrievalComparisonReporter
+from app.retrieval.reporting.comparison_writer import RetrievalComparisonReportWriter
+from app.retrieval.reporting.models import (
     RetrievalConfigSnapshot,
     RetrievalIndexSnapshot,
-    RetrievalReporter,
-    RetrievalReportWriter,
     RetrievalRuntimeSnapshot,
 )
+from app.retrieval.reporting.reporter import RetrievalReporter
+from app.retrieval.reporting.writer import RetrievalReportWriter
 from app.retrieval.services.search import CompareSearchService, SearchService
-from app.retrieval.tokenizers import (
-    Tokenizer,
-    TokenizerConfig,
-    TokenizerRegistry,
-    build_default_tokenizer_registry,
-)
+from app.retrieval.tokenizers import Tokenizer, TokenizerConfig, TokenizerRegistry
+from app.retrieval.tokenizers.registry import build_default_tokenizer_registry
 from app.retrieval.context.token_estimators import (
     TokenEstimator,
     TokenEstimatorConfig,
     TokenEstimatorRegistry,
+)
+from app.retrieval.context.token_estimators.registry import (
     build_default_token_estimator_registry,
 )
-from app.retrieval.context import ContextPacker, TokenAwareContextPacker
+from app.retrieval.context import ContextPacker
+from app.retrieval.context.packer import TokenAwareContextPacker
 from app.retrieval.context.evidence_transformers import (
-    EvidenceTransformStage,
     EvidenceTransformationConfig,
     EvidenceTransformer,
     EvidenceTransformerRegistry,
+)
+from app.retrieval.context.evidence_transformers.registry import (
     build_default_evidence_transformer_registry,
 )
-from app.retrieval.configuration.postprocessing import (
-    PostProcessingConfig,
-    PostProcessingConfigValidator,
-    PostProcessingProfile,
-)
+from app.retrieval.context.evidence_transformers.stage import EvidenceTransformStage
+from app.retrieval.configuration.postprocessing import PostProcessingConfig
+from app.retrieval.configuration.postprocessing.profile import PostProcessingProfile
+from app.retrieval.configuration.postprocessing.validator import PostProcessingConfigValidator
 
 
 @dataclass(slots=True)

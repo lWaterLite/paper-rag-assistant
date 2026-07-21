@@ -13,10 +13,8 @@ from app.retrieval.reporting.models import (
     RetrievalRuntimeSnapshot,
 )
 from app.retrieval.reporting.writer import RetrievalReportWriter
-from app.retrieval.configuration.postprocessing import (
-    PostProcessingConfig,
-    PostProcessingProfile,
-)
+from app.retrieval.configuration.postprocessing import PostProcessingConfig
+from app.retrieval.configuration.postprocessing.profile import PostProcessingProfile
 from app.retrieval.configuration import RetrievalConfig
 from app.retrieval.context import ContextPackerConfig
 from app.retrieval.context.evidence_transformers import EvidenceTransformationConfig

@@ -10,7 +10,7 @@ from threading import RLock
 from typing import TYPE_CHECKING
 
 from app.generation.answer_generator import AnswerGenerator
-from app.indexing.pipeline import RagIndex
+from app.indexing.pipeline.types import RagIndex
 from app.pipeline import RagPipeline
 from app.retrieval.retrievers import RetrieverRegistry
 from app.retrieval.services.search import CompareSearchService, SearchService

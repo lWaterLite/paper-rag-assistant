@@ -12,12 +12,9 @@ from app.core.settings import (
 )
 from app.factory.configs import ConfigFactory
 from app.factory.retrieval import RetrievalFactory
-from app.retrieval.tokenizers import (
-    RegexTokenizer,
-    TokenizerConfig,
-    TokenizerRegistry,
-    build_default_tokenizer_registry,
-)
+from app.retrieval.tokenizers import TokenizerConfig, TokenizerRegistry
+from app.retrieval.tokenizers.regex import RegexTokenizer
+from app.retrieval.tokenizers.registry import build_default_tokenizer_registry
 
 
 class TokenizerRegistryTest(unittest.TestCase):

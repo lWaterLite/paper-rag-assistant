@@ -14,11 +14,9 @@ from app.core.settings import (
 )
 from app.factory import ApplicationFactory
 from app.retrieval.configuration import RetrievalConfig
-from app.retrieval.configuration.postprocessing import (
-    PostProcessingConfig,
-    PostProcessingConfigValidator,
-    PostProcessingProfile,
-)
+from app.retrieval.configuration.postprocessing import PostProcessingConfig
+from app.retrieval.configuration.postprocessing.profile import PostProcessingProfile
+from app.retrieval.configuration.postprocessing.validator import PostProcessingConfigValidator
 from app.retrieval.context import ContextPackerConfig
 from app.retrieval.context.evidence_transformers import EvidenceTransformationConfig
 from app.retrieval.rerankers import RerankingConfig

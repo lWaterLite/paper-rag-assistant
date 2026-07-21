@@ -7,10 +7,8 @@ from dataclasses import dataclass, replace
 from app.retrieval.models import RetrievedChunk
 from app.retrieval.configuration import HybridRetrievalConfig
 from app.retrieval.retrievers.base import Retriever
-from app.retrieval.retrievers.fusion import (
-    FusionStrategy,
-    RankedResultSet,
-)
+from app.retrieval.retrievers.fusion import FusionStrategy
+from app.retrieval.retrievers.fusion.base import RankedResultSet
 
 
 @dataclass(frozen=True, slots=True)

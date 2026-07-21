@@ -8,11 +8,11 @@ from app.generation.answer_generator import MockAnswerGenerator
 from app.generation.models import Citation
 from app.generation.prompts import build_rag_answer_prompt
 from app.core.tracing import RagTrace
-from app.retrieval.context import (
+from app.retrieval.context import PackedContext
+from app.retrieval.context.packer import (
     ContextCitation,
     ContextTokenUsage,
     DroppedChunk,
-    PackedContext,
 )
 from app.retrieval.models import RetrievedChunk
 

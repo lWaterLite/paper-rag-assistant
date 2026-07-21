@@ -8,10 +8,10 @@ from app.retrieval.models import RetrievedChunk
 from app.retrieval.context import (
     ContextPackerConfig,
     ContextPackRequest,
-    TokenAwareContextPacker,
-    passthrough_candidates,
 )
-from app.retrieval.context.token_estimators import RegexTokenEstimator
+from app.retrieval.context.evidence_transformers.models import passthrough_candidates
+from app.retrieval.context.packer import TokenAwareContextPacker
+from app.retrieval.context.token_estimators.regex import RegexTokenEstimator
 
 
 def build_retrieved_chunk(

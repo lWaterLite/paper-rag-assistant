@@ -6,10 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from app.indexing.configuration import IndexBuilderConfig
-from app.repositories.manifest import (
-    IndexManifestRepository,
-    ManifestRepository,
-)
+from app.repositories.manifest import ManifestRepository
 from app.repositories.registries._base import RepositoryRegistryBase
 
 ManifestRepositoryBuilder = Callable[[Path, IndexBuilderConfig], ManifestRepository]
@@ -35,6 +32,8 @@ class ManifestRepositoryRegistry(RepositoryRegistryBase[ManifestRepositoryBuilde
 
 def build_default_manifest_repository_registry() -> ManifestRepositoryRegistry:
     """创建项目内置的 Manifest Repository 注册表。"""
+
+    from app.repositories.manifest import IndexManifestRepository
 
     registry = ManifestRepositoryRegistry()
     registry.register("local_json", IndexManifestRepository)

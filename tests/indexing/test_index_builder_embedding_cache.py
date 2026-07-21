@@ -21,13 +21,11 @@ from app.core.settings import (
     VectorRepositorySettings,
 )
 from app.factory.configs import ConfigFactory
-from app.factory.indexing import IndexingFactory
+from app.factory.indexing.factory import IndexingFactory
 from app.factory.ingestion import IngestionFactory
-from app.indexing.embeddings import (
-    EmbeddingClient,
-    InMemoryEmbeddingCache,
-    build_default_embedding_client_registry,
-)
+from app.indexing.embeddings import EmbeddingClient
+from app.indexing.embeddings.cache import InMemoryEmbeddingCache
+from app.indexing.embeddings.registry import build_default_embedding_client_registry
 
 
 class CountingEmbeddingClient:

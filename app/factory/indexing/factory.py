@@ -6,23 +6,21 @@ from dataclasses import dataclass, field
 
 from app.factory.configs import ConfigFactory
 from app.factory.ingestion import IngestionFactory
-from app.indexing.collections import InMemoryVectorCollection, VectorCollection
+from app.indexing.collections.vector import InMemoryVectorCollection, VectorCollection
 from app.indexing.configuration import (
     EmbeddingConfig,
     IndexBuilderConfig,
     VectorRepositoryConfig,
 )
-from app.indexing.embeddings import (
-    EmbeddingCache,
-    EmbeddingClient,
-    EmbeddingClientRegistry,
-    FileEmbeddingCache,
-    build_default_embedding_client_registry,
-)
-from app.indexing.pipeline import IndexBuilder, IndexLoader, RagIndex
-from app.indexing.reporting import IndexBuildReportWriter
+from app.indexing.embeddings import EmbeddingClient, EmbeddingClientRegistry
+from app.indexing.embeddings.cache import EmbeddingCache, FileEmbeddingCache
+from app.indexing.embeddings.registry import build_default_embedding_client_registry
+from app.indexing.pipeline.builder import IndexBuilder
+from app.indexing.pipeline.types import RagIndex
+from app.indexing.pipeline.loader import IndexLoader
+from app.indexing.reporting.build import IndexBuildReportWriter
 from app.ingest.chunking.collection import ChunkCollection, InMemoryChunkCollection
-from app.ingest.collections import (
+from app.ingest.collections.documents import (
     DocumentCollection,
     InMemoryDocumentCollection,
 )
@@ -34,11 +32,11 @@ from app.repositories.registries import (
     DocumentRepositoryRegistry,
     ManifestRepositoryRegistry,
     VectorRepositoryRegistry,
-    build_default_chunk_repository_registry,
-    build_default_document_repository_registry,
-    build_default_manifest_repository_registry,
-    build_default_vector_repository_registry,
 )
+from app.repositories.registries.chunk import build_default_chunk_repository_registry
+from app.repositories.registries.document import build_default_document_repository_registry
+from app.repositories.registries.manifest import build_default_manifest_repository_registry
+from app.repositories.registries.vector import build_default_vector_repository_registry
 from app.repositories.vector import VectorRepository
 
 

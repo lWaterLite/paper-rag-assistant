@@ -2,7 +2,6 @@
 
 from app.ingest.collections.documents import (
     DocumentCollection,
-    InMemoryDocumentCollection,
 )
 
-__all__ = ["DocumentCollection", "InMemoryDocumentCollection"]
+__all__ = ["DocumentCollection"]

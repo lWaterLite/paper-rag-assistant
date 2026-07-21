@@ -8,7 +8,7 @@ from typing import Protocol
 
 from app.retrieval.models import RetrievedChunk
 from app.retrieval.context.evidence_transformers.models import EvidenceCandidate
-from app.retrieval.context.token_estimators import TokenEstimator
+from app.retrieval.context.token_estimators.base import TokenEstimator
 
 
 @dataclass(frozen=True, slots=True)

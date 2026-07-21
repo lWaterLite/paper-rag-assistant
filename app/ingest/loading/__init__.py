@@ -5,19 +5,13 @@ from app.ingest.loading.access import (
     DocumentSourceAccessService,
 )
 from app.ingest.loading.local import (
-    DocumentIdentityBuilder,
     DocumentLoader,
     DocumentSource,
-    LocalDocumentLoader,
-    LocalDocumentLoaderConfig,
 )
 
 __all__ = [
-    "DocumentIdentityBuilder",
     "DocumentLoader",
     "DocumentSource",
     "DocumentSourceAccessConfig",
     "DocumentSourceAccessService",
-    "LocalDocumentLoader",
-    "LocalDocumentLoaderConfig",
 ]

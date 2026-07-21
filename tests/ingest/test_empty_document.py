@@ -6,7 +6,8 @@ import unittest
 
 from app.ingest.models import RawDocument
 from app.ingest.chunking.strategies import CharacterChunker, ChunkerConfig, SectionAwareChunker
-from app.ingest.parsing import BasicTextCleaner, PlainTextParser
+from app.ingest.parsing.cleaners import BasicTextCleaner
+from app.ingest.parsing.parsers import PlainTextParser
 
 
 def build_empty_raw_document() -> RawDocument:

@@ -17,7 +17,7 @@ from app.core.settings import (
     VectorRepositorySettings,
 )
 from app.factory import ApplicationFactory
-from app.retrieval.retrievers import VectorRetriever
+from app.retrieval.retrievers.vector import VectorRetriever
 
 
 class IndexLoaderTest(unittest.TestCase):

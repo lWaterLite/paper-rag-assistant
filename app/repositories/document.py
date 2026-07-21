@@ -14,10 +14,8 @@ from app.ingest.models import (
     ParseIssue,
     RawDocument,
 )
-from app.ingest.collections import (
-    DocumentCollection,
-    InMemoryDocumentCollection,
-)
+from app.ingest.collections import DocumentCollection
+from app.ingest.collections.documents import InMemoryDocumentCollection
 
 
 class DocumentRepository(Protocol):

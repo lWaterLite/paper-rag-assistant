@@ -21,7 +21,7 @@ from app.ingest.chunking.strategies import (
     SectionAwareChunker,
     estimate_token_count,
 )
-from app.ingest.reporting import ChunkingReportWriter
+from app.ingest.reporting.chunking import ChunkingReportWriter
 
 
 def build_document(text: str, *, source_path: str = "paper.md") -> ParsedDocument:

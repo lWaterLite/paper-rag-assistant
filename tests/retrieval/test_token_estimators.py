@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import unittest
 
-from app.retrieval.context.token_estimators import (
-    RegexTokenEstimator,
-    TokenEstimatorConfig,
-    TokenEstimatorRegistry,
+from app.retrieval.context.token_estimators import TokenEstimatorConfig, TokenEstimatorRegistry
+from app.retrieval.context.token_estimators.regex import RegexTokenEstimator
+from app.retrieval.context.token_estimators.registry import (
     build_default_token_estimator_registry,
 )
 

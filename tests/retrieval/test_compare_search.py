@@ -12,12 +12,10 @@ from app.api.handlers import handle_compare_search_request
 from app.api.contracts.retrieval import CompareSearchRequest
 from app.retrieval.models import RetrievedChunk
 from app.retrieval.configuration import RetrievalConfig
-from app.retrieval.reporting import (
-    RetrievalComparisonReporter,
-    RetrievalComparisonReportWriter,
-    RetrievalReportConfig,
-    RetrievalReporter,
-)
+from app.retrieval.reporting import RetrievalReportConfig
+from app.retrieval.reporting.comparison_reporter import RetrievalComparisonReporter
+from app.retrieval.reporting.comparison_writer import RetrievalComparisonReportWriter
+from app.retrieval.reporting.reporter import RetrievalReporter
 from app.retrieval.retrievers import RetrieverRegistry
 from app.retrieval.rerankers import RerankingConfig
 from app.retrieval.services.search import CompareSearchService

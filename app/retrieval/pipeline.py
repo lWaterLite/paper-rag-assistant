@@ -11,24 +11,24 @@ from typing import Protocol
 from app.core.errors import AppError, ErrorCode
 from app.retrieval.models import RetrievedChunk
 from app.core.tracing import RagTrace
-from app.retrieval.comparison import (
+from app.retrieval.comparison import RetrievalComparisonResult
+from app.retrieval.comparison.models import (
     ComparedChunkOverlap,
     ComparedStrategyResult,
-    RetrievalComparisonResult,
 )
 from app.retrieval.configuration import RetrievalConfig, RetrievalStrategy
 from app.retrieval.pipeline_types import RetrievalPipelineContext, RetrievalStageResult
-from app.retrieval.reporting import (
+from app.retrieval.reporting.comparison_reporter import RetrievalComparisonReporter
+from app.retrieval.reporting.models import (
     RetrievalComparisonExecutionReport,
     RetrievalComparisonOverlapReport,
-    RetrievalComparisonReporter,
     RetrievalComparisonStrategyReport,
     RetrievalExecutionReport,
-    RetrievalReportWriteResult,
-    RetrievalReporter,
     RetrievalStageObservation,
 )
-from app.retrieval.rerankers import Reranker, RerankingConfig, RerankStage
+from app.retrieval.reporting.reporter import RetrievalReportWriteResult, RetrievalReporter
+from app.retrieval.rerankers import Reranker, RerankingConfig
+from app.retrieval.rerankers.stage import RerankStage
 from app.retrieval.retrievers.registry import RetrieverRegistry
 
 

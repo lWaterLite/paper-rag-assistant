@@ -8,10 +8,8 @@ from dataclasses import replace
 
 from app.retrieval.models import RetrievedChunk
 from app.retrieval.configuration import HybridRetrievalConfig
-from app.retrieval.retrievers.fusion import (
-    RankedResultSet,
-    ReciprocalRankFusion,
-)
+from app.retrieval.retrievers.fusion.base import RankedResultSet
+from app.retrieval.retrievers.fusion.rrf import ReciprocalRankFusion
 from app.retrieval.retrievers.hybrid import (
     HybridRetrievalSource,
     HybridRetriever,
