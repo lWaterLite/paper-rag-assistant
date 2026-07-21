@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from app.core.models import RetrievalSignal, RetrievedChunk
+from app.retrieval.models import RetrievalSignal, RetrievedChunk
 from app.retrieval.retrievers.fusion.base import (
     FusedRetrievalHit,
     RankedResultSet,

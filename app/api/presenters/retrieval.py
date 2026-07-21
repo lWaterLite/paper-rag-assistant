@@ -13,9 +13,10 @@ from app.api.contracts.retrieval import (
     RetrievedChunkResponse,
     RetrievalSignalResponse,
 )
-from app.core.models import Citation, RagAnswer, RetrievedChunk
 from app.core.tracing import RagTrace
+from app.generation.models import Citation, RagAnswer
 from app.retrieval.comparison import RetrievalComparisonResult
+from app.retrieval.models import RetrievedChunk
 
 
 def citation_to_response(citation: Citation) -> CitationResponse:

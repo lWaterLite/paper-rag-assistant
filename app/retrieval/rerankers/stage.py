@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from dataclasses import replace
 
 from app.core.errors import AppError, ErrorCode
-from app.core.models import RerankSignal, RetrievedChunk
+from app.retrieval.models import RerankSignal, RetrievedChunk
 from app.retrieval.pipeline_types import RetrievalPipelineContext, RetrievalStageResult
 from app.retrieval.rerankers.base import Reranker
 from app.retrieval.rerankers.config import RerankingConfig

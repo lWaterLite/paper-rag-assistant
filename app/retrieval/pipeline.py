@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Protocol
 
 from app.core.errors import AppError, ErrorCode
-from app.core.models import RetrievedChunk
+from app.retrieval.models import RetrievedChunk
 from app.core.tracing import RagTrace
 from app.retrieval.comparison import (
     ComparedChunkOverlap,

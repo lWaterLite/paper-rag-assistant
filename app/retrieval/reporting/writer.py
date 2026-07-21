@@ -7,7 +7,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from app.core.models import RetrievedChunk
+from app.retrieval.models import RetrievedChunk
 from app.retrieval.reporting.config import RetrievalReportConfig
 from app.retrieval.reporting.models import RetrievalExecutionReport
 

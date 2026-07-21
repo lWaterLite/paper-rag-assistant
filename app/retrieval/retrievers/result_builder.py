@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.core.models import RetrievedChunk
+from app.retrieval.models import RetrievedChunk
 from app.ingest.chunking.models import DocumentChunk
 
 

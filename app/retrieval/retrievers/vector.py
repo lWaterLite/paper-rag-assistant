@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from app.core.errors import AppError, ErrorCode
-from app.core.models import RetrievedChunk
+from app.retrieval.models import RetrievedChunk
 from app.indexing.embeddings import EmbeddingClient
 from app.indexing.collections import VectorCollection
 from app.ingest.chunking.collection import ChunkCollection

@@ -1,6 +1,7 @@
 """检索结果进入生成模型前的上下文组织能力。"""
 
 from app.retrieval.context.packer import (
+    ContextCitation,
     ContextCandidate,
     ContextPackRequest,
     ContextPacker,
@@ -36,6 +37,7 @@ from app.retrieval.context.token_estimators import (
 
 __all__ = [
     "ContextCandidate",
+    "ContextCitation",
     "ContextPackRequest",
     "ContextPacker",
     "ContextPackerConfig",

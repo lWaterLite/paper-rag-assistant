@@ -7,10 +7,11 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from app.core.models import RagAnswer, RetrievedChunk
 from app.core.tracing import RagTrace
+from app.generation.models import Citation, RagAnswer
 from app.generation.prompts import RagAnswerPrompt, build_rag_answer_prompt
 from app.retrieval.context import PackedContext
+from app.retrieval.models import RetrievedChunk
 
 
 class AnswerGenerator(Protocol):
@@ -57,7 +58,10 @@ class MockAnswerGenerator:
 
         return RagAnswer(
             answer=answer,
-            citations=packed_context.citations,
+            citations=[
+                Citation.from_context_citation(citation)
+                for citation in packed_context.citations
+            ],
             retrieved_chunks=retrieved_chunks,
             trace_id=trace.trace_id,
             latency_ms=trace.latency_ms,

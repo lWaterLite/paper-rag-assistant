@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 
-from app.core.models import RetrievedChunk
+from app.retrieval.models import RetrievedChunk
 from app.retrieval.rerankers.base import RerankedCandidate
 from app.retrieval.tokenizers.base import Tokenizer
 

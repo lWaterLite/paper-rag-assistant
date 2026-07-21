@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from app.core.models import Citation, RetrievedChunk
+from app.retrieval.models import RetrievedChunk
 from app.retrieval.context.evidence_transformers.models import EvidenceCandidate
 from app.retrieval.context.token_estimators import TokenEstimator
 
@@ -107,6 +107,22 @@ class ContextSegment:
 
 
 @dataclass(frozen=True, slots=True)
+class ContextCitation:
+    """上下文组织阶段产生的来源映射，尚不是最终回答模型。"""
+
+    citation_id: str
+    chunk_id: str
+    doc_id: str
+    version_id: str
+    title: str | None
+    source_path: str
+    snippet: str
+    page_start: int | None = None
+    page_end: int | None = None
+    section: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class ContextTokenUsage:
     """一次 context packing 的 token 预算明细。"""
 
@@ -130,7 +146,7 @@ class PackedContext:
     """准备交给生成模型的上下文与完整来源映射。"""
 
     context_text: str
-    citations: list[Citation]
+    citations: list[ContextCitation]
     used_chunks: list[RetrievedChunk]
     dropped_chunks: list[DroppedChunk]
     segments: list[ContextSegment]
@@ -165,7 +181,7 @@ class TokenAwareContextPacker:
         candidates = self._merge_adjacent_evidence(quota_evidence)
 
         context_parts: list[str] = []
-        citations: list[Citation] = []
+        citations: list[ContextCitation] = []
         used_chunks: list[RetrievedChunk] = []
         used_chunk_identities: set[tuple[str, str]] = set()
         segments: list[ContextSegment] = []
@@ -417,11 +433,14 @@ class TokenAwareContextPacker:
         )
 
     @staticmethod
-    def _build_citation(segment: ContextSegment, candidate: ContextCandidate) -> Citation:
-        """构建与段级 provenance 对应的兼容 citation。"""
+    def _build_citation(
+        segment: ContextSegment,
+        candidate: ContextCandidate,
+    ) -> ContextCitation:
+        """构建与段级 provenance 对应的上下文来源映射。"""
 
         first_chunk = candidate.primary_chunk
-        return Citation(
+        return ContextCitation(
             citation_id=segment.citation_id,
             chunk_id=first_chunk.chunk_id,
             doc_id=segment.source_doc_id,

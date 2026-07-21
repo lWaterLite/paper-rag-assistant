@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
-from app.core.models import RetrievedChunk
+from app.retrieval.models import RetrievedChunk
 
 
 @dataclass(frozen=True, slots=True)

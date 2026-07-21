@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from app.core.models import RetrievedChunk
+from app.retrieval.models import RetrievedChunk
 
 
 class Retriever(Protocol):

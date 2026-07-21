@@ -7,7 +7,7 @@ from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from app.core.models import RetrievedChunk
+from app.retrieval.models import RetrievedChunk
 from app.ingest.chunking.models import DocumentChunk
 from app.retrieval.configuration import BM25Config
 from app.retrieval.retrievers.result_builder import RetrievedChunkBuilder
