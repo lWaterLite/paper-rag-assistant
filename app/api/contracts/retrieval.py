@@ -145,6 +145,8 @@ class AskResponse(ApiModel):
     retrieved_chunks: list[RetrievedChunkResponse] = Field(default_factory=list)
     trace_id: str
     latency_ms: float
+    status: Literal["answered", "abstained"] = "answered"
+    abstention_reason: str | None = None
     trace: TraceResponse | None = None
 
 

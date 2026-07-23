@@ -111,6 +111,8 @@ def rag_answer_to_response(
         ),
         trace_id=answer.trace_id,
         latency_ms=answer.latency_ms,
+        status=answer.status,
+        abstention_reason=answer.abstention_reason,
         trace=trace_to_response(trace) if trace is not None else None,
     )
 
