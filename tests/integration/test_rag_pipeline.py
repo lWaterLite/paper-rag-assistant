@@ -8,7 +8,7 @@ from pathlib import Path
 from app.core.settings import EnvSettings, ProjectSettings, RetrievalSettings
 from app.core.errors import AppError, ErrorCode
 from app.factory import ApplicationFactory
-from app.generation.models import RagAnswer
+from app.generation.models import Citation, RagAnswer
 from app.retrieval.context import PackedContext
 
 
@@ -60,6 +60,9 @@ class RagPipelineTest(unittest.TestCase):
             project_settings.retrieval.top_k,
         )
         self.assertGreater(len(answer.citations), 0)
+        self.assertEqual(answer.status, "answered")
+        self.assertIsNotNone(answer.trace)
+        self.assertEqual(answer.trace.stages[0].stage, "query_planning")
 
     def test_pipeline_uses_configured_bm25_retriever(self) -> None:
         env_settings = EnvSettings()
@@ -105,7 +108,7 @@ class RagPipelineTest(unittest.TestCase):
         self.assertIsNotNone(answer_generator.trace)
         self.assertEqual(answer_generator.trace.final_status, "success")
         self.assertIsNone(answer_generator.trace.failure_type)
-        evidence_stage = answer_generator.trace.stages[1]
+        evidence_stage = answer_generator.trace.stages[2]
         self.assertEqual(evidence_stage.stage, "evidence_transformation")
         self.assertEqual(evidence_stage.detail["transformer"], "passthrough")
         self.assertEqual(evidence_stage.detail["input_count"], evidence_stage.detail["output_count"])
@@ -142,7 +145,12 @@ class RagPipelineTest(unittest.TestCase):
         self.assertEqual(error.trace.failure_type, "context_packing")
         self.assertEqual(
             [stage.stage for stage in error.trace.stages],
-            ["retrieval", "evidence_transformation", "context_packing"],
+            [
+                "query_planning",
+                "retrieval",
+                "evidence_transformation",
+                "context_packing",
+            ],
         )
 
     def test_pipeline_records_failure_trace_when_generation_fails(self) -> None:
@@ -161,6 +169,7 @@ class RagPipelineTest(unittest.TestCase):
         self.assertEqual(
             [stage.stage for stage in error.trace.stages],
             [
+                "query_planning",
                 "retrieval",
                 "evidence_transformation",
                 "context_packing",
@@ -192,7 +201,10 @@ class CapturingAnswerGenerator:
         self.trace = trace
         return RagAnswer(
             answer="测试回答",
-            citations=packed_context.citations,
+            citations=[
+                Citation.from_context_citation(citation)
+                for citation in packed_context.citations
+            ],
             retrieved_chunks=retrieved_chunks,
             trace_id=trace.trace_id,
             latency_ms=trace.latency_ms,

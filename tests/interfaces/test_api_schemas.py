@@ -172,6 +172,8 @@ class ApiSchemaTest(unittest.TestCase):
         self.assertEqual(response.trace_id, "trace_123")
         self.assertEqual(response.citations[0].citation_id, "C1")
         self.assertEqual(response.retrieved_chunks, [])
+        self.assertEqual(response.status, "answered")
+        self.assertIsNone(response.abstention_reason)
 
     def test_ask_response_can_include_retrieved_chunks(self) -> None:
         response = rag_answer_to_response(build_answer(), include_retrieved_chunks=True)

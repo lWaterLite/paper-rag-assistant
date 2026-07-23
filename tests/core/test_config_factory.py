@@ -26,6 +26,8 @@ class ConfigFactoryTest(unittest.TestCase):
         self.assertIs(factory.build_loader_config(), factory.build_loader_config())
         self.assertIs(factory.build_chunker_config(), factory.build_chunker_config())
         self.assertIs(factory.build_embedding_config(), factory.build_embedding_config())
+        self.assertIs(factory.build_llm_client_config(), factory.build_llm_client_config())
+        self.assertIs(factory.build_generation_config(), factory.build_generation_config())
         self.assertIs(factory.build_retrieval_config(), factory.build_retrieval_config())
         self.assertIs(
             factory.build_postprocessing_config(),
@@ -57,6 +59,10 @@ class ConfigFactoryTest(unittest.TestCase):
         self.assertIsNot(
             first_factory.build_postprocessing_config(),
             second_factory.build_postprocessing_config(),
+        )
+        self.assertIsNot(
+            first_factory.build_generation_config(),
+            second_factory.build_generation_config(),
         )
 
 

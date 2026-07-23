@@ -102,6 +102,53 @@ class RetrievalPipelineTest(unittest.TestCase):
         self.assertEqual([chunk.chunk_id for chunk in result.results], ["chunk_a", "chunk_a"])
         self.assertEqual([chunk.rank for chunk in result.results], [1, 2])
 
+    def test_multi_query_merges_candidates_before_shared_deduplication(self) -> None:
+        retriever = QueryAwareStaticRetriever(
+            {
+                "first query": [build_result("chunk_a"), build_result("chunk_b", rank=2)],
+                "second query": [build_result("chunk_b"), build_result("chunk_c", rank=2)],
+            }
+        )
+        pipeline = RetrievalPipeline(
+            registry=build_registry(vector=retriever),
+            config=RetrievalConfig(strategy="vector", top_k=3, deduplicate_by_chunk_id=True),
+            reranking_config=RerankingConfig(enabled=False),
+            reranker=None,
+            reporter=RetrievalReporter.disabled(),
+        )
+
+        result = pipeline.search_queries(
+            "原始问题",
+            retrieval_queries=("first query", "second query"),
+        )
+
+        self.assertEqual(
+            [chunk.chunk_id for chunk in result.results],
+            ["chunk_a", "chunk_b", "chunk_c"],
+        )
+        self.assertEqual(
+            len(
+                [
+                    stage
+                    for stage in result.trace.stages
+                    if stage.stage == "retriever_execution"
+                ]
+            ),
+            2,
+        )
+
+
+class QueryAwareStaticRetriever:
+    """按 query 返回不同候选集的测试检索器。"""
+
+    def __init__(self, results_by_query: dict[str, list[RetrievedChunk]]) -> None:
+        self._results_by_query = results_by_query
+
+    def retrieve(self, query: str, top_k: int) -> list[RetrievedChunk]:
+        """返回当前 query 对应的前若干候选。"""
+
+        return list(self._results_by_query[query][:top_k])
+
 
 if __name__ == "__main__":
     unittest.main()
