@@ -4,6 +4,7 @@
 #   ingestion（加载、清洗、切分）
 #       -> indexing（向量化、持久化、索引构建）
 #       -> retrieval（在线召回与结果处理）
+#       -> generation（查询规划、回答与引用校验）
 #
 # .env 仅保留 API key、令牌等敏感配置。
 
@@ -100,6 +101,7 @@ failure_mode = "fail_open"
 model_context_window = 4096
 max_context_tokens = 1800
 reserved_prompt_tokens = 200
+# 回答生成的最大输出 token 由此项统一预留，避免 packing 与 generation 使用两份不一致的预算。
 reserved_output_tokens = 512
 safety_margin_tokens = 64
 max_chunks_per_document = 2
@@ -118,3 +120,36 @@ output_dir = "logs/retrieval"
 include_result_text = false
 result_preview_chars = 160
 fail_on_write_error = false
+
+
+# =============================================================================
+# 4. Generation：用户问题 + PackedContext -> 带来源的 RagAnswer
+# =============================================================================
+
+[generation.llm]
+# mock 保持离线开发和测试可运行。切换 openai_compatible 时，base_url 配置完整
+# Chat Completions endpoint，并在 .env 或部署 Secret 中设置 RAG_LLM_API_KEY。
+provider = "mock"
+model = "mock-grounded-json"
+base_url = ""
+timeout_seconds = 30.0
+max_retries = 1
+
+[generation.query_planning]
+enabled = true
+strategy = "rule_based"
+multi_query_enabled = false
+max_additional_queries = 2
+hyde_enabled = false
+failure_mode = "fail_open"
+
+[generation.answering]
+temperature = 0.0
+prompt_version = "rag_answer_v2"
+default_language = "中文"
+invalid_output_mode = "fail_closed"
+
+[generation.citation_validation]
+require_citations_when_evidence = true
+require_inline_ids_match_payload = true
+require_abstention_reason = true
