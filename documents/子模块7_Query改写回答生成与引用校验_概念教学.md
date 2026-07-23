@@ -32,7 +32,7 @@ RagPipeline.ask(question)
   -> RagAnswer
 ```
 
-当前 `app/generation/` 已有 `AnswerGenerator` Protocol、`MockAnswerGenerator`、`RagAnswer`、`Citation` 与可直接给真实模型使用的 prompt 骨架。它的职责是保持端到端链路与数据契约可运行；本子模块会把这条骨架补全为真正的生成子系统。
+当前工程已完成 `AnswerGenerator` Protocol、`GroundedAnswerGenerator`、`RagAnswer`、`Citation`、版本化 prompt、`CitationValidator` 与 `LlmClient` 基础设施。默认 `mock` provider 让离线链路保持确定性；真实 provider 通过注册表和 Factory 注入，不会进入业务层。
 
 本模块的边界也必须清楚：
 
@@ -597,18 +597,18 @@ original_question
 
 ## 11. 与当前工程的代码映射和目标结构
 
-| 当前组件 | 当前职责 | 子模块 7 的演进方向 |
+| 当前组件 | 当前职责 | 当前实现 |
 | --- | --- | --- |
-| `app/pipeline.py::RagPipeline` | 编排检索、证据变换、packing 与生成 | 在检索前接入查询计划，在生成后接入回答校验；仍只负责流程编排 |
-| `app/generation/answer_generator.py::AnswerGenerator` | 抽象回答生成能力 | 保持 Protocol；新增真实实现但不向调用方暴露 SDK |
-| `MockAnswerGenerator` | 维持当前端到端链路 | 保留为确定性测试/离线开发实现，不作为真实回答能力 |
-| `app/generation/prompts.py` | 构造 system/user prompt | 演进为可版本化的 prompt builder，并纳入 token 核算 |
-| `app/generation/models.py::RagAnswer` | 对外回答领域模型 | 保持为稳定输出；可补充拒答与校验状态的明确语义 |
+| `app/pipeline.py::RagPipeline` | 编排查询规划、检索、证据变换、packing 与生成 | 检索前执行 `QueryPlanningStage`，生成后返回带状态和 trace 的 `RagAnswer` |
+| `app/generation/answering::AnswerGenerator` | 抽象回答生成能力 | `GroundedAnswerGenerator` 只依赖 `LlmClient` Protocol，不暴露 SDK |
+| `app/llm/mock.py::MockLlmClient` | 维持离线链路 | 仅用于确定性开发和测试；真实 provider 通过 `LlmClientRegistry` 替换 |
+| `app/generation/prompts/` | 构造 system/user prompt | `RagAnswerPromptBuilder` 提供版本化 prompt，并由 `PromptBudgetValidator` 核算 |
+| `app/generation/models.py::RagAnswer` | 对外回答领域模型 | 额外表达拒答状态、拒答原因和安全的生成诊断 |
 | `Citation.from_context_citation()` | 将上下文来源变成最终引用 | 继续由代码构造最终 metadata，不信任模型自报来源 |
 | `app/retrieval/context::PackedContext` | 提供正文、citation、segment 和 token usage | 作为 generation 的唯一证据输入，不在生成层重新查询存储 |
 | `ApplicationFactory` / `ApplicationRuntime` | 统一组装和复用在线依赖 | 创建 LLM client、rewriter、validator，并管理其生命周期 |
 
-建议的目标包边界如下，具体文件数量应以职责清晰为准，不必为了目录而拆分：
+当前已落地的包边界如下；后续扩展应保持同一依赖方向：
 
 ```text
 app/
@@ -621,9 +621,9 @@ app/
     citations/               # CitationValidator 与回答级引用规则
     models.py                # RagAnswer、Citation 等生成领域模型
   core/settings/
-    generation.py            # 外部 GenerationSettings（后续创建）
+    generation.py            # 外部 GenerationSettings
   factory/configs/
-    generation.py            # Settings -> Config 适配（后续创建）
+    generation.py            # Settings -> Config 适配
 ```
 
 其中 `llm/` 是跨领域基础设施能力，而不是把“模型 SDK”放进 `core`。`core` 继续只承载真正跨领域的错误、追踪和 metadata 等基础概念；生成领域模型仍属于 `generation`。查询规划虽然在学习顺序上属于本子模块，但它的输出直接决定 retrieval 输入，因此更适合作为 `retrieval` 的前置能力，而非让 `retrieval` 反向依赖 `generation`。
