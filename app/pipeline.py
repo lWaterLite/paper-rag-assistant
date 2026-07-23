@@ -6,26 +6,28 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, NoReturn, Protocol
 
 from app.core.errors import AppError, ErrorCode
 from app.core.tracing import RagTrace
-from app.generation.answer_generator import AnswerGenerator
+from app.generation.answering import AnswerGenerator
 from app.generation.models import RagAnswer
 from app.retrieval.context import ContextPackRequest, ContextPacker
 from app.retrieval.context.evidence_transformers.models import EvidenceTransformRequest
 from app.retrieval.context.evidence_transformers.stage import EvidenceTransformStage
 from app.retrieval.pipeline import RetrievalPipelineResult
+from app.retrieval.query import QueryPlanningStage
 
 
 class RetrievalService(Protocol):
     """RAG pipeline 需要的 retrieval 应用服务接口。"""
 
-    def search(
+    def search_queries(
         self,
         query: str,
         *,
+        retrieval_queries: tuple[str, ...],
         top_k: int | None = None,
         retriever: str | None = None,
     ) -> RetrievalPipelineResult:
@@ -53,24 +55,47 @@ class RagPipeline:
         retrieval_service: RetrievalService,
         context_packer: ContextPacker,
         evidence_transform_stage: EvidenceTransformStage,
+        query_planning_stage: QueryPlanningStage,
         answer_generator: AnswerGenerator,
     ) -> None:
         self._config = config
         self._retrieval_service = retrieval_service
         self._context_packer = context_packer
         self._evidence_transform_stage = evidence_transform_stage
+        self._query_planning_stage = query_planning_stage
         self._answer_generator = answer_generator
 
-    def ask(self, question: str) -> RagAnswer:
+    def ask(self, question: str, *, top_k: int | None = None) -> RagAnswer:
         """根据用户问题执行一次 RAG 问答。"""
 
         trace = RagTrace()
 
         started = time.perf_counter()
         try:
-            retrieval_result = self._retrieval_service.search(
-                question,
-                top_k=self._config.top_k,
+            query_plan = self._query_planning_stage.plan(question)
+        except Exception as exc:
+            self._record_failure_and_raise(
+                trace=trace,
+                stage="query_planning",
+                started_at=started,
+                exc=exc,
+                default_code=ErrorCode.QUERY_REWRITE_FAILED,
+                detail={"question": question},
+            )
+        else:
+            trace.record_stage(
+                "query_planning",
+                "success",
+                started,
+                query_plan.to_trace_detail(),
+            )
+
+        started = time.perf_counter()
+        try:
+            retrieval_result = self._retrieval_service.search_queries(
+                query_plan.original_query,
+                retrieval_queries=query_plan.retrieval_queries,
+                top_k=self._config.top_k if top_k is None else top_k,
             )
             retrieved_chunks = retrieval_result.results
         except Exception as exc:
@@ -81,8 +106,8 @@ class RagPipeline:
                 exc=exc,
                 default_code=ErrorCode.RETRIEVAL_FAILED,
                 detail={
-                    "query": question,
-                    "top_k": self._config.top_k,
+                    "query": query_plan.original_query,
+                    "top_k": self._config.top_k if top_k is None else top_k,
                     "retrieval_trace_id": exc.trace_id
                     if isinstance(exc, AppError)
                     else None,
@@ -94,8 +119,9 @@ class RagPipeline:
                 "success",
                 started,
                 {
-                    "query": question,
-                    "top_k": self._config.top_k,
+                    "query": query_plan.original_query,
+                    "retrieval_queries": list(query_plan.retrieval_queries),
+                    "top_k": self._config.top_k if top_k is None else top_k,
                     "returned": len(retrieved_chunks),
                     "retrieval_trace_id": retrieval_result.trace.trace_id,
                     "retrieval_report_path": (
@@ -189,12 +215,26 @@ class RagPipeline:
                 },
             )
         else:
+            generation_detail: dict[str, object] = {
+                "answer_chars": len(answer.answer),
+                "status": answer.status,
+            }
+            if answer.diagnostics is not None:
+                generation_detail.update(
+                    {
+                        "provider": answer.diagnostics.provider,
+                        "model": answer.diagnostics.model,
+                        "prompt_tokens": answer.diagnostics.prompt_tokens,
+                        "output_tokens": answer.diagnostics.output_tokens,
+                        "citation_validation": answer.diagnostics.citation_validation,
+                    }
+                )
             trace.record_stage(
-                "generation", "success", started, {"answer_chars": len(answer.answer)}
+                "generation", "success", started, generation_detail
             )
             trace.mark_success()
 
-        return answer
+        return replace(answer, trace=trace, latency_ms=trace.latency_ms)
 
     def _record_failure_and_raise(
         self,

@@ -146,7 +146,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     search_parser.set_defaults(handler=handle_search)
 
-    ask_parser = subparsers.add_parser("ask", help="执行一次 mock RAG 问答")
+    ask_parser = subparsers.add_parser("ask", help="执行一次带引用约束的 RAG 问答")
     ask_parser.add_argument("question", help="用户问题")
     ask_parser.add_argument("--source", default="data/raw/papers", help="文档目录")
     ask_parser.add_argument(

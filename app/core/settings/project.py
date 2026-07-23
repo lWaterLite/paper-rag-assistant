@@ -11,6 +11,7 @@ from app.core.errors import AppError, ErrorCode
 from app.core.settings.indexing import IndexingSettings
 from app.core.settings.ingestion import IngestionSettings
 from app.core.settings.retrieval import RetrievalSettings
+from app.core.settings.generation import GenerationSettings
 
 
 class ProjectSettings(BaseModel):
@@ -19,6 +20,7 @@ class ProjectSettings(BaseModel):
     ingestion: IngestionSettings = Field(default_factory=IngestionSettings)
     indexing: IndexingSettings = Field(default_factory=IndexingSettings)
     retrieval: RetrievalSettings = Field(default_factory=RetrievalSettings)
+    generation: GenerationSettings = Field(default_factory=GenerationSettings)
 
     @classmethod
     def from_toml(cls, path: Path | str = Path("settings.toml")) -> "ProjectSettings":

@@ -5,8 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.factory.configs import ConfigFactory
+from app.factory.generation import GenerationFactory
+from app.factory.query import QueryFactory
 from app.factory.retrieval import RetrievalFactory
-from app.generation.answer_generator import AnswerGenerator, MockAnswerGenerator
+from app.generation.answering import AnswerGenerator
 from app.indexing.pipeline.types import RagIndex
 from app.pipeline import RagPipeline
 from app.retrieval.context import ContextPacker
@@ -19,6 +21,8 @@ class PipelineFactory:
 
     configs: ConfigFactory
     retrieval: RetrievalFactory
+    query: QueryFactory
+    generation: GenerationFactory
 
     def build_rag_pipeline(
         self,
@@ -57,7 +61,8 @@ class PipelineFactory:
             evidence_transform_stage=self.retrieval.build_evidence_transform_stage(
                 postprocessing_config=postprocessing_config,
             ),
+            query_planning_stage=self.query.build_query_planning_stage(),
             answer_generator=answer_generator
             if answer_generator is not None
-            else MockAnswerGenerator(),
+            else self.generation.build_answer_generator(),
         )

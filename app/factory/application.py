@@ -8,9 +8,13 @@ from app.core.settings import EnvSettings, ProjectSettings
 from app.factory.configs import ConfigFactory
 from app.factory.indexing.factory import IndexingFactory
 from app.factory.ingestion import IngestionFactory
+from app.factory.generation import GenerationFactory
+from app.factory.llm import LlmFactory
 from app.factory.pipelines import PipelineFactory
+from app.factory.query import QueryFactory
 from app.factory.retrieval import RetrievalFactory
-from app.generation.answer_generator import AnswerGenerator
+from app.generation.answering import AnswerGenerator
+from app.llm import LlmClientRegistry, build_default_llm_client_registry
 from app.indexing.embeddings.registry import (
     EmbeddingClientRegistry,
     build_default_embedding_client_registry,
@@ -35,6 +39,10 @@ from app.retrieval.context.token_estimators.registry import (
 from app.retrieval.context.evidence_transformers.registry import (
     EvidenceTransformerRegistry,
     build_default_evidence_transformer_registry,
+)
+from app.retrieval.query import (
+    QueryPlannerRegistry,
+    build_default_query_planner_registry,
 )
 from app.repositories.registries.chunk import build_default_chunk_repository_registry
 from app.repositories.registries.document import build_default_document_repository_registry
@@ -68,10 +76,15 @@ class ApplicationFactory:
     document_repository_registry: DocumentRepositoryRegistry | None = None
     chunk_repository_registry: ChunkRepositoryRegistry | None = None
     manifest_repository_registry: ManifestRepositoryRegistry | None = None
+    llm_client_registry: LlmClientRegistry | None = None
+    query_planner_registry: QueryPlannerRegistry | None = None
     configs: ConfigFactory = field(init=False)
     ingestion: IngestionFactory = field(init=False)
     indexing: IndexingFactory = field(init=False)
     retrieval: RetrievalFactory = field(init=False)
+    llm: LlmFactory = field(init=False)
+    query: QueryFactory = field(init=False)
+    generation: GenerationFactory = field(init=False)
     pipelines: PipelineFactory = field(init=False)
 
     def __post_init__(self) -> None:
@@ -135,7 +148,35 @@ class ApplicationFactory:
                 else build_default_evidence_transformer_registry()
             ),
         )
-        self.pipelines = PipelineFactory(configs=self.configs, retrieval=self.retrieval)
+        self.llm = LlmFactory(
+            configs=self.configs,
+            env_settings=self.env_settings,
+            registry=(
+                self.llm_client_registry
+                if self.llm_client_registry is not None
+                else build_default_llm_client_registry()
+            ),
+        )
+        self.query = QueryFactory(
+            configs=self.configs,
+            llm=self.llm,
+            registry=(
+                self.query_planner_registry
+                if self.query_planner_registry is not None
+                else build_default_query_planner_registry()
+            ),
+        )
+        self.generation = GenerationFactory(
+            configs=self.configs,
+            retrieval=self.retrieval,
+            llm=self.llm,
+        )
+        self.pipelines = PipelineFactory(
+            configs=self.configs,
+            retrieval=self.retrieval,
+            query=self.query,
+            generation=self.generation,
+        )
 
     def build_index_builder(
         self,

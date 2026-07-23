@@ -9,6 +9,8 @@ from app.factory.configs.indexing import IndexingConfigAdapter
 from app.factory.configs.ingestion import IngestionConfigAdapter
 from app.factory.configs.pipeline import PipelineConfigAdapter
 from app.factory.configs.retrieval import RetrievalConfigAdapter
+from app.factory.configs.generation import GenerationConfigAdapter
+from app.generation.configuration import CitationValidationConfig, GenerationConfig
 from app.indexing.configuration import EmbeddingConfig, IndexBuilderConfig, VectorRepositoryConfig
 from app.ingest.chunking.strategies import ChunkerConfig
 from app.ingest.loading.access import DocumentSourceAccessConfig
@@ -24,6 +26,8 @@ from app.retrieval.context.token_estimators import TokenEstimatorConfig
 from app.retrieval.rerankers import RerankingConfig
 from app.retrieval.reporting import RetrievalReportConfig
 from app.retrieval.tokenizers import TokenizerConfig
+from app.llm import LlmClientConfig
+from app.retrieval.query import QueryPlanningConfig
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +43,7 @@ class ConfigFactory:
     ingestion: IngestionConfigAdapter = field(init=False)
     indexing: IndexingConfigAdapter = field(init=False)
     retrieval: RetrievalConfigAdapter = field(init=False)
+    generation: GenerationConfigAdapter = field(init=False)
     pipeline: PipelineConfigAdapter = field(init=False)
 
     def __post_init__(self) -> None:
@@ -56,6 +61,14 @@ class ConfigFactory:
             self,
             "retrieval",
             RetrievalConfigAdapter(self.project_settings.retrieval),
+        )
+        object.__setattr__(
+            self,
+            "generation",
+            GenerationConfigAdapter(
+                self.project_settings.generation,
+                self.project_settings.retrieval,
+            ),
         )
         object.__setattr__(
             self,
@@ -157,3 +170,23 @@ class ConfigFactory:
         """返回缓存的检索报告 Config。"""
 
         return self.retrieval.report
+
+    def build_llm_client_config(self) -> LlmClientConfig:
+        """返回缓存的 LLM Client Config。"""
+
+        return self.generation.llm
+
+    def build_query_planning_config(self) -> QueryPlanningConfig:
+        """返回缓存的查询规划 Config。"""
+
+        return self.generation.query_planning
+
+    def build_generation_config(self) -> GenerationConfig:
+        """返回缓存的回答生成 Config。"""
+
+        return self.generation.answering
+
+    def build_citation_validation_config(self) -> CitationValidationConfig:
+        """返回缓存的 Citation 校验 Config。"""
+
+        return self.generation.citation_validation

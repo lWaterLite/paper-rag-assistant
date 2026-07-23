@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import ValidationError
+from pydantic import Field, SecretStr, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.errors import AppError, ErrorCode
@@ -17,6 +17,12 @@ class EnvSettings(BaseSettings):
         env_file_encoding="utf-8",
         extra="forbid",
         validate_default=True,
+    )
+
+    llm_api_key: SecretStr | None = Field(
+        default=None,
+        validation_alias="RAG_LLM_API_KEY",
+        description="外部 LLM provider 使用的 API key",
     )
 
     @classmethod
