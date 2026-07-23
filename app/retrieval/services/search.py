@@ -55,6 +55,23 @@ class SearchService:
 
         return self._pipeline.search(query, top_k=top_k, retriever=retriever)
 
+    def search_queries(
+        self,
+        query: str,
+        *,
+        retrieval_queries: Sequence[str],
+        top_k: int | None = None,
+        retriever: RetrievalStrategy | None = None,
+    ) -> SearchResult:
+        """在同一候选池中执行多 query 检索与统一后处理。"""
+
+        return self._pipeline.search_queries(
+            query,
+            retrieval_queries=retrieval_queries,
+            top_k=top_k,
+            retriever=retriever,
+        )
+
 
 class CompareSearchService:
     """执行多策略检索比较的 retrieval 子系统服务。"""

@@ -138,10 +138,33 @@ class RetrievalPipeline:
         top_k: int | None = None,
         retriever: RetrievalStrategy | None = None,
     ) -> RetrievalPipelineResult:
-        """执行一次完整检索，并将 rerank 前后阶段记录到 trace 与报告。"""
+        """执行单 query 检索，并将 rerank 前后阶段记录到 trace 与报告。"""
+
+        return self.search_queries(
+            query,
+            retrieval_queries=(query,),
+            top_k=top_k,
+            retriever=retriever,
+        )
+
+    def search_queries(
+        self,
+        query: str,
+        *,
+        retrieval_queries: Sequence[str],
+        top_k: int | None = None,
+        retriever: RetrievalStrategy | None = None,
+    ) -> RetrievalPipelineResult:
+        """先合并多个 query 的候选，再统一去重、rerank 和截断。
+
+        这样 multi-query 不会在每个 query 上独立截断或重排，最终阶段仍面对完整候选并集。
+        """
 
         trace = RagTrace()
         cleaned_query = query.strip()
+        cleaned_retrieval_queries = tuple(
+            item.strip() for item in retrieval_queries if item.strip()
+        )
         resolved_top_k: int | None = None
         resolved_candidate_limit: int | None = None
         resolved_retriever: str | None = None
@@ -154,6 +177,8 @@ class RetrievalPipeline:
         try:
             if not cleaned_query:
                 raise AppError(ErrorCode.RETRIEVAL_FAILED, "检索 query 不能为空")
+            if not cleaned_retrieval_queries:
+                raise AppError(ErrorCode.RETRIEVAL_FAILED, "retrieval_queries 不能为空")
 
             resolved_top_k = self._resolve_top_k(top_k)
             resolved_candidate_limit = self._resolve_candidate_limit(resolved_top_k)
@@ -173,33 +198,39 @@ class RetrievalPipeline:
                 candidate_limit=resolved_candidate_limit,
                 top_k=resolved_top_k,
             )
-            retriever_started = time.perf_counter()
-            latest_results = retriever_impl.retrieve(
-                cleaned_query,
-                top_k=resolved_candidate_limit,
-            )
+            merged_candidates: list[RetrievedChunk] = []
+            for query_index, retrieval_query in enumerate(cleaned_retrieval_queries):
+                retriever_started = time.perf_counter()
+                query_candidates = retriever_impl.retrieve(
+                    retrieval_query,
+                    top_k=resolved_candidate_limit,
+                )
+                merged_candidates.extend(query_candidates)
+                retriever_detail = {
+                    "retriever": resolved_retriever,
+                    "candidate_limit": resolved_candidate_limit,
+                    "query_index": query_index,
+                    "retrieval_query": retrieval_query,
+                }
+                observations.append(
+                    RetrievalStageObservation(
+                        stage="retriever_execution",
+                        status="success",
+                        input_count=0,
+                        output_count=len(query_candidates),
+                        latency_ms=_elapsed_ms(retriever_started),
+                        detail=retriever_detail,
+                    )
+                )
+                trace.record_stage(
+                    "retriever_execution",
+                    "success",
+                    retriever_started,
+                    {**retriever_detail, "returned_count": len(query_candidates)},
+                )
+            latest_results = merged_candidates
             candidate_count = len(latest_results)
             deduplicated_count = candidate_count
-            retriever_detail = {
-                "retriever": resolved_retriever,
-                "candidate_limit": resolved_candidate_limit,
-            }
-            observations.append(
-                RetrievalStageObservation(
-                    stage="retriever_execution",
-                    status="success",
-                    input_count=0,
-                    output_count=candidate_count,
-                    latency_ms=_elapsed_ms(retriever_started),
-                    detail=retriever_detail,
-                )
-            )
-            trace.record_stage(
-                "retriever_execution",
-                "success",
-                retriever_started,
-                {**retriever_detail, "returned_count": candidate_count},
-            )
             latest_results, stage_observations, deduplicated_count = self._apply_result_stages(
                 latest_results,
                 context,
@@ -217,6 +248,7 @@ class RetrievalPipeline:
                 retrieval_started,
                 {
                     "query": cleaned_query,
+                    "retrieval_queries": list(cleaned_retrieval_queries),
                     "requested_top_k": top_k,
                     "resolved_top_k": resolved_top_k,
                     "resolved_candidate_limit": resolved_candidate_limit,
@@ -259,6 +291,7 @@ class RetrievalPipeline:
             retrieval_started,
             {
                 "query": cleaned_query,
+                "retrieval_queries": list(cleaned_retrieval_queries),
                 "top_k": resolved_top_k,
                 "candidate_limit": resolved_candidate_limit,
                 "retriever": resolved_retriever,
