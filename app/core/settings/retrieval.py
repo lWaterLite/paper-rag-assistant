@@ -18,7 +18,7 @@ class TokenizerSettings(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_strategy(self) -> "TokenizerSettings":
+    def validate_strategy(self) -> TokenizerSettings:
         """清理并校验分词器策略名称。"""
 
         self.strategy = self.strategy.strip()
@@ -47,7 +47,9 @@ class RerankingSettings(BaseModel):
     """候选重排序阶段的结构化配置。"""
 
     enabled: bool = Field(default=False, description="是否在候选召回后执行 rerank")
-    strategy: str = Field(default="lexical", min_length=1, description="reranker 策略名")
+    strategy: str = Field(
+        default="lexical", min_length=1, description="reranker 策略名"
+    )
     candidate_limit: int = Field(default=12, gt=0, description="rerank 前候选上限")
     batch_size: int = Field(default=8, gt=0, description="reranker 批处理大小")
     failure_mode: Literal["fail_open", "fail_closed"] = Field(
@@ -56,7 +58,7 @@ class RerankingSettings(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_strategy(self) -> "RerankingSettings":
+    def validate_strategy(self) -> RerankingSettings:
         """清理并校验 reranker 策略名。"""
 
         self.strategy = self.strategy.strip()
@@ -68,10 +70,12 @@ class RerankingSettings(BaseModel):
 class TokenEstimatorSettings(BaseModel):
     """模型上下文 token 估算器的结构化配置。"""
 
-    strategy: str = Field(default="regex", min_length=1, description="token estimator 策略名")
+    strategy: str = Field(
+        default="regex", min_length=1, description="token estimator 策略名"
+    )
 
     @model_validator(mode="after")
-    def validate_strategy(self) -> "TokenEstimatorSettings":
+    def validate_strategy(self) -> TokenEstimatorSettings:
         """清理并校验 token estimator 策略名。"""
 
         self.strategy = self.strategy.strip()
@@ -91,7 +95,7 @@ class EvidenceTransformationSettings(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_strategy(self) -> "EvidenceTransformationSettings":
+    def validate_strategy(self) -> EvidenceTransformationSettings:
         """清理并校验 transformer 策略名。"""
 
         self.strategy = self.strategy.strip()
@@ -103,19 +107,23 @@ class EvidenceTransformationSettings(BaseModel):
 class ContextPackingSettings(BaseModel):
     """检索结果进入生成阶段前的 token-aware 上下文组织配置。"""
 
-    model_context_window: int = Field(default=4096, gt=0, description="目标模型上下文窗口")
+    model_context_window: int = Field(
+        default=4096, gt=0, description="目标模型上下文窗口"
+    )
     max_context_tokens: int = Field(default=1800, gt=0, description="资料上下文上限")
     reserved_prompt_tokens: int = Field(default=200, gt=0, description="Prompt 预留")
     reserved_output_tokens: int = Field(default=512, gt=0, description="输出预留")
     safety_margin_tokens: int = Field(default=64, gt=0, description="安全余量")
     max_chunks_per_document: int = Field(default=2, gt=0, description="单文档候选上限")
-    token_estimator: TokenEstimatorSettings = Field(default_factory=TokenEstimatorSettings)
+    token_estimator: TokenEstimatorSettings = Field(
+        default_factory=TokenEstimatorSettings
+    )
     evidence_transformation: EvidenceTransformationSettings = Field(
         default_factory=EvidenceTransformationSettings
     )
 
     @model_validator(mode="after")
-    def validate_context_window(self) -> "ContextPackingSettings":
+    def validate_context_window(self) -> ContextPackingSettings:
         """校验基础上下文 token 预算关系。"""
 
         if self.max_context_tokens > self.model_context_window:
@@ -142,12 +150,16 @@ class RetrievalSettings(BaseModel):
     bm25: BM25Settings = Field(default_factory=BM25Settings)
     hybrid: HybridRetrievalSettings = Field(default_factory=HybridRetrievalSettings)
     reranking: RerankingSettings = Field(default_factory=RerankingSettings)
-    context_packing: ContextPackingSettings = Field(default_factory=ContextPackingSettings)
+    context_packing: ContextPackingSettings = Field(
+        default_factory=ContextPackingSettings
+    )
     report: RetrievalReportSettings = Field(default_factory=RetrievalReportSettings)
-    deduplicate_by_chunk_id: bool = Field(default=True, description="是否按 chunk_id 去重")
+    deduplicate_by_chunk_id: bool = Field(
+        default=True, description="是否按 chunk_id 去重"
+    )
 
     @model_validator(mode="after")
-    def validate_strategy(self) -> "RetrievalSettings":
+    def validate_strategy(self) -> RetrievalSettings:
         """清理策略名称；具体合法性由 RetrieverRegistry 校验。"""
 
         self.strategy = self.strategy.strip()

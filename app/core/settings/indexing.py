@@ -30,7 +30,7 @@ class EmbeddingSettings(BaseModel):
     max_retries: int = Field(default=2, ge=0, description="embedding 最大重试次数")
 
     @model_validator(mode="after")
-    def validate_text_fields(self) -> "EmbeddingSettings":
+    def validate_text_fields(self) -> EmbeddingSettings:
         """清理并校验字符串字段。"""
 
         self.model = self.model.strip()
@@ -58,7 +58,7 @@ class VectorRepositorySettings(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_collection_name(self) -> "VectorRepositorySettings":
+    def validate_collection_name(self) -> VectorRepositorySettings:
         """清理并校验 collection 名称。"""
 
         self.collection_name = self.collection_name.strip()
@@ -90,7 +90,7 @@ class IndexBuilderSettings(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_filenames(self) -> "IndexBuilderSettings":
+    def validate_filenames(self) -> IndexBuilderSettings:
         """清理并校验文件名字段。"""
 
         self.manifest_filename = self.manifest_filename.strip()

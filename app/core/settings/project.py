@@ -8,10 +8,10 @@ from pathlib import Path
 from pydantic import BaseModel, Field, ValidationError
 
 from app.core.errors import AppError, ErrorCode
+from app.core.settings.generation import GenerationSettings
 from app.core.settings.indexing import IndexingSettings
 from app.core.settings.ingestion import IngestionSettings
 from app.core.settings.retrieval import RetrievalSettings
-from app.core.settings.generation import GenerationSettings
 
 
 class ProjectSettings(BaseModel):
@@ -23,7 +23,7 @@ class ProjectSettings(BaseModel):
     generation: GenerationSettings = Field(default_factory=GenerationSettings)
 
     @classmethod
-    def from_toml(cls, path: Path | str = Path("settings.toml")) -> "ProjectSettings":
+    def from_toml(cls, path: Path | str = Path("settings.toml")) -> ProjectSettings:
         """从 TOML 文件读取结构化配置。"""
 
         config_path = Path(path)

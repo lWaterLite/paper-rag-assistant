@@ -7,7 +7,6 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-
 StageStatus = Literal["success", "error"]
 TraceFinalStatus = Literal["running", "success", "error"]
 

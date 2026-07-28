@@ -26,7 +26,7 @@ class EnvSettings(BaseSettings):
     )
 
     @classmethod
-    def from_env(cls) -> "EnvSettings":
+    def from_env(cls) -> EnvSettings:
         """保留敏感配置加载入口，并转换为项目统一错误。"""
 
         try:

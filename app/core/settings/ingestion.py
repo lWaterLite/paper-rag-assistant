@@ -87,7 +87,9 @@ class ChunkingReportSettings(BaseModel):
 class ChunkingSettings(BaseModel):
     """文本切分及其质量报告的结构化配置。"""
 
-    strategy: str = Field(default="section_aware", min_length=1, description="chunking 策略")
+    strategy: str = Field(
+        default="section_aware", min_length=1, description="chunking 策略"
+    )
     chunk_size: int = Field(default=600, gt=0, description="每个 chunk 的目标长度")
     chunk_overlap: int = Field(default=100, ge=0, description="相邻 chunk 的重叠长度")
     tokenizer: Literal["char_approx", "simple_regex"] = Field(
