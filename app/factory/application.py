@@ -6,15 +6,14 @@ from dataclasses import dataclass, field
 
 from app.core.settings import EnvSettings, ProjectSettings
 from app.factory.configs import ConfigFactory
+from app.factory.generation import GenerationFactory
 from app.factory.indexing.factory import IndexingFactory
 from app.factory.ingestion import IngestionFactory
-from app.factory.generation import GenerationFactory
 from app.factory.llm import LlmFactory
 from app.factory.pipelines import PipelineFactory
 from app.factory.query import QueryFactory
 from app.factory.retrieval import RetrievalFactory
 from app.generation.answering import AnswerGenerator
-from app.llm import LlmClientRegistry, build_default_llm_client_registry
 from app.indexing.embeddings.registry import (
     EmbeddingClientRegistry,
     build_default_embedding_client_registry,
@@ -22,38 +21,43 @@ from app.indexing.embeddings.registry import (
 from app.indexing.pipeline.builder import IndexBuilder
 from app.indexing.pipeline.types import RagIndex
 from app.ingest.chunking.registry import ChunkerRegistry, build_default_chunker_registry
+from app.llm import LlmClientRegistry, build_default_llm_client_registry
 from app.pipeline import RagPipeline
-from app.retrieval.context import ContextPacker
-from app.retrieval.retrievers import Retriever, RetrieverRegistry
-from app.retrieval.services.search import CompareSearchService, SearchService
-from app.runtime.application import ApplicationRuntime
-from app.retrieval.tokenizers.registry import (
-    TokenizerRegistry,
-    build_default_tokenizer_registry,
-)
-from app.retrieval.rerankers import RerankerRegistry
-from app.retrieval.context.token_estimators.registry import (
-    TokenEstimatorRegistry,
-    build_default_token_estimator_registry,
-)
-from app.retrieval.context.evidence_transformers.registry import (
-    EvidenceTransformerRegistry,
-    build_default_evidence_transformer_registry,
-)
-from app.retrieval.query import (
-    QueryPlannerRegistry,
-    build_default_query_planner_registry,
-)
-from app.repositories.registries.chunk import build_default_chunk_repository_registry
-from app.repositories.registries.document import build_default_document_repository_registry
-from app.repositories.registries.manifest import build_default_manifest_repository_registry
-from app.repositories.registries.vector import build_default_vector_repository_registry
 from app.repositories.registries import (
     ChunkRepositoryRegistry,
     DocumentRepositoryRegistry,
     ManifestRepositoryRegistry,
     VectorRepositoryRegistry,
 )
+from app.repositories.registries.chunk import build_default_chunk_repository_registry
+from app.repositories.registries.document import (
+    build_default_document_repository_registry,
+)
+from app.repositories.registries.manifest import (
+    build_default_manifest_repository_registry,
+)
+from app.repositories.registries.vector import build_default_vector_repository_registry
+from app.retrieval.context import ContextPacker
+from app.retrieval.context.evidence_transformers.registry import (
+    EvidenceTransformerRegistry,
+    build_default_evidence_transformer_registry,
+)
+from app.retrieval.context.token_estimators.registry import (
+    TokenEstimatorRegistry,
+    build_default_token_estimator_registry,
+)
+from app.retrieval.query import (
+    QueryPlannerRegistry,
+    build_default_query_planner_registry,
+)
+from app.retrieval.rerankers import RerankerRegistry
+from app.retrieval.retrievers import Retriever, RetrieverRegistry
+from app.retrieval.services.search import CompareSearchService, SearchService
+from app.retrieval.tokenizers.registry import (
+    TokenizerRegistry,
+    build_default_tokenizer_registry,
+)
+from app.runtime.application import ApplicationRuntime
 
 
 @dataclass(slots=True)

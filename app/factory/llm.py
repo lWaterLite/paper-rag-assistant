@@ -21,7 +21,9 @@ class LlmFactory:
 
     configs: ConfigFactory
     env_settings: EnvSettings
-    registry: LlmClientRegistry = field(default_factory=build_default_llm_client_registry)
+    registry: LlmClientRegistry = field(
+        default_factory=build_default_llm_client_registry
+    )
     _client: LlmClient = field(init=False, repr=False)
 
     def __post_init__(self) -> None:

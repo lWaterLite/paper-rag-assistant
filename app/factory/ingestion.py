@@ -78,9 +78,7 @@ class IngestionFactory:
         registry = (
             chunker_registry if chunker_registry is not None else self.chunker_registry
         )
-        active_config = (
-            config if config is not None else self.configs.ingestion.chunker
-        )
+        active_config = config if config is not None else self.configs.ingestion.chunker
         return registry.create(active_config)
 
     def build_document_identity_builder(self) -> DocumentIdentityBuilder:
@@ -140,9 +138,7 @@ class IngestionFactory:
                 MarkdownParser(cleaner=text_cleaner),
                 HtmlDocumentParser(cleaner=HtmlTextCleaner()),
                 PdfDocumentParser(
-                    cleaner=self.build_pdf_text_cleaner(
-                        config=pdf_text_cleaner_config
-                    )
+                    cleaner=self.build_pdf_text_cleaner(config=pdf_text_cleaner_config)
                 ),
                 PlainTextParser(cleaner=text_cleaner),
             ]

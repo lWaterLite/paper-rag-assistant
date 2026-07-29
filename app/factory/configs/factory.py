@@ -5,29 +5,36 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from app.core.settings import EnvSettings, ProjectSettings
+from app.factory.configs.generation import GenerationConfigAdapter
 from app.factory.configs.indexing import IndexingConfigAdapter
 from app.factory.configs.ingestion import IngestionConfigAdapter
 from app.factory.configs.pipeline import PipelineConfigAdapter
 from app.factory.configs.retrieval import RetrievalConfigAdapter
-from app.factory.configs.generation import GenerationConfigAdapter
 from app.generation.configuration import CitationValidationConfig, GenerationConfig
-from app.indexing.configuration import EmbeddingConfig, IndexBuilderConfig, VectorRepositoryConfig
+from app.indexing.configuration import (
+    EmbeddingConfig,
+    IndexBuilderConfig,
+    VectorRepositoryConfig,
+)
 from app.ingest.chunking.strategies import ChunkerConfig
 from app.ingest.loading.access import DocumentSourceAccessConfig
 from app.ingest.loading.local import LocalDocumentLoaderConfig
 from app.ingest.parsing.cleaners import PdfTextCleanerConfig
-from app.ingest.reporting.configuration import ChunkingReportConfig, IngestionReportConfig
+from app.ingest.reporting.configuration import (
+    ChunkingReportConfig,
+    IngestionReportConfig,
+)
+from app.llm import LlmClientConfig
 from app.pipeline import RagPipelineConfig
 from app.retrieval.configuration import HybridRetrievalConfig, RetrievalConfig
 from app.retrieval.configuration.postprocessing import PostProcessingConfig
 from app.retrieval.context import ContextPackerConfig
 from app.retrieval.context.evidence_transformers import EvidenceTransformationConfig
 from app.retrieval.context.token_estimators import TokenEstimatorConfig
-from app.retrieval.rerankers import RerankingConfig
-from app.retrieval.reporting import RetrievalReportConfig
-from app.retrieval.tokenizers import TokenizerConfig
-from app.llm import LlmClientConfig
 from app.retrieval.query import QueryPlanningConfig
+from app.retrieval.reporting import RetrievalReportConfig
+from app.retrieval.rerankers import RerankingConfig
+from app.retrieval.tokenizers import TokenizerConfig
 
 
 @dataclass(frozen=True, slots=True)

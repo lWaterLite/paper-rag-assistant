@@ -16,8 +16,8 @@ from app.indexing.embeddings import EmbeddingClient, EmbeddingClientRegistry
 from app.indexing.embeddings.cache import EmbeddingCache, FileEmbeddingCache
 from app.indexing.embeddings.registry import build_default_embedding_client_registry
 from app.indexing.pipeline.builder import IndexBuilder
-from app.indexing.pipeline.types import RagIndex
 from app.indexing.pipeline.loader import IndexLoader
+from app.indexing.pipeline.types import RagIndex
 from app.indexing.reporting.build import IndexBuildReportWriter
 from app.ingest.chunking.collection import ChunkCollection, InMemoryChunkCollection
 from app.ingest.collections.documents import (
@@ -34,8 +34,12 @@ from app.repositories.registries import (
     VectorRepositoryRegistry,
 )
 from app.repositories.registries.chunk import build_default_chunk_repository_registry
-from app.repositories.registries.document import build_default_document_repository_registry
-from app.repositories.registries.manifest import build_default_manifest_repository_registry
+from app.repositories.registries.document import (
+    build_default_document_repository_registry,
+)
+from app.repositories.registries.manifest import (
+    build_default_manifest_repository_registry,
+)
 from app.repositories.registries.vector import build_default_vector_repository_registry
 from app.repositories.vector import VectorRepository
 
@@ -164,7 +168,9 @@ class IndexingFactory:
             document_collection=self._build_document_collection(),
             chunk_collection=self._build_chunk_collection(),
             vector_repository=self._build_vector_repository(config.vector_repository),
-            document_repository=self._build_document_repository(config.vector_repository),
+            document_repository=self._build_document_repository(
+                config.vector_repository
+            ),
             chunk_repository=self._build_chunk_repository(config.vector_repository),
             manifest_repository=self._build_manifest_repository(
                 vector_repository_config=config.vector_repository,
@@ -186,7 +192,9 @@ class IndexingFactory:
             vector_repository_config=config.vector_repository,
             embedding_client=self._build_embedding_client(config.embedding),
             vector_repository=self._build_vector_repository(config.vector_repository),
-            document_repository=self._build_document_repository(config.vector_repository),
+            document_repository=self._build_document_repository(
+                config.vector_repository
+            ),
             chunk_repository=self._build_chunk_repository(config.vector_repository),
             manifest_repository=self._build_manifest_repository(
                 vector_repository_config=config.vector_repository,

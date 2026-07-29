@@ -7,40 +7,13 @@ from dataclasses import dataclass, field
 from app.core.errors import AppError, ErrorCode
 from app.factory.configs import ConfigFactory
 from app.indexing.pipeline.types import RagIndex
-from app.retrieval.retrievers import Retriever, RetrieverRegistry
-from app.retrieval.retrievers.bm25 import BM25Index, BM25Retriever
-from app.retrieval.retrievers.hybrid import HybridRetrievalSource, HybridRetriever
-from app.retrieval.retrievers.vector import VectorRetriever
 from app.retrieval.configuration import HybridRetrievalConfig, RetrievalConfig
-from app.retrieval.retrievers.fusion.rrf import ReciprocalRankFusion
-from app.retrieval.rerankers import (
-    Reranker,
-    RerankerRegistry,
-    RerankingConfig,
-)
-from app.retrieval.rerankers.registry import build_default_reranker_registry
-from app.retrieval.reporting.comparison_reporter import RetrievalComparisonReporter
-from app.retrieval.reporting.comparison_writer import RetrievalComparisonReportWriter
-from app.retrieval.reporting.models import (
-    RetrievalConfigSnapshot,
-    RetrievalIndexSnapshot,
-    RetrievalRuntimeSnapshot,
-)
-from app.retrieval.reporting.reporter import RetrievalReporter
-from app.retrieval.reporting.writer import RetrievalReportWriter
-from app.retrieval.services.search import CompareSearchService, SearchService
-from app.retrieval.tokenizers import Tokenizer, TokenizerConfig, TokenizerRegistry
-from app.retrieval.tokenizers.registry import build_default_tokenizer_registry
-from app.retrieval.context.token_estimators import (
-    TokenEstimator,
-    TokenEstimatorConfig,
-    TokenEstimatorRegistry,
-)
-from app.retrieval.context.token_estimators.registry import (
-    build_default_token_estimator_registry,
+from app.retrieval.configuration.postprocessing import PostProcessingConfig
+from app.retrieval.configuration.postprocessing.profile import PostProcessingProfile
+from app.retrieval.configuration.postprocessing.validator import (
+    PostProcessingConfigValidator,
 )
 from app.retrieval.context import ContextPacker
-from app.retrieval.context.packer import TokenAwareContextPacker
 from app.retrieval.context.evidence_transformers import (
     EvidenceTransformationConfig,
     EvidenceTransformer,
@@ -50,9 +23,38 @@ from app.retrieval.context.evidence_transformers.registry import (
     build_default_evidence_transformer_registry,
 )
 from app.retrieval.context.evidence_transformers.stage import EvidenceTransformStage
-from app.retrieval.configuration.postprocessing import PostProcessingConfig
-from app.retrieval.configuration.postprocessing.profile import PostProcessingProfile
-from app.retrieval.configuration.postprocessing.validator import PostProcessingConfigValidator
+from app.retrieval.context.packer import TokenAwareContextPacker
+from app.retrieval.context.token_estimators import (
+    TokenEstimator,
+    TokenEstimatorConfig,
+    TokenEstimatorRegistry,
+)
+from app.retrieval.context.token_estimators.registry import (
+    build_default_token_estimator_registry,
+)
+from app.retrieval.reporting.comparison_reporter import RetrievalComparisonReporter
+from app.retrieval.reporting.comparison_writer import RetrievalComparisonReportWriter
+from app.retrieval.reporting.models import (
+    RetrievalConfigSnapshot,
+    RetrievalIndexSnapshot,
+    RetrievalRuntimeSnapshot,
+)
+from app.retrieval.reporting.reporter import RetrievalReporter
+from app.retrieval.reporting.writer import RetrievalReportWriter
+from app.retrieval.rerankers import (
+    Reranker,
+    RerankerRegistry,
+    RerankingConfig,
+)
+from app.retrieval.rerankers.registry import build_default_reranker_registry
+from app.retrieval.retrievers import Retriever, RetrieverRegistry
+from app.retrieval.retrievers.bm25 import BM25Index, BM25Retriever
+from app.retrieval.retrievers.fusion.rrf import ReciprocalRankFusion
+from app.retrieval.retrievers.hybrid import HybridRetrievalSource, HybridRetriever
+from app.retrieval.retrievers.vector import VectorRetriever
+from app.retrieval.services.search import CompareSearchService, SearchService
+from app.retrieval.tokenizers import Tokenizer, TokenizerConfig, TokenizerRegistry
+from app.retrieval.tokenizers.registry import build_default_tokenizer_registry
 
 
 @dataclass(slots=True)
@@ -150,9 +152,7 @@ class RetrievalFactory:
 
         try:
             active_config = (
-                config
-                if config is not None
-                else self.configs.retrieval.token_estimator
+                config if config is not None else self.configs.retrieval.token_estimator
             )
             return self.token_estimator_registry.create(active_config)
         except ValueError as exc:
@@ -249,9 +249,7 @@ class RetrievalFactory:
     ) -> HybridRetriever:
         """使用现有的向量和 BM25 检索器创建 hybrid 检索器。"""
 
-        active_config = (
-            config if config is not None else self.configs.retrieval.hybrid
-        )
+        active_config = config if config is not None else self.configs.retrieval.hybrid
         return HybridRetriever(
             sources=(
                 HybridRetrievalSource(

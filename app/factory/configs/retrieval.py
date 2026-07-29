@@ -5,13 +5,17 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from app.core.settings import RetrievalSettings
-from app.retrieval.configuration import BM25Config, HybridRetrievalConfig, RetrievalConfig
+from app.retrieval.configuration import (
+    BM25Config,
+    HybridRetrievalConfig,
+    RetrievalConfig,
+)
 from app.retrieval.configuration.postprocessing import PostProcessingConfig
 from app.retrieval.context import ContextPackerConfig
 from app.retrieval.context.evidence_transformers import EvidenceTransformationConfig
 from app.retrieval.context.token_estimators import TokenEstimatorConfig
-from app.retrieval.rerankers import RerankingConfig
 from app.retrieval.reporting import RetrievalReportConfig
+from app.retrieval.rerankers import RerankingConfig
 from app.retrieval.tokenizers import TokenizerConfig
 
 

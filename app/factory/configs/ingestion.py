@@ -9,7 +9,10 @@ from app.ingest.chunking.strategies import ChunkerConfig
 from app.ingest.loading.access import DocumentSourceAccessConfig
 from app.ingest.loading.local import LocalDocumentLoaderConfig
 from app.ingest.parsing.cleaners import PdfTextCleanerConfig
-from app.ingest.reporting.configuration import ChunkingReportConfig, IngestionReportConfig
+from app.ingest.reporting.configuration import (
+    ChunkingReportConfig,
+    IngestionReportConfig,
+)
 
 
 @dataclass(frozen=True, slots=True)

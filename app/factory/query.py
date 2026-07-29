@@ -20,7 +20,9 @@ class QueryFactory:
 
     configs: ConfigFactory
     llm: LlmFactory
-    registry: QueryPlannerRegistry = field(default_factory=build_default_query_planner_registry)
+    registry: QueryPlannerRegistry = field(
+        default_factory=build_default_query_planner_registry
+    )
 
     def build_query_planning_stage(self) -> QueryPlanningStage:
         """创建由 Registry 解析策略的查询规划阶段。"""
@@ -36,4 +38,3 @@ class QueryFactory:
         except ValueError as exc:
             raise AppError(ErrorCode.INVALID_CONFIG, str(exc)) from exc
         return QueryPlanningStage(config=config, planner=planner)
-

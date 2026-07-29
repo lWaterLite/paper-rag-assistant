@@ -7,4 +7,5 @@
 from __future__ import annotations
 
 from app.factory.application import ApplicationFactory
+
 __all__ = ["ApplicationFactory"]
