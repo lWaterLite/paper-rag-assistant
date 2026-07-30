@@ -65,8 +65,10 @@ class GroundedAnswerGenerator:
                 )
             )
             payload = GeneratedAnswerPayload.from_json(response.content)
-            validation = self.citation_validator.validate(payload, packed_context.citations)
-        except (ValueError, CitationValidationError) as exc:
+            validation = self.citation_validator.validate(
+                payload, packed_context.citations
+            )
+        except (ValueError, CitationValidationError, TypeError) as exc:
             if self.config.invalid_output_mode == "abstain":
                 return self._build_abstained_answer(
                     retrieved_chunks=retrieved_chunks,
@@ -85,7 +87,9 @@ class GroundedAnswerGenerator:
             citation.citation_id: Citation.from_context_citation(citation)
             for citation in packed_context.citations
         }
-        citations = [citations_by_id[citation_id] for citation_id in validation.citation_ids]
+        citations = [
+            citations_by_id[citation_id] for citation_id in validation.citation_ids
+        ]
         return RagAnswer(
             answer=payload.answer,
             citations=citations,

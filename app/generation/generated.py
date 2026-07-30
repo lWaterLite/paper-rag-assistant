@@ -17,7 +17,7 @@ class GeneratedAnswerPayload:
     abstention_reason: str | None
 
     @classmethod
-    def from_json(cls, content: str) -> "GeneratedAnswerPayload":
+    def from_json(cls, content: str) -> GeneratedAnswerPayload:
         """解析模型 JSON，并校验字段类型。"""
 
         try:
@@ -25,7 +25,7 @@ class GeneratedAnswerPayload:
         except json.JSONDecodeError as exc:
             raise ValueError("回答模型未返回合法 JSON") from exc
         if not isinstance(payload, dict):
-            raise ValueError("回答模型返回值必须是 JSON 对象")
+            raise TypeError("回答模型返回值必须是 JSON 对象")
 
         answer = _require_non_blank_string(payload, "answer")
         citation_ids = payload.get("citation_ids")
@@ -35,7 +35,7 @@ class GeneratedAnswerPayload:
             raise ValueError("回答字段 citation_ids 必须是字符串列表")
         abstained = payload.get("abstained")
         if not isinstance(abstained, bool):
-            raise ValueError("回答字段 abstained 必须是布尔值")
+            raise TypeError("回答字段 abstained 必须是布尔值")
         reason = payload.get("abstention_reason")
         if reason is not None and not isinstance(reason, str):
             raise ValueError("回答字段 abstention_reason 必须是字符串或 null")
@@ -54,4 +54,3 @@ def _require_non_blank_string(payload: dict[str, Any], name: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"回答字段 {name} 必须是非空字符串")
     return value.strip()
-
