@@ -14,6 +14,8 @@ from app.indexing.pipeline.types import RagIndex
 from app.pipeline import RagPipeline
 from app.retrieval.retrievers import RetrieverRegistry
 from app.retrieval.services.search import CompareSearchService, SearchService
+
+
 if TYPE_CHECKING:
     from app.factory.application import ApplicationFactory
 
@@ -146,7 +148,7 @@ class ApplicationRuntime:
             self._state = ApplicationRuntimeState.STOPPED
 
     @asynccontextmanager
-    async def lifespan(self) -> AsyncIterator["ApplicationRuntime"]:
+    async def lifespan(self) -> AsyncIterator[ApplicationRuntime]:
         """提供可直接交给 Web 框架适配层的异步生命周期上下文。"""
 
         self.start()

@@ -40,9 +40,7 @@ class PromptBudgetValidator:
             for message in prompt.messages
         )
         total_reserved_tokens = (
-            prompt_tokens
-            + max_output_tokens
-            + self.context_config.safety_margin_tokens
+            prompt_tokens + max_output_tokens + self.context_config.safety_margin_tokens
         )
         if total_reserved_tokens > self.context_config.model_context_window:
             raise ValueError(
@@ -58,4 +56,3 @@ class PromptBudgetValidator:
             total_reserved_tokens=total_reserved_tokens,
             model_context_window=self.context_config.model_context_window,
         )
-

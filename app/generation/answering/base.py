@@ -21,4 +21,3 @@ class AnswerGenerator(Protocol):
         trace: RagTrace,
     ) -> RagAnswer:
         """返回通过 citation 契约约束后的回答。"""
-

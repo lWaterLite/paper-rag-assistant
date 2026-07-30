@@ -31,7 +31,7 @@ class Citation:
     section: str | None = None
 
     @classmethod
-    def from_context_citation(cls, citation: ContextCitation) -> "Citation":
+    def from_context_citation(cls, citation: ContextCitation) -> Citation:
         """把检索上下文的来源映射转换为最终回答引用。"""
 
         return cls(
@@ -74,4 +74,3 @@ class RagAnswer:
     abstention_reason: str | None = None
     diagnostics: GenerationDiagnostics | None = None
     trace: RagTrace | None = None
-

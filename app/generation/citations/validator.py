@@ -5,9 +5,9 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from app.generation.citations.models import CitationValidationResult
 from app.generation.configuration import CitationValidationConfig
 from app.generation.generated import GeneratedAnswerPayload
-from app.generation.citations.models import CitationValidationResult
 from app.retrieval.context.packer import ContextCitation
 
 
@@ -43,13 +43,19 @@ class CitationValidator:
             raise CitationValidationError("没有可用证据时，非拒答回答不合法")
         if self.config.require_citations_when_evidence and not payload_ids:
             raise CitationValidationError("非拒答回答必须声明至少一个 citation id")
-        if self.config.require_inline_ids_match_payload and set(inline_ids) != set(payload_ids):
-            raise CitationValidationError("回答正文中的 citation id 必须与 citation_ids 完全一致")
+        if self.config.require_inline_ids_match_payload and set(inline_ids) != set(
+            payload_ids
+        ):
+            raise CitationValidationError(
+                "回答正文中的 citation id 必须与 citation_ids 完全一致"
+            )
 
         unknown_ids = (set(inline_ids) | set(payload_ids)) - allowed_ids
         if unknown_ids:
             rendered_ids = ", ".join(sorted(unknown_ids))
-            raise CitationValidationError(f"回答引用了当前上下文不存在的 citation id：{rendered_ids}")
+            raise CitationValidationError(
+                f"回答引用了当前上下文不存在的 citation id：{rendered_ids}"
+            )
         return CitationValidationResult(payload_ids, inline_ids)
 
     def _validate_abstention(
@@ -85,4 +91,3 @@ def _normalize_ids(ids: list[str] | tuple[str, ...]) -> tuple[str, ...]:
             seen.add(cleaned)
             normalized.append(cleaned)
     return tuple(normalized)
-

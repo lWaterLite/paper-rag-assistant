@@ -92,4 +92,3 @@ def _build_citation_table(packed_context: PackedContext) -> str:
             f"source={citation.source_path}; {location}"
         )
     return "\n".join(lines)
-

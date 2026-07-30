@@ -11,4 +11,3 @@ class CitationValidationResult:
 
     citation_ids: tuple[str, ...]
     inline_citation_ids: tuple[str, ...]
-

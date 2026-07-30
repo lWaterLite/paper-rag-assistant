@@ -23,4 +23,3 @@ class RagAnswerPrompt:
             LlmMessage(role="system", content=self.system_prompt),
             LlmMessage(role="user", content=self.user_prompt),
         )
-
