@@ -260,9 +260,7 @@ class IndexManifest:
             document_count=int(_required(data, "document_count")),
             chunk_count=int(_required(data, "chunk_count")),
             vector_count=int(_required(data, "vector_count")),
-            artifact_definition_hash=str(
-                _required(data, "artifact_definition_hash")
-            ),
+            artifact_definition_hash=str(_required(data, "artifact_definition_hash")),
             document_set_hash=str(_required(data, "document_set_hash")),
             document_versions={
                 str(key): str(value)
@@ -271,9 +269,7 @@ class IndexManifest:
         )
 
 
-def _build_index_id(
-    *, artifact_definition_hash: str, document_set_hash: str
-) -> str:
+def _build_index_id(*, artifact_definition_hash: str, document_set_hash: str) -> str:
     payload = "|".join(
         [str(CURRENT_INDEX_SCHEMA_VERSION), artifact_definition_hash, document_set_hash]
     )

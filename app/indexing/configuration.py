@@ -50,6 +50,7 @@ class VectorRepositoryConfig:
     index_dir: Path = Path("data/indexes")
     collection_name: str = "papers_baseline"
     distance_metric: DistanceMetric = "cosine"
+
     def __post_init__(self) -> None:
         if self.repository_type != "local_json":
             raise ValueError(

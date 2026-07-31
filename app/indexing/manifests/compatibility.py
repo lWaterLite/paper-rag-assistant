@@ -79,4 +79,6 @@ def _append_mismatch(
     current_value: object,
 ) -> None:
     if manifest_value != current_value:
-        mismatches.append(f"{field}: manifest={manifest_value}, current={current_value}")
+        mismatches.append(
+            f"{field}: manifest={manifest_value}, current={current_value}"
+        )
