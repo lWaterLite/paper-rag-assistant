@@ -65,6 +65,15 @@ class IndexManifestTest(unittest.TestCase):
         self.assertNotIn("config_hash", data)
         self.assertEqual(loaded, manifest)
 
+    def test_manifest_rejects_non_mapping_field_with_type_error(self) -> None:
+        data = _build_manifest().to_dict()
+        data["artifact_definition"] = []
+
+        with self.assertRaises(TypeError) as context:
+            IndexManifest.from_dict(data)
+
+        self.assertIn("artifact_definition", str(context.exception))
+
     def test_relative_and_absolute_source_dir_share_same_index_version(self) -> None:
         relative_manifest = _build_manifest(source_dir=Path("data/raw/papers"))
         absolute_manifest = _build_manifest(

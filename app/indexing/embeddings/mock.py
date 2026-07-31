@@ -45,7 +45,7 @@ def _build_hash_vector(*, text: str, model_name: str, dimension: int) -> list[fl
     values: list[float] = []
     round_index = 0
     while len(values) < dimension:
-        payload = f"{model_name}|{round_index}|{text}".encode("utf-8")
+        payload = f"{model_name}|{round_index}|{text}".encode()
         digest = hashlib.blake2b(
             payload,
             digest_size=min(64, dimension - len(values)),

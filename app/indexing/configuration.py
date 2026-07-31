@@ -10,7 +10,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-
 EmbeddingProvider = str
 VectorRepositoryType = Literal["local_json"]
 DistanceMetric = Literal["cosine"]

@@ -42,13 +42,16 @@ class IndexLoader:
         vector_collection = self._vector_repository.load()
         document_collection = self._document_repository.load()
         chunk_collection = self._chunk_repository.load()
-        manifest = self._manifest_repository.read()
-        self._validate_loaded_artifacts(
-            manifest=manifest,
-            vector_collection=vector_collection,
-            document_collection=document_collection,
-            chunk_collection=chunk_collection,
-        )
+        try:
+            manifest = self._manifest_repository.read()
+            self._validate_loaded_artifacts(
+                manifest=manifest,
+                vector_collection=vector_collection,
+                document_collection=document_collection,
+                chunk_collection=chunk_collection,
+            )
+        except (TypeError, ValueError) as exc:
+            raise AppError(ErrorCode.INVALID_CONFIG, str(exc)) from exc
         return RagIndex(
             vector_collection=vector_collection,
             document_collection=document_collection,
@@ -67,14 +70,11 @@ class IndexLoader:
     ) -> None:
         """校验 Manifest、Collection 配置和跨产物引用关系。"""
 
-        try:
-            validate_manifest_compatible(
-                manifest=manifest,
-                embedding_config=self._embedding_config,
-                vector_repository_config=self._vector_repository_config,
-            )
-        except ValueError as exc:
-            raise AppError(ErrorCode.INVALID_CONFIG, str(exc)) from exc
+        validate_manifest_compatible(
+            manifest=manifest,
+            embedding_config=self._embedding_config,
+            vector_repository_config=self._vector_repository_config,
+        )
 
         validate_index_artifact_integrity(
             manifest=manifest,

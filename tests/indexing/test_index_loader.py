@@ -115,6 +115,32 @@ class IndexLoaderTest(unittest.TestCase):
         finally:
             shutil.rmtree(index_dir, ignore_errors=True)
 
+    def test_build_rag_index_from_storage_rejects_manifest_mapping_type_mismatch(
+        self,
+    ) -> None:
+        index_dir = Path(".tmp_tests") / f"invalid_manifest_{uuid.uuid4().hex}"
+        try:
+            factory = _create_persistent_factory(index_dir)
+            _, build_result = factory.build_index_builder().build_from_directory(
+                Path("data/raw/papers")
+            )
+            manifest_path = build_result.manifest_path
+            self.assertIsNotNone(manifest_path)
+            manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest_data["artifact_definition"] = []
+            manifest_path.write_text(
+                json.dumps(manifest_data, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+
+            with self.assertRaises(AppError) as context:
+                factory.build_rag_index_from_storage()
+
+            self.assertEqual(context.exception.code, ErrorCode.INVALID_CONFIG)
+            self.assertIn("artifact_definition", context.exception.message)
+        finally:
+            shutil.rmtree(index_dir, ignore_errors=True)
+
     def test_build_rag_index_from_storage_rejects_vector_with_missing_chunk(self) -> None:
         index_dir = Path(".tmp_tests") / f"orphan_vector_{uuid.uuid4().hex}"
         try:

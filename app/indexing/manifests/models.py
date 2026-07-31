@@ -10,7 +10,6 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any, Literal, cast, get_args
 
-
 CURRENT_INDEX_SCHEMA_VERSION = 4
 CURRENT_VECTOR_COLLECTION_SCHEMA_VERSION = 1
 APPLICATION_PACKAGE_NAME = "paper-rag-assistant"
@@ -125,7 +124,7 @@ class IndexManifest:
         application_version: str | None = None,
         parent_index_id: str | None = None,
         status: IndexVersionStatus = READY_INDEX_STATUS,
-    ) -> "IndexManifest":
+    ) -> IndexManifest:
         """根据当前构建上下文创建 Manifest。"""
 
         normalized_status = _validate_status(status)
@@ -188,7 +187,7 @@ class IndexManifest:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "IndexManifest":
+    def from_dict(cls, data: dict[str, Any]) -> IndexManifest:
         """从当前 Schema 的持久化字典恢复 Manifest。"""
 
         schema_version = int(_required(data, "schema_version"))
@@ -307,7 +306,7 @@ def _required(data: dict[str, Any], key: str) -> Any:
 def _required_mapping(data: dict[str, Any], key: str) -> dict[str, Any]:
     value = _required(data, key)
     if not isinstance(value, dict):
-        raise ValueError(f"索引 Manifest 字段必须是对象：{key}")
+        raise TypeError(f"索引 Manifest 字段必须是对象：{key}")
     return value
 
 

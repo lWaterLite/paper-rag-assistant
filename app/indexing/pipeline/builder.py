@@ -8,7 +8,7 @@ from pathlib import Path
 
 from app.core.errors import AppError, ErrorCode
 from app.core.tracing import RagTrace
-from app.ingest.chunking.models import DocumentChunk
+from app.indexing.collections import VectorCollection, VectorRecord
 from app.indexing.configuration import (
     EmbeddingConfig,
     IndexBuilderConfig,
@@ -21,13 +21,18 @@ from app.indexing.integrity import validate_index_artifact_integrity
 from app.indexing.manifests.models import (
     BUILDING_INDEX_STATUS,
     FAILED_INDEX_STATUS,
+    READY_INDEX_STATUS,
     IndexManifest,
     IndexVersionStatus,
-    READY_INDEX_STATUS,
 )
+from app.indexing.pipeline.types import IndexBuildResult, RagIndex
 from app.indexing.reporting.build import IndexBuildReportWriter
-from app.indexing.collections import VectorCollection, VectorRecord
 from app.ingest.chunking.collection import ChunkCollection
+from app.ingest.chunking.models import DocumentChunk
+from app.ingest.chunking.strategies import Chunker
+from app.ingest.collections import DocumentCollection
+from app.ingest.models import RawDocument
+from app.ingest.pipeline import IngestionPipeline
 from app.ingest.reporting.chunking import ChunkingReportWriter
 from app.ingest.reporting.configuration import (
     ChunkingReportConfig,
@@ -36,16 +41,10 @@ from app.ingest.reporting.configuration import (
 from app.ingest.reporting.ingestion import (
     IngestionReportWriter,
 )
-from app.ingest.chunking.strategies import Chunker
-from app.ingest.collections import DocumentCollection
-from app.ingest.models import RawDocument
-from app.ingest.pipeline import IngestionPipeline
 from app.repositories.chunk import ChunkRepository
 from app.repositories.document import DocumentRepository
 from app.repositories.manifest import ManifestRepository
 from app.repositories.vector import VectorRepository
-
-from app.indexing.pipeline.types import IndexBuildResult, RagIndex
 
 
 class IndexBuilder:
@@ -273,7 +272,7 @@ class IndexBuilder:
             build_report_path = self._write_build_report(result)
             result = replace(result, build_report_path=build_report_path)
             return index, result
-        except Exception as exc:
+        except (AppError, OSError, RuntimeError, TypeError, ValueError) as exc:
             if trace.final_status == "running":
                 trace.mark_failed(type(exc).__name__, str(exc))
             self._write_failed_manifest_if_possible(
@@ -408,7 +407,7 @@ class IndexBuilder:
         )
         try:
             self._manifest_repository.write(failed_manifest)
-        except Exception:
+        except OSError:
             return
 
     def _embed_chunks_with_cache(
