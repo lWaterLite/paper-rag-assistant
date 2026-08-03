@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Generic, TypeVar
-
+from typing import TypeVar
 
 BuilderT = TypeVar("BuilderT")
 
 
-class RepositoryRegistryBase(Generic[BuilderT]):
+class RepositoryRegistryBase[BuilderT]:
     """按持久化类型保存领域 Repository 的构造器。
 
     各领域 Registry 负责声明自己的构造参数与返回协议；本类只统一处理注册、

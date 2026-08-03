@@ -7,8 +7,8 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Protocol
 
-from app.ingest.chunking.models import DocumentChunk
 from app.ingest.chunking.collection import ChunkCollection, InMemoryChunkCollection
+from app.ingest.chunking.models import DocumentChunk
 
 
 class ChunkRepository(Protocol):

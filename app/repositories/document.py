@@ -8,14 +8,14 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Protocol
 
+from app.ingest.collections import DocumentCollection
+from app.ingest.collections.documents import InMemoryDocumentCollection
 from app.ingest.models import (
     ParsedBlock,
     ParsedDocument,
     ParseIssue,
     RawDocument,
 )
-from app.ingest.collections import DocumentCollection
-from app.ingest.collections.documents import InMemoryDocumentCollection
 
 
 class DocumentRepository(Protocol):
