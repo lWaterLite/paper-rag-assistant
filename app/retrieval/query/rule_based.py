@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from app.retrieval.query.config import QueryPlanningConfig
 from app.retrieval.query.models import QueryPlan
 
-
 _TERM_ALIASES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("重排序", ("reranking", "reranker")),
     ("精排", ("reranking", "reranker")),

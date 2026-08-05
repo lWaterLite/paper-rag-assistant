@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from app.retrieval.models import RetrievedChunk
 from app.core.tracing import RagTrace
 from app.retrieval.configuration.postprocessing.profile import PostProcessingProfile
+from app.retrieval.models import RetrievedChunk
 
 
 @dataclass(frozen=True, slots=True)

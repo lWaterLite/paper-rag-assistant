@@ -26,7 +26,7 @@ class EvidenceSource:
             raise ValueError("evidence source 的字符范围超出原始 chunk 文本长度")
 
     @classmethod
-    def full_chunk(cls, chunk: RetrievedChunk) -> "EvidenceSource":
+    def full_chunk(cls, chunk: RetrievedChunk) -> EvidenceSource:
         """创建覆盖整个原始 chunk 的来源范围。"""
 
         if not chunk.text:
@@ -74,7 +74,7 @@ class EvidenceCandidate:
         return tuple(chunks_by_identity.values())
 
     @classmethod
-    def from_retrieved_chunk(cls, chunk: RetrievedChunk) -> "EvidenceCandidate":
+    def from_retrieved_chunk(cls, chunk: RetrievedChunk) -> EvidenceCandidate:
         """把未变换的检索结果包装成完整来源的候选证据。"""
 
         return cls(

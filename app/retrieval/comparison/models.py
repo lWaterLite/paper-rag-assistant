@@ -6,10 +6,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
-from app.retrieval.models import RetrievedChunk
 from app.core.tracing import RagTrace
 from app.retrieval.configuration.retrieval import RetrievalStrategy
-
+from app.retrieval.models import RetrievedChunk
 
 ComparisonStatus = Literal["success", "partial_error", "error"]
 ComparedStrategyStatus = Literal["success", "error"]

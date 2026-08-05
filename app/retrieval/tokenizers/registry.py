@@ -20,7 +20,7 @@ class TokenizerRegistry:
         """注册分词器实例提供者。"""
 
         if not isinstance(name, str):
-            raise ValueError("tokenizer 策略名称必须是字符串")
+            raise TypeError("tokenizer 策略名称必须是字符串")
         normalized_name = name.strip()
         if not normalized_name:
             raise ValueError("tokenizer 策略名称不能为空")

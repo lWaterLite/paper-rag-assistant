@@ -53,7 +53,7 @@ class EvidenceTransformStage:
         try:
             result = self._transformer.transform(request)
             self._validate_result(request, result.candidates)
-        except Exception as exc:
+        except (AppError, OSError, RuntimeError, TypeError, ValueError) as exc:
             if self._config.failure_mode == "fail_open":
                 return EvidenceTransformStageResult(
                     candidates=passthrough_candidates(request.chunks),

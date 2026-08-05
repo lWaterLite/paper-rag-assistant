@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Protocol
 
-from app.retrieval.models import RetrievedChunk
 from app.retrieval.context.evidence_transformers.models import EvidenceCandidate
 from app.retrieval.context.token_estimators.base import TokenEstimator
+from app.retrieval.models import RetrievedChunk
 
 
 @dataclass(frozen=True, slots=True)

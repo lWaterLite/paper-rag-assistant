@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.retrieval.models import RetrievedChunk
 from app.retrieval.configuration.retrieval import RetrievalStrategy
+from app.retrieval.models import RetrievedChunk
 
 
 @dataclass(frozen=True, slots=True)

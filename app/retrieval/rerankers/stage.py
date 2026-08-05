@@ -47,7 +47,7 @@ class RerankStage:
                 for rank, item in enumerate(reranked, start=1)
             ]
             self._validate_reranked_candidates(chunks, ranked_chunks)
-        except Exception as exc:
+        except (AppError, OSError, RuntimeError, TypeError, ValueError) as exc:
             if self._config.failure_mode == "fail_open":
                 return RetrievalStageResult(
                     chunks=list(chunks),

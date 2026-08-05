@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-
 EvidenceTransformFailureMode = Literal["fail_open", "fail_closed"]
 
 

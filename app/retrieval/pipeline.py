@@ -9,15 +9,15 @@ from pathlib import Path
 from typing import Protocol
 
 from app.core.errors import AppError, ErrorCode
-from app.retrieval.models import RetrievedChunk
 from app.core.tracing import RagTrace
 from app.retrieval.comparison import RetrievalComparisonResult
 from app.retrieval.comparison.models import (
-    ComparisonStatus,
     ComparedChunkOverlap,
     ComparedStrategyResult,
+    ComparisonStatus,
 )
 from app.retrieval.configuration import RetrievalConfig, RetrievalStrategy
+from app.retrieval.models import RetrievedChunk
 from app.retrieval.pipeline_types import RetrievalPipelineContext, RetrievalStageResult
 from app.retrieval.reporting.comparison_reporter import RetrievalComparisonReporter
 from app.retrieval.reporting.models import (
@@ -28,8 +28,8 @@ from app.retrieval.reporting.models import (
     RetrievalStageObservation,
 )
 from app.retrieval.reporting.reporter import (
-    RetrievalReportWriteResult,
     RetrievalReporter,
+    RetrievalReportWriteResult,
 )
 from app.retrieval.rerankers import Reranker, RerankingConfig
 from app.retrieval.rerankers.stage import RerankStage
@@ -242,7 +242,7 @@ class RetrievalPipeline:
                 )
             )
             observations.extend(stage_observations)
-        except Exception as exc:
+        except (AppError, OSError, RuntimeError, TypeError, ValueError) as exc:
             error_code = (
                 exc.code if isinstance(exc, AppError) else ErrorCode.RETRIEVAL_FAILED
             )
@@ -383,7 +383,7 @@ class RetrievalPipeline:
             started = time.perf_counter()
             try:
                 stage_result = stage.process(processed, context)
-            except Exception as exc:
+            except (AppError, OSError, RuntimeError, TypeError, ValueError) as exc:
                 error_message = exc.message if isinstance(exc, AppError) else str(exc)
                 detail = {"error_message": error_message}
                 observations.append(

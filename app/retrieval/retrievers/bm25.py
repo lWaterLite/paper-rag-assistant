@@ -7,9 +7,9 @@ from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from app.retrieval.models import RetrievedChunk
 from app.ingest.chunking.models import DocumentChunk
 from app.retrieval.configuration import BM25Config
+from app.retrieval.models import RetrievedChunk
 from app.retrieval.retrievers.result_builder import RetrievedChunkBuilder
 from app.retrieval.tokenizers import Tokenizer
 
@@ -56,7 +56,7 @@ class BM25Index:
         *,
         config: BM25Config,
         tokenizer: Tokenizer,
-    ) -> "BM25Index":
+    ) -> BM25Index:
         """根据 chunks 创建 BM25 索引。"""
 
         return cls(chunks, config, tokenizer)

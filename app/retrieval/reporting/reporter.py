@@ -5,6 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from app.retrieval.configuration import RetrievalConfig
+from app.retrieval.configuration.postprocessing import PostProcessingConfig
+from app.retrieval.configuration.postprocessing.profile import PostProcessingProfile
+from app.retrieval.context import ContextPackerConfig
+from app.retrieval.context.evidence_transformers import EvidenceTransformationConfig
 from app.retrieval.reporting.config import RetrievalReportConfig
 from app.retrieval.reporting.models import (
     RetrievalConfigSnapshot,
@@ -13,11 +18,6 @@ from app.retrieval.reporting.models import (
     RetrievalRuntimeSnapshot,
 )
 from app.retrieval.reporting.writer import RetrievalReportWriter
-from app.retrieval.configuration.postprocessing import PostProcessingConfig
-from app.retrieval.configuration.postprocessing.profile import PostProcessingProfile
-from app.retrieval.configuration import RetrievalConfig
-from app.retrieval.context import ContextPackerConfig
-from app.retrieval.context.evidence_transformers import EvidenceTransformationConfig
 from app.retrieval.rerankers import RerankingConfig
 
 
@@ -45,7 +45,7 @@ class RetrievalReporter:
         self._writer = writer
 
     @classmethod
-    def disabled(cls) -> "RetrievalReporter":
+    def disabled(cls) -> RetrievalReporter:
         """创建显式禁用的 reporter，适合独立组件测试。"""
 
         return cls(

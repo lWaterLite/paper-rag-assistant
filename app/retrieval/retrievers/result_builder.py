@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from app.retrieval.models import RetrievedChunk
 from app.ingest.chunking.models import DocumentChunk
+from app.retrieval.models import RetrievedChunk
 
 
 class RetrievedChunkBuilder:

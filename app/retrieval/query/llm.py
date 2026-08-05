@@ -97,16 +97,16 @@ def _parse_payload(content: str) -> dict[str, Any]:
     except json.JSONDecodeError as exc:
         raise ValueError("查询改写模型未返回合法 JSON") from exc
     if not isinstance(payload, dict):
-        raise ValueError("查询改写模型返回值必须是 JSON 对象")
+        raise TypeError("查询改写模型返回值必须是 JSON 对象")
     for name in ("additional_queries", "keywords"):
         value = payload.get(name, [])
-        if not isinstance(value, list) or not all(
-            isinstance(item, str) for item in value
-        ):
-            raise ValueError(f"查询改写字段 {name} 必须是字符串列表")
+        if not isinstance(value, list):
+            raise TypeError(f"查询改写字段 {name} 必须是字符串列表")
+        if not all(isinstance(item, str) for item in value):
+            raise TypeError(f"查询改写字段 {name} 必须是字符串列表")
     hyde_document = payload.get("hyde_document")
     if hyde_document is not None and not isinstance(hyde_document, str):
-        raise ValueError("查询改写字段 hyde_document 必须是字符串或 null")
+        raise TypeError("查询改写字段 hyde_document 必须是字符串或 null")
     return payload
 
 
@@ -114,6 +114,8 @@ def _require_string(payload: dict[str, Any], name: str) -> str:
     """读取非空字符串字段。"""
 
     value = payload.get(name)
-    if not isinstance(value, str) or not value.strip():
+    if not isinstance(value, str):
+        raise TypeError(f"查询改写字段 {name} 必须是字符串")
+    if not value.strip():
         raise ValueError(f"查询改写字段 {name} 必须是非空字符串")
     return value

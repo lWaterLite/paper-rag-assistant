@@ -43,6 +43,18 @@ class FailingPlanner:
         raise RuntimeError("模型超时")
 
 
+class NonObjectJsonLlmClient:
+    """模拟返回非对象 JSON 的 LLM Client。"""
+
+    @property
+    def provider_name(self) -> str:
+        return "test"
+
+    def complete(self, request: LlmRequest) -> LlmResponse:
+        _ = request
+        return LlmResponse(content="[]", model="test")
+
+
 class QueryPlanningTest(unittest.TestCase):
     """验证 QueryPlan 保留原始问题和明确的失败语义。"""
 
@@ -79,6 +91,17 @@ class QueryPlanningTest(unittest.TestCase):
         self.assertEqual(plan.primary_query, "cross-encoder reranking latency")
         self.assertEqual(plan.additional_queries, ("two-stage retrieval cost",))
         self.assertIsNotNone(plan.hyde_document)
+
+    def test_llm_planner_rejects_non_object_json_with_type_error(self) -> None:
+        planner = LlmQueryPlanner(
+            config=QueryPlanningConfig(strategy="llm"),
+            llm_client=NonObjectJsonLlmClient(),
+            model="test",
+            timeout_seconds=10,
+        )
+
+        with self.assertRaises(TypeError):
+            planner.plan("为什么需要精排？")
 
     def test_stage_falls_back_to_original_query_when_configured_fail_open(self) -> None:
         stage = QueryPlanningStage(

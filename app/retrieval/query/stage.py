@@ -29,7 +29,7 @@ class QueryPlanningStage:
 
         try:
             return self.planner.plan(cleaned_question)
-        except Exception as exc:
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
             if self.config.failure_mode == "fail_open":
                 fallback = PassthroughQueryPlanner().plan(cleaned_question)
                 return QueryPlan(

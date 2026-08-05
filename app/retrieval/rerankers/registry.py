@@ -53,7 +53,7 @@ def _normalize_name(name: str) -> str:
     """校验并规范化策略名称。"""
 
     if not isinstance(name, str):
-        raise ValueError("reranker 策略名称必须是字符串")
+        raise TypeError("reranker 策略名称必须是字符串")
     normalized_name = name.strip()
     if not normalized_name:
         raise ValueError("reranker 策略名称不能为空")

@@ -20,7 +20,7 @@ class TokenEstimatorRegistry:
         """注册一个 token estimator provider。"""
 
         if not isinstance(name, str):
-            raise ValueError("token estimator 策略名称必须是字符串")
+            raise TypeError("token estimator 策略名称必须是字符串")
         normalized_name = name.strip()
         if not normalized_name:
             raise ValueError("token estimator 策略名称不能为空")

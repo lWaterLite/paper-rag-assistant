@@ -3,18 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 
+from app.retrieval.reporting.comparison_writer import RetrievalComparisonReportWriter
 from app.retrieval.reporting.config import RetrievalReportConfig
 from app.retrieval.reporting.models import (
     RetrievalComparisonExecutionReport,
     RetrievalRuntimeSnapshot,
 )
 from app.retrieval.reporting.reporter import (
-    RetrievalReportWriteResult,
     RetrievalReporter,
+    RetrievalReportWriteResult,
 )
-from app.retrieval.reporting.comparison_writer import RetrievalComparisonReportWriter
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,7 +25,7 @@ class RetrievalComparisonReporter:
     writer: RetrievalComparisonReportWriter
 
     @classmethod
-    def disabled(cls) -> "RetrievalComparisonReporter":
+    def disabled(cls) -> RetrievalComparisonReporter:
         """创建显式禁用的 compare search reporter，适合独立组件测试。"""
 
         base_reporter = RetrievalReporter.disabled()

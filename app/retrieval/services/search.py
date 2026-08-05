@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from app.retrieval.configuration import RetrievalConfig, RetrievalStrategy
 from app.retrieval.comparison import RetrievalComparisonResult
+from app.retrieval.configuration import RetrievalConfig, RetrievalStrategy
 from app.retrieval.pipeline import (
     RetrievalComparisonPipeline,
     RetrievalPipeline,
@@ -15,7 +15,6 @@ from app.retrieval.reporting.comparison_reporter import RetrievalComparisonRepor
 from app.retrieval.reporting.reporter import RetrievalReporter
 from app.retrieval.rerankers import Reranker, RerankingConfig
 from app.retrieval.retrievers.registry import RetrieverRegistry
-
 
 SearchResult = RetrievalPipelineResult
 CompareSearchResult = RetrievalComparisonResult

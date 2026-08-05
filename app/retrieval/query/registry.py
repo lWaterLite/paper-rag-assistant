@@ -11,7 +11,6 @@ from app.retrieval.query.llm import LlmQueryPlanner
 from app.retrieval.query.passthrough import PassthroughQueryPlanner
 from app.retrieval.query.rule_based import RuleBasedQueryPlanner
 
-
 QueryPlannerBuilder = Callable[
     [QueryPlanningConfig, LlmClient, str, float], QueryPlanner
 ]

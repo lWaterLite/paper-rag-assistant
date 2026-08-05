@@ -27,7 +27,7 @@ class RetrieverRegistry:
         """注册一个检索策略 provider。"""
 
         if not isinstance(name, str):
-            raise ValueError("retriever 策略名称必须是字符串")
+            raise TypeError("retriever 策略名称必须是字符串")
         normalized_name = name.strip()
         if not normalized_name:
             raise ValueError("retriever 策略名称不能为空")
@@ -43,7 +43,7 @@ class RetrieverRegistry:
         """解析策略，并在首次使用时创建对应 Retriever。"""
 
         if not isinstance(name, str):
-            raise ValueError("retriever 策略名称必须是字符串")
+            raise TypeError("retriever 策略名称必须是字符串")
         normalized_name = name.strip()
         if not normalized_name:
             raise ValueError("retriever 策略名称不能为空")

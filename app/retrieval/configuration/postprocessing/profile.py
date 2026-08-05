@@ -35,7 +35,7 @@ class PostProcessingProfile:
     effective_context_token_limit: int
 
     @classmethod
-    def from_config(cls, config: PostProcessingConfig) -> "PostProcessingProfile":
+    def from_config(cls, config: PostProcessingConfig) -> PostProcessingProfile:
         """从已通过组合校验的 Config 构建不可变摘要。"""
 
         context_packing = config.context_packing
