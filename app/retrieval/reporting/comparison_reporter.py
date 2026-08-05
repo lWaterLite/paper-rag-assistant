@@ -10,7 +10,10 @@ from app.retrieval.reporting.models import (
     RetrievalComparisonExecutionReport,
     RetrievalRuntimeSnapshot,
 )
-from app.retrieval.reporting.reporter import RetrievalReportWriteResult, RetrievalReporter
+from app.retrieval.reporting.reporter import (
+    RetrievalReportWriteResult,
+    RetrievalReporter,
+)
 from app.retrieval.reporting.comparison_writer import RetrievalComparisonReportWriter
 
 

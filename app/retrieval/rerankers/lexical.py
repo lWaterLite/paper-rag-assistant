@@ -82,5 +82,7 @@ class LexicalReranker:
         coverage = overlap_count / len(query_tokens)
         density = overlap_count / math.sqrt(len(chunk_tokens))
         normalized_text = " ".join(chunk.text.lower().split())
-        phrase_bonus = 1.0 if normalized_query and normalized_query in normalized_text else 0.0
+        phrase_bonus = (
+            1.0 if normalized_query and normalized_query in normalized_text else 0.0
+        )
         return round(coverage * 2.0 + density + phrase_bonus, 6)

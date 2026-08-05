@@ -56,8 +56,7 @@ class RetrieverRegistry:
             if provider is None:
                 supported = ", ".join(self.list_strategies()) or "无"
                 raise ValueError(
-                    f"未知 retriever strategy：{name}，"
-                    f"当前已注册策略：{supported}"
+                    f"未知 retriever strategy：{name}，当前已注册策略：{supported}"
                 )
             if normalized_name in self._resolving:
                 raise RuntimeError(

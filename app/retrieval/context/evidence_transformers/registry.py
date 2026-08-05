@@ -10,7 +10,9 @@ from app.retrieval.context.evidence_transformers.config import (
 )
 
 
-EvidenceTransformerProvider = Callable[[EvidenceTransformationConfig], EvidenceTransformer]
+EvidenceTransformerProvider = Callable[
+    [EvidenceTransformationConfig], EvidenceTransformer
+]
 
 
 class EvidenceTransformerRegistry:

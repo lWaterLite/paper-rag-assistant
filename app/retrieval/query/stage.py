@@ -43,4 +43,3 @@ class QueryPlanningStage:
                 ErrorCode.QUERY_REWRITE_FAILED,
                 f"查询改写失败：{exc}",
             ) from exc
-

@@ -12,7 +12,9 @@ from app.retrieval.query.passthrough import PassthroughQueryPlanner
 from app.retrieval.query.rule_based import RuleBasedQueryPlanner
 
 
-QueryPlannerBuilder = Callable[[QueryPlanningConfig, LlmClient, str, float], QueryPlanner]
+QueryPlannerBuilder = Callable[
+    [QueryPlanningConfig, LlmClient, str, float], QueryPlanner
+]
 
 
 class QueryPlannerRegistry:
@@ -59,8 +61,14 @@ def build_default_query_planner_registry() -> QueryPlannerRegistry:
     """构建内置查询规划策略注册表。"""
 
     registry = QueryPlannerRegistry()
-    registry.register("passthrough", lambda _config, _client, _model, _timeout: PassthroughQueryPlanner())
-    registry.register("rule_based", lambda config, _client, _model, _timeout: RuleBasedQueryPlanner(config))
+    registry.register(
+        "passthrough",
+        lambda _config, _client, _model, _timeout: PassthroughQueryPlanner(),
+    )
+    registry.register(
+        "rule_based",
+        lambda config, _client, _model, _timeout: RuleBasedQueryPlanner(config),
+    )
     registry.register(
         "llm",
         lambda config, client, model, timeout: LlmQueryPlanner(
@@ -80,4 +88,3 @@ def _normalize_strategy(strategy: str) -> str:
     if not normalized_strategy:
         raise ValueError("QueryPlanner strategy 不能为空")
     return normalized_strategy
-

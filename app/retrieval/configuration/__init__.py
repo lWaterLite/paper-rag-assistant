@@ -6,6 +6,7 @@ from app.retrieval.configuration.retrieval import (
     RetrievalConfig,
     RetrievalStrategy,
 )
+
 __all__ = [
     "BM25Config",
     "HybridRetrievalConfig",

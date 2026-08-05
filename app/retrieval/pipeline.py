@@ -27,7 +27,10 @@ from app.retrieval.reporting.models import (
     RetrievalExecutionReport,
     RetrievalStageObservation,
 )
-from app.retrieval.reporting.reporter import RetrievalReportWriteResult, RetrievalReporter
+from app.retrieval.reporting.reporter import (
+    RetrievalReportWriteResult,
+    RetrievalReporter,
+)
 from app.retrieval.rerankers import Reranker, RerankingConfig
 from app.retrieval.rerankers.stage import RerankStage
 from app.retrieval.retrievers.registry import RetrieverRegistry
@@ -231,10 +234,12 @@ class RetrievalPipeline:
             latest_results = merged_candidates
             candidate_count = len(latest_results)
             deduplicated_count = candidate_count
-            latest_results, stage_observations, deduplicated_count = self._apply_result_stages(
-                latest_results,
-                context,
-                trace,
+            latest_results, stage_observations, deduplicated_count = (
+                self._apply_result_stages(
+                    latest_results,
+                    context,
+                    trace,
+                )
             )
             observations.extend(stage_observations)
         except Exception as exc:
@@ -759,7 +764,9 @@ class RetrievalComparisonPipeline:
             seen.add(cleaned)
             normalized.append(cleaned)
         if not normalized:
-            raise AppError(ErrorCode.INVALID_CONFIG, "compare search 至少需要一个 retriever")
+            raise AppError(
+                ErrorCode.INVALID_CONFIG, "compare search 至少需要一个 retriever"
+            )
         return normalized
 
     @staticmethod

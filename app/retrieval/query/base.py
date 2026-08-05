@@ -12,4 +12,3 @@ class QueryPlanner(Protocol):
 
     def plan(self, question: str) -> QueryPlan:
         """保留原始意图，生成可用于检索的查询计划。"""
-

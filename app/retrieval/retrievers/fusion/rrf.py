@@ -60,9 +60,7 @@ class ReciprocalRankFusion:
                     accumulators[chunk.chunk_id] = accumulator
                     next_seen_order += 1
 
-                accumulator.score += result_set.weight / (
-                    self._rank_constant + rank
-                )
+                accumulator.score += result_set.weight / (self._rank_constant + rank)
                 accumulator.signals += (
                     RetrievalSignal(
                         retriever=result_set.source,

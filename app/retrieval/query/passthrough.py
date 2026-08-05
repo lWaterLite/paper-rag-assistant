@@ -17,4 +17,3 @@ class PassthroughQueryPlanner:
             primary_query=cleaned_question,
             strategy="passthrough",
         )
-

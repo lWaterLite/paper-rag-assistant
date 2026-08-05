@@ -33,7 +33,9 @@ class ContextPackerConfig:
         }
         invalid_names = [name for name, value in numeric_values.items() if value <= 0]
         if invalid_names:
-            raise ValueError(f"context packing 配置必须大于 0：{', '.join(invalid_names)}")
+            raise ValueError(
+                f"context packing 配置必须大于 0：{', '.join(invalid_names)}"
+            )
         if self.max_context_tokens > self.model_context_window:
             raise ValueError("max_context_tokens 不能大于 model_context_window")
 
@@ -163,7 +165,9 @@ class ContextPacker(Protocol):
 class TokenAwareContextPacker:
     """按 token 预算选择证据段，并保留完整的原始 chunk 来源。"""
 
-    def __init__(self, *, config: ContextPackerConfig, token_estimator: TokenEstimator) -> None:
+    def __init__(
+        self, *, config: ContextPackerConfig, token_estimator: TokenEstimator
+    ) -> None:
         self._config = config
         self._token_estimator = token_estimator
 
@@ -171,7 +175,9 @@ class TokenAwareContextPacker:
         """在模型窗口约束内组装上下文。"""
 
         question_tokens = self._token_estimator.count_text(request.query)
-        available_context_tokens = self._resolve_available_context_tokens(question_tokens)
+        available_context_tokens = self._resolve_available_context_tokens(
+            question_tokens
+        )
         dropped_chunks: list[DroppedChunk] = []
         unique_evidence = self._deduplicate_evidence(
             request.candidates,
@@ -327,7 +333,9 @@ class TokenAwareContextPacker:
 
         candidates: list[ContextCandidate] = []
         for item in evidence:
-            if candidates and _is_adjacent(candidates[-1].primary_chunk, item.primary_chunk):
+            if candidates and _is_adjacent(
+                candidates[-1].primary_chunk, item.primary_chunk
+            ):
                 previous = candidates[-1]
                 candidates[-1] = ContextCandidate(
                     text=f"{previous.text}\n{item.text}",
@@ -378,7 +386,9 @@ class TokenAwareContextPacker:
 
         for candidate in candidates:
             for item in candidate.evidence:
-                _append_dropped_evidence(item, dropped_chunks, reason=reason, detail=detail)
+                _append_dropped_evidence(
+                    item, dropped_chunks, reason=reason, detail=detail
+                )
 
     @staticmethod
     def _append_used_chunks(
@@ -413,7 +423,9 @@ class TokenAwareContextPacker:
             chunk.page_end for chunk in source_chunks if chunk.page_end is not None
         ]
         sections = tuple(
-            dict.fromkeys(chunk.section for chunk in source_chunks if chunk.section is not None)
+            dict.fromkeys(
+                chunk.section for chunk in source_chunks if chunk.section is not None
+            )
         )
         return ContextSegment(
             citation_id=citation_id,

@@ -46,9 +46,7 @@ class TokenEstimatorRegistry:
                 f"token estimator provider 返回了无效对象：{config.strategy}"
             )
         if not isinstance(getattr(estimator, "name", None), str):
-            raise TypeError(
-                f"token estimator provider 缺少有效名称：{config.strategy}"
-            )
+            raise TypeError(f"token estimator provider 缺少有效名称：{config.strategy}")
         return estimator
 
     def list_strategies(self) -> tuple[str, ...]:

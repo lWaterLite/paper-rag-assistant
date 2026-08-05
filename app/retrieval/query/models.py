@@ -78,4 +78,3 @@ def _normalize_distinct_values(
             seen.add(cleaned)
             normalized.append(cleaned)
     return tuple(normalized)
-

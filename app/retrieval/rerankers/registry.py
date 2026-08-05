@@ -38,13 +38,9 @@ class RerankerRegistry:
             )
         reranker = provider(config)
         if not callable(getattr(reranker, "rerank", None)):
-            raise TypeError(
-                f"reranker provider 返回了无效对象：{config.strategy}"
-            )
+            raise TypeError(f"reranker provider 返回了无效对象：{config.strategy}")
         if not isinstance(getattr(reranker, "name", None), str):
-            raise TypeError(
-                f"reranker provider 缺少有效名称：{config.strategy}"
-            )
+            raise TypeError(f"reranker provider 缺少有效名称：{config.strategy}")
         return reranker
 
     def list_strategies(self) -> tuple[str, ...]:

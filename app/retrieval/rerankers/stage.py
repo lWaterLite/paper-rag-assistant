@@ -94,6 +94,5 @@ class RerankStage:
             missing_chunk_ids = original_chunk_ids - set(reranked_chunk_ids)
             raise AppError(
                 ErrorCode.RERANK_FAILED,
-                "reranker 没有返回完整候选集："
-                + ", ".join(sorted(missing_chunk_ids)),
+                "reranker 没有返回完整候选集：" + ", ".join(sorted(missing_chunk_ids)),
             )

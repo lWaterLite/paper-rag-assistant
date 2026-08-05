@@ -62,9 +62,7 @@ class RetrievalReportWriter:
             },
             "runtime": asdict(report.runtime),
             "stages": [asdict(stage) for stage in report.stage_observations],
-            "results": [
-                _serialize_result(result, config) for result in report.results
-            ],
+            "results": [_serialize_result(result, config) for result in report.results],
             "failure": {
                 "error_code": report.error_code,
                 "error_message": report.error_message,

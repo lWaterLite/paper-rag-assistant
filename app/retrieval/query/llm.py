@@ -31,7 +31,10 @@ class LlmQueryPlanner:
             LlmRequest(
                 messages=(
                     LlmMessage(role="system", content=_SYSTEM_PROMPT),
-                    LlmMessage(role="user", content=_build_user_prompt(cleaned_question, self.config)),
+                    LlmMessage(
+                        role="user",
+                        content=_build_user_prompt(cleaned_question, self.config),
+                    ),
                 ),
                 model=self.model,
                 temperature=0.0,
@@ -45,8 +48,12 @@ class LlmQueryPlanner:
         if not self.config.multi_query_enabled:
             additional_queries = ()
         else:
-            additional_queries = additional_queries[: self.config.max_additional_queries]
-        hyde_document = payload.get("hyde_document") if self.config.hyde_enabled else None
+            additional_queries = additional_queries[
+                : self.config.max_additional_queries
+            ]
+        hyde_document = (
+            payload.get("hyde_document") if self.config.hyde_enabled else None
+        )
         return QueryPlan(
             original_query=cleaned_question,
             primary_query=_require_string(payload, "primary_query"),
@@ -93,7 +100,9 @@ def _parse_payload(content: str) -> dict[str, Any]:
         raise ValueError("查询改写模型返回值必须是 JSON 对象")
     for name in ("additional_queries", "keywords"):
         value = payload.get(name, [])
-        if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        if not isinstance(value, list) or not all(
+            isinstance(item, str) for item in value
+        ):
             raise ValueError(f"查询改写字段 {name} 必须是字符串列表")
     hyde_document = payload.get("hyde_document")
     if hyde_document is not None and not isinstance(hyde_document, str):
@@ -108,4 +117,3 @@ def _require_string(payload: dict[str, Any], name: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"查询改写字段 {name} 必须是非空字符串")
     return value
-

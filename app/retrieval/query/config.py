@@ -24,4 +24,3 @@ class QueryPlanningConfig:
         if self.max_additional_queries < 0:
             raise ValueError("max_additional_queries 不能小于 0")
         object.__setattr__(self, "strategy", strategy)
-
