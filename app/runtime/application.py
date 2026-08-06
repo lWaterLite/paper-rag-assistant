@@ -15,7 +15,6 @@ from app.pipeline import RagPipeline
 from app.retrieval.retrievers import RetrieverRegistry
 from app.retrieval.services.search import CompareSearchService, SearchService
 
-
 if TYPE_CHECKING:
     from app.factory.application import ApplicationFactory
 
