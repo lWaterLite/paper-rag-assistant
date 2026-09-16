@@ -8,6 +8,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field, ValidationError
 
 from app.core.errors import AppError, ErrorCode
+from app.core.settings.evaluation import EvaluationSettings
 from app.core.settings.generation import GenerationSettings
 from app.core.settings.indexing import IndexingSettings
 from app.core.settings.ingestion import IngestionSettings
@@ -21,6 +22,7 @@ class ProjectSettings(BaseModel):
     indexing: IndexingSettings = Field(default_factory=IndexingSettings)
     retrieval: RetrievalSettings = Field(default_factory=RetrievalSettings)
     generation: GenerationSettings = Field(default_factory=GenerationSettings)
+    evaluation: EvaluationSettings = Field(default_factory=EvaluationSettings)
 
     @classmethod
     def from_toml(cls, path: Path | str = Path("settings.toml")) -> ProjectSettings:

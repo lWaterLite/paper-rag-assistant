@@ -13,11 +13,11 @@ from app.core.errors import AppError, ErrorCode
 from app.core.tracing import RagTrace
 from app.generation.answering import AnswerGenerator
 from app.generation.models import RagAnswer
-from app.retrieval.context import ContextPackRequest, ContextPacker
+from app.retrieval.context import ContextPacker, ContextPackRequest, PackedContext
 from app.retrieval.context.evidence_transformers.models import EvidenceTransformRequest
 from app.retrieval.context.evidence_transformers.stage import EvidenceTransformStage
 from app.retrieval.pipeline import RetrievalPipelineResult
-from app.retrieval.query import QueryPlanningStage
+from app.retrieval.query import QueryPlan, QueryPlanningStage
 
 
 class RetrievalService(Protocol):
@@ -45,6 +45,21 @@ class RagPipelineConfig:
             raise ValueError("RAG pipeline top_k 必须大于 0")
 
 
+@dataclass(frozen=True, slots=True)
+class RagPipelineExecutionResult:
+    """一次完整 RAG 执行的内部可观测结果。
+
+    在线 API 通常只需要返回 `RagAnswer`；离线评测则需要同时检查查询计划、检索结果和
+    实际进入上下文的证据。本对象提供这条受控观察边界，而不让评测模块绕过 pipeline
+    重新执行各阶段。
+    """
+
+    answer: RagAnswer
+    query_plan: QueryPlan
+    retrieval_result: RetrievalPipelineResult
+    packed_context: PackedContext
+
+
 class RagPipeline:
     """在线 RAG 问答 pipeline。"""
 
@@ -65,15 +80,32 @@ class RagPipeline:
         self._query_planning_stage = query_planning_stage
         self._answer_generator = answer_generator
 
-    def ask(self, question: str, *, top_k: int | None = None) -> RagAnswer:
-        """根据用户问题执行一次 RAG 问答。"""
+    def ask(
+        self,
+        question: str,
+        *,
+        top_k: int | None = None,
+        retriever: str | None = None,
+    ) -> RagAnswer:
+        """根据用户问题执行一次 RAG 问答，并只返回对外回答。"""
+
+        return self.execute(question, top_k=top_k, retriever=retriever).answer
+
+    def execute(
+        self,
+        question: str,
+        *,
+        top_k: int | None = None,
+        retriever: str | None = None,
+    ) -> RagPipelineExecutionResult:
+        """执行完整链路并保留评测所需的阶段产物。"""
 
         trace = RagTrace()
 
         started = time.perf_counter()
         try:
             query_plan = self._query_planning_stage.plan(question)
-        except Exception as exc:
+        except (AppError, OSError, RuntimeError, TypeError, ValueError) as exc:
             self._record_failure_and_raise(
                 trace=trace,
                 stage="query_planning",
@@ -96,9 +128,10 @@ class RagPipeline:
                 query_plan.original_query,
                 retrieval_queries=query_plan.retrieval_queries,
                 top_k=self._config.top_k if top_k is None else top_k,
+                retriever=retriever,
             )
             retrieved_chunks = retrieval_result.results
-        except Exception as exc:
+        except (AppError, OSError, RuntimeError, TypeError, ValueError) as exc:
             self._record_failure_and_raise(
                 trace=trace,
                 stage="retrieval",
@@ -108,6 +141,7 @@ class RagPipeline:
                 detail={
                     "query": query_plan.original_query,
                     "top_k": self._config.top_k if top_k is None else top_k,
+                    "retriever": retriever,
                     "retrieval_trace_id": exc.trace_id
                     if isinstance(exc, AppError)
                     else None,
@@ -138,7 +172,7 @@ class RagPipeline:
                 EvidenceTransformRequest(query=question, chunks=retrieved_chunks)
             )
             evidence_candidates = evidence_result.candidates
-        except Exception as exc:
+        except (AppError, OSError, RuntimeError, TypeError, ValueError) as exc:
             self._record_failure_and_raise(
                 trace=trace,
                 stage="evidence_transformation",
@@ -164,7 +198,7 @@ class RagPipeline:
             packed_context = self._context_packer.pack(
                 ContextPackRequest(query=question, candidates=evidence_candidates)
             )
-        except Exception as exc:
+        except (AppError, OSError, RuntimeError, TypeError, ValueError) as exc:
             self._record_failure_and_raise(
                 trace=trace,
                 stage="context_packing",
@@ -202,7 +236,7 @@ class RagPipeline:
                 retrieved_chunks=retrieved_chunks,
                 trace=trace,
             )
-        except Exception as exc:
+        except (AppError, OSError, RuntimeError, TypeError, ValueError) as exc:
             self._record_failure_and_raise(
                 trace=trace,
                 stage="generation",
@@ -234,7 +268,13 @@ class RagPipeline:
             )
             trace.mark_success()
 
-        return replace(answer, trace=trace, latency_ms=trace.latency_ms)
+        answer = replace(answer, trace=trace, latency_ms=trace.latency_ms)
+        return RagPipelineExecutionResult(
+            answer=answer,
+            query_plan=query_plan,
+            retrieval_result=retrieval_result,
+            packed_context=packed_context,
+        )
 
     def _record_failure_and_raise(
         self,
@@ -242,7 +282,7 @@ class RagPipeline:
         trace: RagTrace,
         stage: str,
         started_at: float,
-        exc: Exception,
+        exc: AppError | OSError | RuntimeError | TypeError | ValueError,
         default_code: ErrorCode,
         detail: dict[str, Any] | None = None,
     ) -> NoReturn:

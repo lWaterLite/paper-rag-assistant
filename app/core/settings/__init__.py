@@ -1,6 +1,10 @@
 """应用配置的稳定公共入口。"""
 
 from app.core.settings.environment import EnvSettings
+from app.core.settings.evaluation import (
+    EvaluationExperimentSettings,
+    EvaluationSettings,
+)
 from app.core.settings.generation import (
     AnswerGenerationSettings,
     CitationValidationSettings,
@@ -40,14 +44,16 @@ from app.core.settings.retrieval import (
 __all__ = [
     "AnswerGenerationSettings",
     "BM25Settings",
-    "CitationValidationSettings",
     "ChunkingReportSettings",
     "ChunkingSettings",
+    "CitationValidationSettings",
     "CleaningSettings",
     "ContextPackingSettings",
     "DocumentSourceAccessSettings",
     "EmbeddingSettings",
     "EnvSettings",
+    "EvaluationExperimentSettings",
+    "EvaluationSettings",
     "EvidenceTransformationSettings",
     "GenerationSettings",
     "HybridRetrievalSettings",
@@ -55,8 +61,8 @@ __all__ = [
     "IndexingSettings",
     "IngestionReportSettings",
     "IngestionSettings",
-    "LoaderSettings",
     "LlmSettings",
+    "LoaderSettings",
     "PdfCleanerSettings",
     "ProjectSettings",
     "QueryPlanningSettings",

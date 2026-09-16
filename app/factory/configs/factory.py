@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from app.core.settings import EnvSettings, ProjectSettings
+from app.evaluation.configuration import EvaluationConfig
+from app.factory.configs.evaluation import EvaluationConfigAdapter
 from app.factory.configs.generation import GenerationConfigAdapter
 from app.factory.configs.indexing import IndexingConfigAdapter
 from app.factory.configs.ingestion import IngestionConfigAdapter
@@ -52,6 +54,7 @@ class ConfigFactory:
     retrieval: RetrievalConfigAdapter = field(init=False)
     generation: GenerationConfigAdapter = field(init=False)
     pipeline: PipelineConfigAdapter = field(init=False)
+    evaluation: EvaluationConfigAdapter = field(init=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -81,6 +84,11 @@ class ConfigFactory:
             self,
             "pipeline",
             PipelineConfigAdapter(self.project_settings.retrieval),
+        )
+        object.__setattr__(
+            self,
+            "evaluation",
+            EvaluationConfigAdapter(self.project_settings.evaluation),
         )
 
     def build_loader_config(self) -> LocalDocumentLoaderConfig:
@@ -197,3 +205,8 @@ class ConfigFactory:
         """返回缓存的 Citation 校验 Config。"""
 
         return self.generation.citation_validation
+
+    def build_evaluation_config(self) -> EvaluationConfig:
+        """返回缓存的离线评测 Config。"""
+
+        return self.evaluation.evaluation

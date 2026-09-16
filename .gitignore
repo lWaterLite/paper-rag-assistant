@@ -11,3 +11,6 @@ data/raw/papers/pdf
 data/indexes
 
 .env
+
+evaluation/datasets
+!evaluation/datasets/.gitkeep

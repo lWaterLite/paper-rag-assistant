@@ -121,6 +121,35 @@ def handle_search(args: argparse.Namespace) -> None:
         print(f"- retrieval_report：{result.report_path.as_posix()}")
 
 
+def handle_evaluate(args: argparse.Namespace) -> None:
+    """在固定索引和黄金评测集上运行 settings.toml 中的全部实验 profile。"""
+
+    env_settings = EnvSettings.from_env()
+    project_settings = ProjectSettings.from_toml()
+    factory = ApplicationFactory(
+        env_settings=env_settings, project_settings=project_settings
+    )
+    if args.use_existing_index:
+        index = factory.build_rag_index_from_storage()
+    else:
+        index, _ = build_index(Path(args.source), factory)
+
+    results = factory.build_evaluation_suite(index).run_all()
+    print("评测完成：")
+    for result in results:
+        summary = result.run.summary
+        print(f"- experiment：{result.run.experiment_name}")
+        print(
+            "  "
+            f"成功={summary.success_case_count}/{summary.total_case_count} "
+            f"失败={summary.error_case_count}"
+        )
+        for name, aggregate in sorted(summary.metrics.items()):
+            if aggregate.value is not None:
+                print(f"  {name}={aggregate.value:.4f} (n={aggregate.evaluated_case_count})")
+        print(f"  report：{result.artifacts.report_path}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="paper-rag-assistant RAG 工程练习入口")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -153,6 +182,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--use-existing-index", action="store_true", help="直接加载已有索引，不重新构建"
     )
     ask_parser.set_defaults(handler=handle_ask)
+
+    evaluate_parser = subparsers.add_parser(
+        "evaluate", help="运行 settings.toml 中定义的全部离线评测实验"
+    )
+    evaluate_parser.add_argument(
+        "--source", default="data/raw/papers", help="未使用已有索引时的文档目录"
+    )
+    evaluate_parser.add_argument(
+        "--use-existing-index", action="store_true", help="直接加载已有索引，不重新构建"
+    )
+    evaluate_parser.set_defaults(handler=handle_evaluate)
 
     return parser
 

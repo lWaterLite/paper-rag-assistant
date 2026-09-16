@@ -11,7 +11,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Protocol
+from typing import ClassVar, Protocol
 
 from app.core.errors import AppError, ErrorCode
 from app.ingest.models import RawDocument
@@ -68,7 +68,7 @@ class DocumentIdentityBuilder:
     def build_version_id(doc_id: str, content_hash: str) -> str:
         """根据文档身份和内容指纹生成版本 ID。"""
 
-        digest = hashlib.sha1(f"{doc_id}:{content_hash}".encode("utf-8")).hexdigest()[
+        digest = hashlib.sha1(f"{doc_id}:{content_hash}".encode()).hexdigest()[
             :12
         ]
         return f"v_{digest}"
@@ -100,8 +100,15 @@ class LocalDocumentLoader:
     Markdown、HTML、TXT 会同时保存 raw_text，方便 parser 继续处理。
     """
 
-    supported_suffixes = {".pdf", ".md", ".markdown", ".html", ".htm", ".txt"}
-    text_suffixes = {".md", ".markdown", ".html", ".htm", ".txt"}
+    supported_suffixes: ClassVar[set[str]] = {
+        ".pdf",
+        ".md",
+        ".markdown",
+        ".html",
+        ".htm",
+        ".txt",
+    }
+    text_suffixes: ClassVar[set[str]] = {".md", ".markdown", ".html", ".htm", ".txt"}
 
     def __init__(
         self,
@@ -134,16 +141,7 @@ class LocalDocumentLoader:
         return documents
 
     def iter_supported_files(self, source_dir: Path) -> Iterable[Path]:
-        """按稳定顺序遍历支持的文件。
-
-        TODO 子模块2-练习1：
-        请把这里升级成真实工程可用的目录扫描策略。
-        需要支持：
-        1. 可配置是否递归扫描子目录。
-        2. 跳过隐藏目录和工程产物目录，例如 .git、.tmp_tests、__pycache__、data/indexes。
-        3. 跳过临时文件，例如以 "~$" 开头或以 ".tmp" 结尾的文件。
-        4. 在不改变 load_file 职责的前提下，保持输出路径顺序稳定。
-        """
+        """按稳定顺序遍历符合扫描配置的支持文件。"""
 
         globber = source_dir.rglob if self._config.recursive else source_dir.glob
 
@@ -168,10 +166,7 @@ class LocalDocumentLoader:
         if self._matches_ignored_relative_path(relative):
             return True
 
-        if self._is_temporary_file(path):
-            return True
-
-        return False
+        return self._is_temporary_file(path)
 
     def _has_ignored_directory(self, relative: Path, *, is_dir: bool) -> bool:
         """判断路径中是否包含需要跳过的目录名。"""

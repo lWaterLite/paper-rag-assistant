@@ -153,3 +153,30 @@ invalid_output_mode = "fail_closed"
 require_citations_when_evidence = true
 require_inline_ids_match_payload = true
 require_abstention_reason = true
+
+
+# =============================================================================
+# 5. Evaluation：黄金评测集 -> 可复现实验运行 -> 指标与失败案例
+# =============================================================================
+
+[evaluation]
+dataset_path = "evaluation/datasets/papers_eval_v1.jsonl"
+dataset_id = "papers_eval"
+dataset_version = "v1"
+output_dir = "evaluation/runs"
+include_answer_text = true
+
+[evaluation.experiments.vector_baseline]
+retriever = "vector"
+top_k = 5
+reranking_enabled = false
+
+[evaluation.experiments.vector_rerank]
+retriever = "vector"
+top_k = 5
+reranking_enabled = true
+
+[evaluation.experiments.hybrid_rerank]
+retriever = "hybrid"
+top_k = 5
+reranking_enabled = true

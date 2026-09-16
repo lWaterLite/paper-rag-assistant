@@ -5,7 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from app.core.settings import EnvSettings, ProjectSettings
+from app.evaluation.configuration import ExperimentConfig
+from app.evaluation.runner import EvaluationSuiteRunner
 from app.factory.configs import ConfigFactory
+from app.factory.evaluation import EvaluationFactory
 from app.factory.generation import GenerationFactory
 from app.factory.indexing.factory import IndexingFactory
 from app.factory.ingestion import IngestionFactory
@@ -90,6 +93,7 @@ class ApplicationFactory:
     query: QueryFactory = field(init=False)
     generation: GenerationFactory = field(init=False)
     pipelines: PipelineFactory = field(init=False)
+    evaluation: EvaluationFactory = field(init=False)
 
     def __post_init__(self) -> None:
         self.configs = ConfigFactory(
@@ -181,6 +185,7 @@ class ApplicationFactory:
             query=self.query,
             generation=self.generation,
         )
+        self.evaluation = EvaluationFactory(configs=self.configs)
 
     def build_index_builder(
         self,
@@ -252,3 +257,42 @@ class ApplicationFactory:
             context_packer=context_packer,
             answer_generator=answer_generator,
         )
+
+    def build_evaluation_suite(self, index: RagIndex) -> EvaluationSuiteRunner:
+        """创建在同一索引版本上运行全部评测 profile 的离线协调器。"""
+
+        return self.evaluation.build_suite_runner(
+            index=index,
+            target_builder=lambda experiment: self._build_evaluation_pipeline(
+                index, experiment
+            ),
+        )
+
+    def _build_evaluation_pipeline(
+        self,
+        index: RagIndex,
+        experiment: ExperimentConfig,
+    ) -> RagPipeline:
+        """为实验 profile 创建隔离 pipeline，避免原地修改应用 Settings。"""
+
+        experiment_settings = self.project_settings.model_copy(deep=True)
+        experiment_settings.retrieval.strategy = experiment.retriever
+        experiment_settings.retrieval.top_k = experiment.top_k
+        experiment_settings.retrieval.reranking.enabled = experiment.reranking_enabled
+        experiment_factory = ApplicationFactory(
+            env_settings=self.env_settings,
+            project_settings=experiment_settings,
+            chunker_registry=self.chunker_registry,
+            tokenizer_registry=self.tokenizer_registry,
+            reranker_registry=self.reranker_registry,
+            token_estimator_registry=self.token_estimator_registry,
+            evidence_transformer_registry=self.evidence_transformer_registry,
+            embedding_registry=self.embedding_registry,
+            vector_repository_registry=self.vector_repository_registry,
+            document_repository_registry=self.document_repository_registry,
+            chunk_repository_registry=self.chunk_repository_registry,
+            manifest_repository_registry=self.manifest_repository_registry,
+            llm_client_registry=self.llm_client_registry,
+            query_planner_registry=self.query_planner_registry,
+        )
+        return experiment_factory.build_rag_pipeline(index)
